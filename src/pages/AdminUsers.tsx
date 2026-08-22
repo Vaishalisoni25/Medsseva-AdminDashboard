@@ -179,8 +179,13 @@ export const AdminUsersPage: React.FC = () => {
   };
 
   const toggleModuleAll = (moduleKey: string) => {
-    const modulePerms = allPermissions.filter(p => p.module === moduleKey);
-    const allSelected = modulePerms.every(p => selectedPerms.has(p.id));
+    const modDef = MODULE_PERMISSIONS.find(m => m.module === moduleKey);
+    if (!modDef) return;
+    const modulePerms = allPermissions.filter(p =>
+      (p.module === moduleKey || (moduleKey === 'lab_tests' && p.module === 'tests') || (moduleKey === 'audit_logs' && p.module === 'logs')) &&
+      modDef.actions.some(act => act === p.action || (act === 'edit' && p.action === 'update') || (act === 'update' && p.action === 'edit'))
+    );
+    const allSelected = modulePerms.length > 0 && modulePerms.every(p => selectedPerms.has(p.id));
     setSelectedPerms(prev => {
       const next = new Set(prev);
       modulePerms.forEach(p => allSelected ? next.delete(p.id) : next.add(p.id));
@@ -784,8 +789,9 @@ export const AdminUsersPage: React.FC = () => {
 
                 <div className="space-y-2 border border-border rounded-xl overflow-hidden max-h-60 overflow-y-auto">
                   {MODULE_PERMISSIONS.map(mod => {
-                    const modulePerms = allPermissions.filter(
-                      p => p.module === mod.module && mod.actions.includes(p.action)
+                    const modulePerms = allPermissions.filter(p =>
+                      (p.module === mod.module || (mod.module === 'lab_tests' && p.module === 'tests') || (mod.module === 'audit_logs' && p.module === 'logs')) &&
+                      mod.actions.some(act => act === p.action || (act === 'edit' && p.action === 'update') || (act === 'update' && p.action === 'edit'))
                     );
                     const allSelected = modulePerms.length > 0 && modulePerms.every(p => selectedPerms.has(p.id));
                     return (
@@ -802,7 +808,10 @@ export const AdminUsersPage: React.FC = () => {
                         </div>
                         <div className="px-4 py-1.5 flex flex-wrap gap-2.5">
                           {mod.actions.map(action => {
-                            const perm = allPermissions.find(p => p.module === mod.module && p.action === action);
+                            const perm = allPermissions.find(p =>
+                              (p.module === mod.module || (mod.module === 'lab_tests' && p.module === 'tests') || (mod.module === 'audit_logs' && p.module === 'logs')) &&
+                              (p.action === action || (action === 'edit' && p.action === 'update') || (action === 'update' && p.action === 'edit'))
+                            );
                             if (!perm) return null;
                             const checked = selectedPerms.has(perm.id);
                             return (
