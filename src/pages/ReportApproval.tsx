@@ -71,6 +71,7 @@ const buildBranchAndDoctor = useCallback(() => {
           regNo: selectedReport.doctorRegNo || '',
           designation: selectedReport.doctorDesignation || '',
           verifiedAt: selectedReport.doctorVerifiedAt || new Date().toISOString(),
+          signatureUrl: selectedReport.doctorSignatureUrl || selectedReport.signatureUrl || '',
         }
       : undefined;
     return { branch, doctor };

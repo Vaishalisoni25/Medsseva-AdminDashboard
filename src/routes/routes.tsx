@@ -22,6 +22,8 @@ import { InventoryPage } from '@/pages/Inventory';
 import { SupportPage } from '@/pages/Support';
 import { RolesPermissionsPage } from '@/pages/RolesPermissions';
 import { AdminUsersPage } from '@/pages/AdminUsers';
+import { DoctorsPage } from '@/pages/Doctors';
+import { StaffPage } from '@/pages/Staff';
 import { UnauthorizedPage } from '@/pages/Unauthorized';
 import Branches from '../pages/Branches';
 import { PathologyPartnersPage } from '@/pages/PathologyPartners';
@@ -58,6 +60,22 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
             <AdminUsersPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'doctors',
+        element: (
+          <ProtectedRoute permission="doctors.view">
+            <DoctorsPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'staff',
+        element: (
+          <ProtectedRoute permission="staff.view">
+            <StaffPage />
           </ProtectedRoute>
         ),
       },

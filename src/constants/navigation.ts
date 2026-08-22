@@ -20,7 +20,9 @@ import {
   ShieldCheck,
   MapPin,
  Microscope,
-  NotepadText
+  NotepadText,
+  Stethoscope,
+  Briefcase,
 } from 'lucide-react';
 import { UserRole } from '../types';
 
@@ -45,6 +47,18 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     path: '/users',
     icon: Users,
     moduleKey: 'users',
+  },
+  {
+    title: 'Doctors',
+    path: '/doctors',
+    icon: Stethoscope,
+    moduleKey: 'doctors',
+  },
+  {
+    title: 'Staff / Employees',
+    path: '/staff',
+    icon: Briefcase,
+    moduleKey: 'staff',
   },
 
   {

@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { branchService, Branch } from '../services/branch.service';
+import { doctorService } from '../services/api';
 import { useToast } from '../components/Toast';
 
 type Flag = 'NORMAL' | 'HIGH' | 'LOW' | 'CRITICAL_HIGH' | 'CRITICAL_LOW' | 'PENDING';
@@ -269,16 +270,22 @@ const toast = useToast();
   const [verification, setVerification] = useState<VerificationDetails>(emptyVerification());
   const [selectedBranchDetails, setSelectedBranchDetails] = useState<Branch | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [availableDoctors, setAvailableDoctors] = useState<any[]>([]);
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingParam, setEditingParam] = useState<{ groupIdx: number; paramIdx: number } | null>(null);
 
-useReportsQuery();
+  useReportsQuery();
   useBookingsForReportQuery();
 
   useEffect(() => {
     branchService.getAll().then(res => {
       if (res?.data) setBranches(res.data);
+    }).catch(() => {});
+
+    doctorService.getDoctors().then(docs => {
+      if (Array.isArray(docs)) setAvailableDoctors(docs);
     }).catch(() => {});
   }, []);
 
@@ -828,9 +835,52 @@ const filteredBookings = useMemo(() => {
                   </div>
 
                   <div className="space-y-3 pt-3 border-t border-border">
-                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                      <UserCheck className="h-3 w-3" /> Doctor / Verifier Details
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                      <span className="flex items-center gap-1.5"><UserCheck className="h-3 w-3 text-primary" /> Doctor / Verifier Details</span>
+                      {availableDoctors.length > 0 && (
+                        <span className="text-[10px] font-normal text-teal-600 dark:text-teal-400">
+                          {availableDoctors.length} Registered Doctor{availableDoctors.length > 1 ? 's' : ''} available
+                        </span>
+                      )}
                     </div>
+
+                    {/* Area / Branch Doctor Dropdown */}
+                    <div className="bg-primary/5 border border-primary/20 rounded-xl p-3">
+                      <label className="text-[10px] font-bold text-primary mb-1 block uppercase">
+                        Select Doctor from Registered Area / Partner List
+                      </label>
+                      <select
+                        value={selectedDoctorId}
+                        onChange={e => {
+                          const docId = e.target.value;
+                          setSelectedDoctorId(docId);
+                          const doc = availableDoctors.find(d => d.id === docId);
+                          if (doc) {
+                            setVerification(v => ({
+                              ...v,
+                              doctorName: doc.name,
+                              doctorQualification: doc.qualification || '',
+                              doctorRegNo: doc.registrationNo || '',
+                              doctorDesignation: doc.designation || 'Senior Pathologist',
+                              doctorSignatureUrl: doc.signatureUrl || '',
+                            }));
+                          }
+                        }}
+                        className="w-full text-xs font-semibold bg-background border border-primary/30 rounded-lg px-2.5 py-2 outline-none focus:ring-2 focus:ring-primary/20"
+                      >
+                        <option value="">-- Choose Registered Doctor (Auto-fill) --</option>
+                        {/* Doctors for current branch / area first */}
+                        {availableDoctors.map(d => {
+                          const isMatchBranch = verification.reportBranchId && d.branchId === verification.reportBranchId;
+                          return (
+                            <option key={d.id} value={d.id}>
+                              {d.name} ({d.qualification || 'MBBS'} - Reg: {d.registrationNo}) {isMatchBranch ? '📍 [Nearby / Branch Doctor]' : (d.branch?.name ? `[${d.branch.name}]` : '')}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
                         <label className="text-[10px] font-bold text-muted-foreground mb-1 block">Doctor Name</label>

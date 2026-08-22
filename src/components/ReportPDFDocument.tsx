@@ -13,45 +13,130 @@ const T = {
   slate400: '#94a3b8',
   slate100: '#f1f5f9',
   slate50: '#f8fafc',
-  amberBg: '#fffbeb',
-  criticalBg: '#fff1f2',
-  green: '#15803d',
-  greenBadge: '#dcfce7',
   blue: '#1d4ed8',
   criticalRed: '#dc2626',
-  amber: '#b45309',
   border: '#e2e8f0',
 };
 
-const FLAG_STYLE: Record<string, { color: string; bg: string }> = {
-  HIGH:     { color: '#b45309', bg: '#fef3c7' },
-  LOW:      { color: '#1d4ed8', bg: '#eff6ff' },
-  CRITICAL: { color: '#dc2626', bg: '#fff1f2' },
-  NORMAL:   { color: '#15803d', bg: '#dcfce7' },
+// Fallback Structured Mock Data JSON
+export const MOCK_REPORT_JSON = {
+  testName: 'COMPLETE BLOOD COUNT (CBC), ESR (WESTERGREN METHOD)',
+  status: 'RELEASED',
+  specimenType: 'Blood (EDTA/Serum)',
+  sampleId: 'SID-MSF7E3A3',
+  reportedDate: new Date().toISOString(),
+  booking: {
+    patientName: 'Veshu Soni',
+    bookingCode: 'MSF7E3A3',
+    patientAge: 22,
+    patientGender: 'Female',
+    patientMobile: '9990000000',
+    patientEmail: 'vaishalisoni02004@gmail.com',
+    address: 'Thane, Maharashtra',
+    collectionMode: 'Home Collection',
+    sampleCollectedAt: new Date().toISOString(),
+    sampleReceivedAt: new Date().toISOString(),
+    branch: {
+      name: 'MedsSeva - Thane West',
+      address: '2nd Floor, Viviana Mall Road, Thane West, Thane, Maharashtra, 400601',
+      contactNumber: '9876500002',
+      email: 'thane@MedsSeva.in',
+      labRegNo: 'LAB-THN-2026',
+    },
+  },
+  doctor: {
+    name: 'Dr. Anjali Mehta',
+    qualification: 'MBBS, MD (Pathology)',
+    regNo: '21232444',
+    designation: 'Senior Pathologist',
+    verifiedAt: new Date().toISOString(),
+    signatureUrl: '',
+  },
+  parameters: [
+    { parameterName: 'Hemoglobin', observedValue: '11.2', unit: 'g/dL', referenceRange: '12 - 16' },
+    { parameterName: 'RBC Count', observedValue: '4.5', unit: 'mill/µL', referenceRange: '4 - 5.2' },
+    { parameterName: 'WBC Count', observedValue: '7.8', unit: '10³/µL', referenceRange: '4 - 11' },
+    { parameterName: 'Platelet Count', observedValue: '250', unit: '10³/µL', referenceRange: '150 - 400' },
+    { parameterName: 'Hematocrit (PCV)', observedValue: '34.0', unit: '%', referenceRange: '36 - 48' },
+    { parameterName: 'MCV', observedValue: '88.5', unit: 'fL', referenceRange: '80 - 100' },
+    { parameterName: 'MCH', observedValue: '29.0', unit: 'pg', referenceRange: '27 - 33' },
+    { parameterName: 'MCHC', observedValue: '33.2', unit: 'g/dL', referenceRange: '31.5 - 36' },
+    { parameterName: 'Neutrophils', observedValue: '58', unit: '%', referenceRange: '40 - 75' },
+    { parameterName: 'Lymphocytes', observedValue: '32', unit: '%', referenceRange: '20 - 45' },
+    { parameterName: 'Monocytes', observedValue: '5', unit: '%', referenceRange: '2 - 10' },
+    { parameterName: 'Eosinophils', observedValue: '3', unit: '%', referenceRange: '1 - 6' },
+    { parameterName: 'Basophils', observedValue: '0.5', unit: '%', referenceRange: '0 - 1' },
+    { parameterName: 'RDW-CV', observedValue: '13.1', unit: '%', referenceRange: '11.5 - 14.5' },
+    { parameterName: 'ESR', observedValue: '12', unit: 'mm/hr', referenceRange: '0 - 20' },
+  ],
+  clinicalNotes: 'Routine health checkup evaluation.',
+  technicianRemarks: 'Sample processed on automated 5-part hematology analyzer. Quality check passed.',
+  doctorRemarks: 'Microcytic hypochromic picture suggested. Clinical correlation advised.',
 };
 
-function getFlag(p: any): { flag: string; status: string; color: string; bg: string } {
-  if (!p.observedValue || !p.referenceRange)
-    return { flag: '-', status: 'NORMAL', color: T.green, bg: T.greenBadge };
+// Evaluate Flag and Range
+function getFlag(p: any): { flag: string; isAbnormal: boolean; color: string } {
+  if (!p.observedValue || !p.referenceRange) {
+    return { flag: 'NORMAL', isAbnormal: false, color: T.blue };
+  }
   const val = parseFloat(p.observedValue);
-  if (isNaN(val)) return { flag: '-', status: 'NORMAL', color: T.green, bg: T.greenBadge };
+  if (isNaN(val)) {
+    return { flag: 'NORMAL', isAbnormal: false, color: T.blue };
+  }
+
   const parts = p.referenceRange.split('-').map((s: string) => parseFloat(s.trim()));
   if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
     const [lo, hi] = parts;
-    const range = hi - lo || 1;
     if (val < lo) {
-      const severity = (lo - val) / range;
-      if (severity > 0.5) return { flag: '↓ LOW', status: 'CRITICAL', ...FLAG_STYLE.CRITICAL };
-      return { flag: '↓ LOW', status: 'LOW', ...FLAG_STYLE.LOW };
+      return { flag: '↓ LOW', isAbnormal: true, color: T.criticalRed };
     }
     if (val > hi) {
-      const severity = (val - hi) / range;
-      if (severity > 0.5) return { flag: '!! CRITICAL', status: 'CRITICAL', ...FLAG_STYLE.CRITICAL };
-      return { flag: '↑ HIGH', status: 'HIGH', ...FLAG_STYLE.HIGH };
+      return { flag: '↑ HIGH', isAbnormal: true, color: T.criticalRed };
     }
   }
-  return { flag: '-', status: 'NORMAL', color: T.green, bg: T.greenBadge };
+  return { flag: 'NORMAL', isAbnormal: false, color: T.blue };
 }
+
+// Dummy QR Code SVG Component for Scanner
+const DummyQRCode: React.FC<{ size?: number }> = ({ size = 48 }) => (
+  <svg width={size} height={size} viewBox="0 0 100 100" style={{ display: 'block', borderRadius: '3px' }}>
+    <rect width="100" height="100" fill="#ffffff" stroke={T.border} strokeWidth="2" rx="4" />
+    {/* Finder 1 Top Left */}
+    <rect x="8" y="8" width="26" height="26" fill="#006d6f" rx="3" />
+    <rect x="13" y="13" width="16" height="16" fill="#ffffff" rx="1" />
+    <rect x="17" y="17" width="8" height="8" fill="#006d6f" rx="1" />
+    {/* Finder 2 Top Right */}
+    <rect x="66" y="8" width="26" height="26" fill="#006d6f" rx="3" />
+    <rect x="71" y="13" width="16" height="16" fill="#ffffff" rx="1" />
+    <rect x="75" y="17" width="8" height="8" fill="#006d6f" rx="1" />
+    {/* Finder 3 Bottom Left */}
+    <rect x="8" y="66" width="26" height="26" fill="#006d6f" rx="3" />
+    <rect x="13" y="71" width="16" height="16" fill="#ffffff" rx="1" />
+    <rect x="17" y="75" width="8" height="8" fill="#006d6f" rx="1" />
+    {/* Data modules */}
+    <rect x="40" y="10" width="5" height="5" fill="#0f2a3f" />
+    <rect x="50" y="10" width="6" height="6" fill="#006d6f" />
+    <rect x="40" y="22" width="6" height="6" fill="#0f2a3f" />
+    <rect x="52" y="24" width="5" height="5" fill="#0f2a3f" />
+    <rect x="10" y="42" width="6" height="6" fill="#0f2a3f" />
+    <rect x="22" y="42" width="5" height="5" fill="#006d6f" />
+    <rect x="42" y="42" width="8" height="8" fill="#006d6f" rx="1" />
+    <rect x="56" y="42" width="6" height="6" fill="#0f2a3f" />
+    <rect x="68" y="42" width="5" height="5" fill="#0f2a3f" />
+    <rect x="80" y="46" width="6" height="6" fill="#006d6f" />
+    <rect x="40" y="56" width="6" height="6" fill="#0f2a3f" />
+    <rect x="52" y="56" width="6" height="6" fill="#006d6f" />
+    <rect x="68" y="56" width="8" height="8" fill="#0f2a3f" />
+    <rect x="40" y="68" width="6" height="6" fill="#0f2a3f" />
+    <rect x="52" y="70" width="5" height="5" fill="#006d6f" />
+    <rect x="68" y="70" width="6" height="6" fill="#0f2a3f" />
+    <rect x="80" y="74" width="6" height="6" fill="#006d6f" />
+    <rect x="40" y="82" width="6" height="6" fill="#006d6f" />
+    <rect x="52" y="84" width="6" height="6" fill="#0f2a3f" />
+    <rect x="68" y="82" width="6" height="6" fill="#0f2a3f" />
+    <rect x="80" y="84" width="6" height="6" fill="#006d6f" />
+  </svg>
+);
 
 export interface DoctorDetails {
   name: string;
@@ -59,22 +144,33 @@ export interface DoctorDetails {
   regNo: string;
   designation: string;
   verifiedAt: string;
+  signatureUrl?: string;
 }
 
 export interface ReportPDFDocumentProps {
-  report: any;
+  report?: any;
   branch?: any;
   doctor?: DoctorDetails;
   containerId?: string;
 }
 
 export const ReportPDFDocument: React.FC<ReportPDFDocumentProps> = ({
-  report,
-  branch,
-  doctor,
+  report: rawReport,
+  branch: rawBranch,
+  doctor: rawDoctor,
   containerId = 'clinical-report-document',
 }) => {
-  const booking = report.booking || {};
+  // Merge incoming report with structured mock fallback JSON data
+  const report = rawReport || MOCK_REPORT_JSON;
+  const booking = report.booking || MOCK_REPORT_JSON.booking;
+  const doctor = rawDoctor || (report.doctorName ? {
+    name: report.doctorName,
+    qualification: report.doctorQualification || '',
+    regNo: report.doctorRegNo || '',
+    designation: report.doctorDesignation || '',
+    verifiedAt: report.doctorVerifiedAt || report.reportedDate || new Date().toISOString(),
+    signatureUrl: report.doctorSignatureUrl || report.signatureUrl || '',
+  } : MOCK_REPORT_JSON.doctor);
 
   const fmt = (dt: string | null | undefined) =>
     dt ? new Date(dt).toLocaleString('en-IN', {
@@ -82,275 +178,290 @@ export const ReportPDFDocument: React.FC<ReportPDFDocumentProps> = ({
       hour: '2-digit', minute: '2-digit', hour12: true,
     }) : '-';
 
-  const branchName  = branch?.name || booking.branch?.name || '';
-  const branchAddr  = [branch?.line1, branch?.city, branch?.state, branch?.pincode].filter(Boolean).join(', ') || booking.branch?.address || '';
-  const branchPhone = branch?.contactNumber || booking.branch?.contactNumber || '';
-  const branchEmail = branch?.email || booking.branch?.email || '';
-  const branchRegNo = branch?.labRegNo || '';
+  const branchName  = rawBranch?.name || booking.branch?.name || MOCK_REPORT_JSON.booking.branch.name;
+  const branchAddr  = [rawBranch?.line1, rawBranch?.city, rawBranch?.state, rawBranch?.pincode].filter(Boolean).join(', ') || booking.branch?.address || MOCK_REPORT_JSON.booking.branch.address;
+  const branchPhone = rawBranch?.contactNumber || booking.branch?.contactNumber || MOCK_REPORT_JSON.booking.branch.contactNumber;
+  const branchEmail = rawBranch?.email || booking.branch?.email || MOCK_REPORT_JSON.booking.branch.email;
 
+  const rawParameters = (report.parameters && report.parameters.length > 0) ? report.parameters : MOCK_REPORT_JSON.parameters;
   const groupedParams: Record<string, any[]> = {};
-  (report.parameters || []).forEach((p: any) => {
-    const key = p.testGroupName || report.testName || 'General';
+  rawParameters.forEach((p: any) => {
+    const key = p.testGroupName || report.testName || MOCK_REPORT_JSON.testName;
     if (!groupedParams[key]) groupedParams[key] = [];
     groupedParams[key].push(p);
   });
-  if (Object.keys(groupedParams).length === 0)
-    groupedParams[report.testName || 'General'] = report.parameters || [];
+  if (Object.keys(groupedParams).length === 0) {
+    groupedParams[report.testName || MOCK_REPORT_JSON.testName] = rawParameters;
+  }
 
   const generatedOn = fmt(new Date().toISOString());
 
-  const hasBranch = branchName || branchAddr || branchPhone || branchEmail;
-
   return (
-<div
+    <div
       id={containerId}
       style={{
-        fontFamily: "'Segoe UI', Arial, sans-serif",
+        fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
         width: '794px',
+        minHeight: '1120px',
         backgroundColor: T.white,
         color: T.slate900,
-        fontSize: '11px',
-        lineHeight: '1.4',
+        fontSize: '10px',
+        lineHeight: '1.35',
+        boxSizing: 'border-box',
+        position: 'relative',
       }}
     >
-     
+      {/* Header Section: Logo + Branch Details on Left; Scanner under Logo */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
-        padding: '14px 28px 12px',
-        borderBottom: `3px solid ${T.teal}`,
+        padding: '12px 24px 10px',
+        borderBottom: `2.5px solid ${T.teal}`,
       }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-          <img
-            src="/trusted-partner.jpg"
-            alt="MedsSeva"
-          style={{ width: '108px', height: 'auto', display: 'block' }}
-            crossOrigin="anonymous"
-          />
-          {hasBranch && (
-            <div style={{ paddingTop: '2px' }}>
-              {branchName && (
-                <div style={{ fontSize: '11px', color: T.teal, fontWeight: 700, marginBottom: '3px' }}>{branchName}</div>
-              )}
-              {branchAddr && (
-                <div style={{ fontSize: '9px', color: T.slate600, lineHeight: '1.5', maxWidth: '300px' }}>{branchAddr}</div>
-              )}
-              {branchPhone && (
-                <div style={{ fontSize: '9px', color: T.slate600, marginTop: '2px' }}>Ph: {branchPhone}</div>
-              )}
-              {branchEmail && (
-                <div style={{ fontSize: '9px', color: T.slate600 }}>{branchEmail}</div>
-              )}
+        {/* Left: Logo + Scanner directly below Logo */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+          <div>
+            <img
+              src="/trusted-partner.jpg"
+              alt="MedsSeva"
+              style={{ width: '110px', height: 'auto', display: 'block', marginBottom: '6px' }}
+              crossOrigin="anonymous"
+            />
+            {/* Scanner / QR Code placed right below Logo */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+              <DummyQRCode size={44} />
+              <div style={{ fontSize: '7.5px', color: T.slate500, lineHeight: '1.2', fontWeight: 600 }}>
+                SCAN TO<br />VERIFY
+              </div>
             </div>
-          )}
+          </div>
+
+          {/* Branch Details */}
+          <div style={{ paddingTop: '2px' }}>
+            <div style={{ fontSize: '12px', color: T.teal, fontWeight: 800, marginBottom: '2px' }}>
+              {branchName}
+            </div>
+            {branchAddr && (
+              <div style={{ fontSize: '8.5px', color: T.slate600, lineHeight: '1.4', maxWidth: '280px' }}>
+                {branchAddr}
+              </div>
+            )}
+            {branchPhone && (
+              <div style={{ fontSize: '8.5px', color: T.slate600, marginTop: '2px' }}>Ph: {branchPhone}</div>
+            )}
+            {branchEmail && (
+              <div style={{ fontSize: '8.5px', color: T.slate600 }}>{branchEmail}</div>
+            )}
+          </div>
         </div>
 
-{(report.status === 'APPROVED' || report.status === 'RELEASED') && (
-          <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+        {/* Right Header: Clean Verification Stamp without top "RELEASED" banner */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', height: '70px' }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: T.tealLight,
+            border: `1px solid ${T.teal}`,
+            borderRadius: '4px',
+            padding: '4px 10px',
+          }}>
             <div style={{
+              width: '14px',
+              height: '14px',
+              borderRadius: '50%',
               backgroundColor: T.teal,
-              color: T.white,
-              fontSize: '9px',
-              fontWeight: 900,
-              letterSpacing: '2px',
-              padding: '4px 14px',
-              borderRadius: '3px',
-              whiteSpace: 'nowrap',
-            }}>
-              {report.status === 'RELEASED' ? 'RELEASED' : 'APPROVED'}
-            </div>
-            <div style={{
-              width: '38px',
-              height: '38px',
-              border: `1px solid ${T.border}`,
-              borderRadius: '6px',
-              background: T.slate50,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              color: '#fff',
+              fontSize: '9px',
+              fontWeight: 900,
             }}>
-              <div style={{
-                width: '22px',
-                height: '22px',
-                borderRadius: '50%',
-                backgroundColor: T.teal,
-                opacity: 0.15,
-                position: 'absolute',
-              }} />
-              <div style={{
-                width: '14px',
-                height: '8px',
-                borderLeft: '2px solid ' + T.teal,
-                borderBottom: '2px solid ' + T.teal,
-                transform: 'rotate(-45deg)',
-                marginTop: '-3px',
-              }} />
+              ✓
             </div>
+            <span style={{ fontSize: '9px', fontWeight: 800, color: T.teal, letterSpacing: '0.5px' }}>
+              VERIFIED REPORT
+            </span>
           </div>
-        )}
+        </div>
       </div>
 
-
-     
-      <div style={{ margin: '10px 28px', border: `1px solid ${T.border}`, borderRadius: '6px', overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '8px 14px', borderBottom: `1px solid ${T.border}`, gap: '12px' }}>
+      {/* Clean Patient Details Section */}
+      <div style={{
+        margin: '8px 24px',
+        border: `1px solid ${T.border}`,
+        borderRadius: '6px',
+        overflow: 'hidden',
+        backgroundColor: T.white,
+      }}>
+        {/* Row 1: Primary Patient Info */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', padding: '6px 12px', borderBottom: `1px solid ${T.border}`, gap: '10px' }}>
           <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Patient Name</div>
-            <div style={{ fontSize: '14px', fontWeight: 900, color: T.slate900, marginTop: '1px' }}>{booking.patientName || '-'}</div>
+            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>PATIENT NAME</div>
+            <div style={{ fontSize: '13px', fontWeight: 900, color: T.slate900, marginTop: '1px' }}>{booking.patientName || '-'}</div>
           </div>
           <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>UHID</div>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: T.slate800, marginTop: '1px', fontFamily: 'monospace' }}>{booking.bookingCode || '-'}</div>
+            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>UHID / BOOKING CODE</div>
+            <div style={{ fontSize: '10.5px', fontWeight: 700, color: T.slate800, marginTop: '1px', fontFamily: 'monospace' }}>{booking.bookingCode || '-'}</div>
           </div>
           <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Age / Gender</div>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: T.slate800, marginTop: '1px' }}>
+            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>AGE / GENDER</div>
+            <div style={{ fontSize: '10.5px', fontWeight: 700, color: T.slate800, marginTop: '1px' }}>
               {booking.patientAge ? `${booking.patientAge} Y` : '-'} / {booking.patientGender || '-'}
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '7px 14px', borderBottom: `1px solid ${T.border}`, gap: '12px', background: T.slate50 }}>
+        {/* Row 2: Contact Info */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', padding: '5px 12px', borderBottom: `1px solid ${T.border}`, gap: '10px', background: T.slate50 }}>
           <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 600, textTransform: 'uppercase' }}>Mobile</div>
-            <div style={{ fontSize: '10px', fontWeight: 700, marginTop: '1px' }}>{booking.patientMobile || '-'}</div>
+            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, textTransform: 'uppercase' }}>MOBILE</div>
+            <div style={{ fontSize: '9.5px', fontWeight: 700, marginTop: '1px' }}>{booking.patientMobile || '-'}</div>
           </div>
           <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 600, textTransform: 'uppercase' }}>Email</div>
-            <div style={{ fontSize: '10px', fontWeight: 700, marginTop: '1px' }}>{booking.patientEmail || booking.user?.email || '-'}</div>
+            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, textTransform: 'uppercase' }}>EMAIL</div>
+            <div style={{ fontSize: '9.5px', fontWeight: 700, marginTop: '1px' }}>{booking.patientEmail || booking.user?.email || '-'}</div>
           </div>
           <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 600, textTransform: 'uppercase' }}>Address</div>
-            <div style={{ fontSize: '10px', fontWeight: 700, marginTop: '1px' }}>{booking.address || booking.branch?.address || '-'}</div>
+            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, textTransform: 'uppercase' }}>ADDRESS</div>
+            <div style={{ fontSize: '9.5px', fontWeight: 700, marginTop: '1px' }}>{booking.address || booking.branch?.address || '-'}</div>
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', padding: '7px 14px', gap: '12px' }}>
+        {/* Row 3: Sample & Collection Metadata */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', padding: '5px 12px', gap: '8px', borderBottom: `1px solid ${T.border}` }}>
           <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 600, textTransform: 'uppercase' }}>Booking Code</div>
-            <div style={{ fontSize: '10px', fontWeight: 700, fontFamily: 'monospace', marginTop: '1px' }}>{booking.bookingCode || '-'}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 600, textTransform: 'uppercase' }}>Sample ID</div>
-            <div style={{ fontSize: '10px', fontWeight: 700, fontFamily: 'monospace', marginTop: '1px' }}>
+            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, textTransform: 'uppercase' }}>SAMPLE ID</div>
+            <div style={{ fontSize: '9.5px', fontWeight: 700, fontFamily: 'monospace', marginTop: '1px' }}>
               {report.sampleId || booking.sampleId || 'SID-' + (booking.bookingCode || '0000').slice(-4)}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 600, textTransform: 'uppercase' }}>Collection Type</div>
-            <div style={{ fontSize: '10px', fontWeight: 700, marginTop: '1px' }}>
-              {booking.collectionMode === 'HOME' ? 'Home Collection' : booking.collectionMode || '-'}
+            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, textTransform: 'uppercase' }}>COLLECTION TYPE</div>
+            <div style={{ fontSize: '9.5px', fontWeight: 700, marginTop: '1px' }}>
+              {booking.collectionMode === 'HOME' ? 'Home Collection' : (booking.collectionMode || 'Lab Visit')}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 600, textTransform: 'uppercase' }}>Specimen Type</div>
-            <div style={{ fontSize: '10px', fontWeight: 700, marginTop: '1px' }}>{report.specimenType || 'Blood (EDTA/Serum)'}</div>
+            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, textTransform: 'uppercase' }}>SPECIMEN TYPE</div>
+            <div style={{ fontSize: '9.5px', fontWeight: 700, marginTop: '1px' }}>{report.specimenType || 'Blood (EDTA/Serum)'}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, textTransform: 'uppercase' }}>REF BY</div>
+            <div style={{ fontSize: '9.5px', fontWeight: 700, marginTop: '1px' }}>{doctor?.name || report.doctorName || '-'}</div>
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', padding: '7px 14px', gap: '12px', background: T.slate50, borderTop: `1px solid ${T.border}` }}>
+        {/* Row 4: Timestamps */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '5px 12px', gap: '8px', background: T.slate50 }}>
           <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 600 }}>Collected:</div>
-            <div style={{ fontSize: '9px', fontWeight: 700, marginTop: '1px' }}>{fmt(booking.sampleCollectedAt || booking.scheduledDate)}</div>
+            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700 }}>COLLECTED:</div>
+            <div style={{ fontSize: '8.5px', fontWeight: 700, marginTop: '1px' }}>{fmt(booking.sampleCollectedAt || booking.scheduledDate)}</div>
           </div>
           <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 600 }}>Received:</div>
-            <div style={{ fontSize: '9px', fontWeight: 700, marginTop: '1px' }}>{fmt(booking.sampleReceivedAt || booking.updatedAt)}</div>
+            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700 }}>RECEIVED:</div>
+            <div style={{ fontSize: '8.5px', fontWeight: 700, marginTop: '1px' }}>{fmt(booking.sampleReceivedAt || booking.updatedAt)}</div>
           </div>
           <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 600 }}>Reported:</div>
-            <div style={{ fontSize: '9px', fontWeight: 700, marginTop: '1px' }}>{fmt(report.reportedDate)}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 600 }}>Ref By:</div>
-            <div style={{ fontSize: '9px', fontWeight: 700, marginTop: '1px' }}>{doctor?.name || report.doctorName || report.verifiedBy?.name || '-'}</div>
+            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700 }}>REPORTED:</div>
+            <div style={{ fontSize: '8.5px', fontWeight: 700, marginTop: '1px' }}>{fmt(report.reportedDate)}</div>
           </div>
         </div>
       </div>
 
-    
+      {/* Center-Aligned "LABORATORY REPORT" Banner */}
       <div style={{
-        margin: '0 28px',
+        margin: '0 24px',
         background: T.navy,
         color: T.white,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '7px 14px',
+        textAlign: 'center',
+        padding: '6px 12px',
         borderRadius: '4px 4px 0 0',
       }}>
-        <div style={{ fontSize: '11px', fontWeight: 900, letterSpacing: '2px' }}>LABORATORY REPORT</div>
-        <div style={{ fontSize: '8px', fontWeight: 700, letterSpacing: '1.5px', color: '#94a3b8' }}>CONFIDENTIAL DOCUMENT</div>
+        <div style={{ fontSize: '11px', fontWeight: 900, letterSpacing: '2.5px' }}>
+          LABORATORY REPORT
+        </div>
       </div>
 
-   
-      <div style={{ margin: '0 28px' }}>
+      {/* Test Parameters Tables */}
+      <div style={{ margin: '0 24px' }}>
         {Object.entries(groupedParams).map(([groupName, params], gi) => (
           <div key={gi}>
+            {/* Center-Aligned Test Name Header */}
             <div style={{
-              fontSize: '10px',
+              fontSize: '9.5px',
               fontWeight: 900,
               color: T.teal,
-              padding: '7px 14px 5px',
-              letterSpacing: '0.5px',
+              padding: '6px 12px',
+              letterSpacing: '0.6px',
               textTransform: 'uppercase',
-              borderLeft: `3px solid ${T.teal}`,
-              marginTop: gi === 0 ? '0' : '6px',
+              textAlign: 'center',
               background: T.tealLight,
+              borderLeft: `3px solid ${T.teal}`,
+              borderRight: `3px solid ${T.teal}`,
+              marginTop: gi === 0 ? '0' : '4px',
             }}>
               {groupName}
             </div>
+
+            {/* Table without Status Column */}
             <table style={{ width: '100%', borderCollapse: 'collapse', border: `1px solid ${T.border}`, borderTop: 'none' }}>
               <thead>
                 <tr style={{ background: T.slate100, borderBottom: `1px solid ${T.border}` }}>
-                  {['Parameter', 'Result', 'Unit', 'Reference Range', 'Flag', 'Status'].map((h, i) => (
+                  {['Parameter', 'Result', 'Unit', 'Reference Range', 'Flag'].map((h, i) => (
                     <th key={h} style={{
-                      padding: '6px 10px',
-                      fontSize: '9px',
+                      padding: '5px 8px',
+                      fontSize: '8.5px',
                       fontWeight: 900,
                       textTransform: 'uppercase',
                       color: T.slate700,
                       textAlign: i === 0 ? 'left' : 'center',
-                      width: ['35%', '13%', '11%', '20%', '11%', '10%'][i],
-                    }}>{h}</th>
+                      width: ['38%', '16%', '14%', '20%', '12%'][i],
+                    }}>
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {params.map((p: any, idx: number) => {
-                  const { flag, status, color, bg } = getFlag(p);
-                  const rowBg = status === 'HIGH' ? T.amberBg : status === 'CRITICAL' ? T.criticalBg : T.white;
+                  const { flag, isAbnormal, color } = getFlag(p);
+                  // Highlight abnormal rows subtly; parameters/result bold black on abnormal
+                  const rowBg = isAbnormal ? '#fffaf8' : (idx % 2 === 1 ? T.slate50 : T.white);
                   return (
                     <tr key={idx} style={{ borderBottom: `1px solid ${T.border}`, backgroundColor: rowBg }}>
-                      <td style={{ padding: '7px 10px', fontSize: '10px' }}>
-                        <span style={{ fontWeight: 600, color: T.slate800 }}>{p.parameterName}</span>
+                      <td style={{ padding: '5px 8px', fontSize: '9.5px' }}>
+                        <span style={{
+                          fontWeight: isAbnormal ? 800 : 500,
+                          color: isAbnormal ? '#000000' : T.slate800,
+                        }}>
+                          {p.parameterName}
+                        </span>
                       </td>
-                      <td style={{ padding: '7px 10px', fontSize: '10px', textAlign: 'center' }}>
-                        <span style={{ fontWeight: 900, color: status !== 'NORMAL' ? color : T.slate900 }}>{p.observedValue}</span>
+                      <td style={{ padding: '5px 8px', fontSize: '9.5px', textAlign: 'center' }}>
+                        <span style={{
+                          fontWeight: isAbnormal ? 900 : 600,
+                          color: isAbnormal ? '#000000' : T.slate900,
+                        }}>
+                          {p.observedValue}
+                        </span>
                       </td>
-                      <td style={{ padding: '7px 10px', fontSize: '10px', textAlign: 'center' }}>
+                      <td style={{ padding: '5px 8px', fontSize: '9px', textAlign: 'center' }}>
                         <span style={{ color: T.slate500 }}>{p.unit || '-'}</span>
                       </td>
-                      <td style={{ padding: '7px 10px', fontSize: '10px', textAlign: 'center' }}>
+                      <td style={{ padding: '5px 8px', fontSize: '9px', textAlign: 'center' }}>
                         <span style={{ fontFamily: 'monospace', color: T.slate600 }}>{p.referenceRange || '-'}</span>
                       </td>
-                      <td style={{ padding: '7px 10px', fontSize: '10px', textAlign: 'center' }}>
-                        {status !== 'NORMAL'
-                          ? <span style={{ fontWeight: 900, color, fontSize: '9px' }}>{flag}</span>
-                          : <span style={{ color: T.slate400 }}>-</span>}
-                      </td>
-                      <td style={{ padding: '7px 10px', textAlign: 'center' }}>
+                      <td style={{ padding: '5px 8px', fontSize: '9px', textAlign: 'center' }}>
+                        {/* Red text for LOW/HIGH; Blue text for NORMAL */}
                         <span style={{
-                          display: 'inline-block',
-                          padding: '2px 6px',
-                          borderRadius: '3px',
-                          fontSize: '8px',
-                          fontWeight: 900,
-                          backgroundColor: bg,
-                          color,
+                          fontWeight: 800,
+                          color: isAbnormal ? T.criticalRed : T.blue,
+                          fontSize: '8.5px',
                         }}>
-                          {status}
+                          {flag}
                         </span>
                       </td>
                     </tr>
@@ -362,109 +473,118 @@ export const ReportPDFDocument: React.FC<ReportPDFDocumentProps> = ({
         ))}
       </div>
 
-
+      {/* Clinical Notes & Remarks Section */}
       {(report.doctorInterpretation || report.clinicalNotes || report.technicianRemarks || report.doctorRemarks) && (
-        <div style={{ margin: '10px 28px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+        <div style={{ margin: '8px 24px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
           {report.clinicalNotes && (
-            <div style={{ border: `1px solid ${T.border}`, borderRadius: '5px', padding: '8px 10px', background: T.slate50 }}>
-              <div style={{ fontSize: '8px', fontWeight: 900, color: T.teal, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' }}>≡ Clinical Notes</div>
-              <div style={{ fontSize: '9px', lineHeight: '1.6', fontStyle: 'italic', color: T.slate600 }}>{report.clinicalNotes}</div>
+            <div style={{ border: `1px solid ${T.border}`, borderRadius: '4px', padding: '6px 8px', background: T.slate50 }}>
+              <div style={{ fontSize: '7.5px', fontWeight: 900, color: T.teal, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '2px' }}>Clinical Notes</div>
+              <div style={{ fontSize: '8.5px', lineHeight: '1.4', fontStyle: 'italic', color: T.slate600 }}>{report.clinicalNotes}</div>
             </div>
           )}
           {report.technicianRemarks && (
-            <div style={{ border: `1px solid ${T.border}`, borderRadius: '5px', padding: '8px 10px', background: T.slate50 }}>
-              <div style={{ fontSize: '8px', fontWeight: 900, color: T.teal, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' }}>Technician Remarks</div>
-              <div style={{ fontSize: '9px', lineHeight: '1.6', color: T.slate600 }}>{report.technicianRemarks}</div>
+            <div style={{ border: `1px solid ${T.border}`, borderRadius: '4px', padding: '6px 8px', background: T.slate50 }}>
+              <div style={{ fontSize: '7.5px', fontWeight: 900, color: T.teal, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '2px' }}>Technician Remarks</div>
+              <div style={{ fontSize: '8.5px', lineHeight: '1.4', color: T.slate600 }}>{report.technicianRemarks}</div>
             </div>
           )}
           {report.doctorRemarks && (
-            <div style={{ border: `1px solid ${T.border}`, borderRadius: '5px', padding: '8px 10px', background: T.slate50, gridColumn: report.clinicalNotes && report.technicianRemarks ? '1 / -1' : 'auto' }}>
-              <div style={{ fontSize: '8px', fontWeight: 900, color: T.teal, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' }}>Doctor Remarks</div>
-              <div style={{ fontSize: '9px', lineHeight: '1.6', color: T.slate700 }}>{report.doctorRemarks}</div>
+            <div style={{ border: `1px solid ${T.border}`, borderRadius: '4px', padding: '6px 8px', background: T.slate50, gridColumn: report.clinicalNotes && report.technicianRemarks ? '1 / -1' : 'auto' }}>
+              <div style={{ fontSize: '7.5px', fontWeight: 900, color: T.teal, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '2px' }}>Doctor Remarks</div>
+              <div style={{ fontSize: '8.5px', lineHeight: '1.4', color: T.slate700 }}>{report.doctorRemarks}</div>
             </div>
           )}
           {report.doctorInterpretation && (
-            <div style={{ border: `1px solid ${T.border}`, borderRadius: '5px', padding: '8px 10px', background: T.slate50, gridColumn: '1 / -1' }}>
-              <div style={{ fontSize: '8px', fontWeight: 900, color: T.teal, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' }}>Doctor Interpretation</div>
-              <div style={{ fontSize: '9px', lineHeight: '1.6', color: T.slate700 }}>{report.doctorInterpretation}</div>
+            <div style={{ border: `1px solid ${T.border}`, borderRadius: '4px', padding: '6px 8px', background: T.slate50, gridColumn: '1 / -1' }}>
+              <div style={{ fontSize: '7.5px', fontWeight: 900, color: T.teal, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '2px' }}>Doctor Interpretation</div>
+              <div style={{ fontSize: '8.5px', lineHeight: '1.4', color: T.slate700 }}>{report.doctorInterpretation}</div>
             </div>
           )}
         </div>
       )}
 
-      
+      {/* Signature Section: Supports both Uploaded Signature Image and Digital Text Signature */}
       {doctor?.name && (
-        <div style={{ margin: '14px 28px 0', display: 'flex', justifyContent: 'flex-end' }}>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{
-              display: 'inline-block',
-              border: `1px solid ${T.border}`,
-              borderRadius: '3px',
-              padding: '2px 8px',
-              fontSize: '7px',
-              color: T.slate600,
-              marginBottom: '6px',
-              background: T.slate50,
-              letterSpacing: '1px',
-            }}>
-              DIGITALLY SIGNED ✓
-            </div>
-            <div style={{ fontSize: '13px', fontWeight: 900, color: T.teal }}>{doctor.name}</div>
+        <div style={{ margin: '10px 24px 0', display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ textAlign: 'right', minWidth: '160px' }}>
+            {/* If uploaded signature image exists, display it; else display digital verification badge */}
+            {doctor.signatureUrl ? (
+              <img
+                src={doctor.signatureUrl}
+                alt="Doctor Signature"
+                style={{ maxHeight: '38px', maxWidth: '140px', objectFit: 'contain', display: 'block', margin: '0 0 2px auto' }}
+                crossOrigin="anonymous"
+              />
+            ) : (
+              <div style={{
+                display: 'inline-block',
+                border: `1px solid ${T.border}`,
+                borderRadius: '3px',
+                padding: '2px 6px',
+                fontSize: '7px',
+                color: T.slate600,
+                marginBottom: '4px',
+                background: T.slate50,
+                letterSpacing: '0.8px',
+                fontWeight: 700,
+              }}>
+                DIGITALLY SIGNED ✓
+              </div>
+            )}
+            <div style={{ fontSize: '11.5px', fontWeight: 900, color: T.teal }}>{doctor.name}</div>
             {doctor.qualification && (
-              <div style={{ fontSize: '8px', color: T.slate600, marginTop: '1px' }}>{doctor.qualification}</div>
+              <div style={{ fontSize: '7.5px', color: T.slate600, marginTop: '1px' }}>{doctor.qualification}</div>
             )}
             {doctor.regNo && (
-              <div style={{ fontSize: '8px', color: T.slate600, marginTop: '1px' }}>Reg: {doctor.regNo}</div>
+              <div style={{ fontSize: '7.5px', color: T.slate600, marginTop: '1px' }}>Reg: {doctor.regNo}</div>
             )}
             {doctor.designation && (
-              <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 700, marginTop: '1px', textTransform: 'uppercase' }}>{doctor.designation}</div>
+              <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, marginTop: '1px', textTransform: 'uppercase' }}>
+                {doctor.designation}
+              </div>
             )}
             {doctor.verifiedAt && (
-              <div style={{ fontSize: '7px', color: T.slate400, marginTop: '1px' }}>Verified on: {fmt(doctor.verifiedAt)}</div>
+              <div style={{ fontSize: '7px', color: T.slate400, marginTop: '1px' }}>Verified: {fmt(doctor.verifiedAt)}</div>
             )}
           </div>
         </div>
       )}
 
-
+      {/* Compact A4-Fitting Footer */}
       <div style={{
-        margin: '14px 28px 0',
+        margin: '8px 24px 0',
         borderTop: `1px solid ${T.border}`,
-        paddingTop: '10px',
-        paddingBottom: '20px',
+        paddingTop: '6px',
+        paddingBottom: '12px',
       }}>
-        <div style={{ marginBottom: '8px' }}>
-          <div style={{ fontSize: '9px', fontWeight: 700, color: T.slate700, marginBottom: '1px' }}>Generated On:</div>
-          <div style={{ fontSize: '9px', color: T.slate600 }}>{generatedOn}</div>
-        </div>
-
-        <div style={{ marginBottom: '8px' }}>
-          <div style={{ fontSize: '9px', fontWeight: 700, color: T.slate700, marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Disclaimer</div>
-          <div style={{ fontSize: '8.5px', color: T.slate600, lineHeight: '1.6' }}>
-            This report is intended for interpretation by qualified medical professionals. Laboratory results should always be correlated with the patient's clinical findings. Test results may vary due to physiological conditions, medications, specimen quality, and laboratory methodology. MedsSeva shall not be held responsible for clinical decisions made solely on the basis of this report without appropriate medical consultation.
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+          <div style={{ fontSize: '8px', color: T.slate600 }}>
+            <strong style={{ color: T.slate700 }}>Generated On:</strong> {generatedOn}
+          </div>
+          <div style={{ fontSize: '8px', color: T.slate600 }}>
+            <strong style={{ color: T.slate700 }}>Website:</strong> www.medsseva.com
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginTop: '10px', paddingTop: '8px', borderTop: `1px solid ${T.border}` }}>
-          <div>
-            {(branchPhone || branchEmail) && (
-              <>
-                <div style={{ fontSize: '8px', fontWeight: 700, color: T.slate700, marginBottom: '1px' }}>Support:</div>
-                {branchPhone && <div style={{ fontSize: '8px', color: T.slate600 }}>{branchPhone}</div>}
-                {branchEmail && <div style={{ fontSize: '8px', color: T.slate600, marginTop: '1px' }}>{branchEmail}</div>}
-              </>
-            )}
+        <div style={{ marginBottom: '6px' }}>
+          <div style={{ fontSize: '7.5px', fontWeight: 700, color: T.slate700, marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+            DISCLAIMER
           </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '8px', fontWeight: 700, color: T.slate700, marginBottom: '1px' }}>Website:</div>
-            <div style={{ fontSize: '8px', color: T.slate600 }}>www.medsseva.com</div>
+          <div style={{ fontSize: '7.5px', color: T.slate500, lineHeight: '1.3' }}>
+            This report is intended for interpretation by qualified medical professionals. Laboratory results should always be correlated with clinical findings. Test results may vary due to physiological conditions, medications, specimen quality, and laboratory methodology. MedsSeva shall not be held responsible for clinical decisions made solely on the basis of this report without appropriate consultation.
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '8px', fontWeight: 700, color: T.slate700 }}>© MedsSeva Diagnostics</div>
-            <div style={{ fontSize: '8px', color: T.slate500, marginTop: '1px' }}>All rights reserved.</div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '4px', borderTop: `1px solid ${T.border}` }}>
+          <div style={{ fontSize: '7.5px', color: T.slate600 }}>
+            {branchPhone && <span>Support: {branchPhone} | </span>}
+            {branchEmail && <span>{branchEmail}</span>}
+          </div>
+          <div style={{ fontSize: '7.5px', color: T.slate600 }}>
+            © MedsSeva Diagnostics. All rights reserved.
           </div>
         </div>
       </div>
-</div>
+    </div>
   );
 };

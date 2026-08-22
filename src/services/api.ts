@@ -21,6 +21,15 @@ export const adminUserService = {
   deleteAdminUser: (id: string) => api.delete(`/admin-users/${id}`).then(r => r.data),
 };
 
+export const doctorService = {
+  getDoctors: (params?: { branchId?: string; cityId?: string; partnerId?: string; search?: string }) =>
+    api.get('/doctors', { params }).then(r => r.data),
+  getDoctorById: (id: string) => api.get(`/doctors/${id}`).then(r => r.data),
+  createDoctor: (data: any) => api.post('/doctors', data).then(r => r.data),
+  updateDoctor: (id: string, data: any) => api.put(`/doctors/${id}`, data).then(r => r.data),
+  deleteDoctor: (id: string) => api.delete(`/doctors/${id}`).then(r => r.data),
+};
+
 export const rbacService = {
 
   getRoles: () => api.get('/roles').then(r => r.data),

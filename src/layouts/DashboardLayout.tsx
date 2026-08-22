@@ -53,6 +53,8 @@ const queryClient = useQueryClient();
     '/prescriptions': [['prescriptions']],
     '/cms': [['cmsBanners'], ['cmsConfig'], ['cmsAlerts'], ['cmsPages'], ['cmsAuditLogs']],
     '/roles': [['roles'], ['allPermissions']],
+    '/doctors': [['doctors'], ['branches']],
+    '/staff': [['adminUsers'], ['branches'], ['roles']],
     '/support': [['supportConversations']],
   };
 
