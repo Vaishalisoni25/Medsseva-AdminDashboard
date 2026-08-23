@@ -44,6 +44,7 @@ const COMMON_DEPARTMENTS = [
   'Quality Control & Assurance',
   'Logistics & Courier',
   'Administration & Support',
+  'Others',
 ];
 
 const COMMON_DESIGNATIONS = [
@@ -55,6 +56,7 @@ const COMMON_DESIGNATIONS = [
   'Operations Executive',
   'Branch Coordinator',
   'Quality Analyst',
+  'Others',
 ];
 
 export const StaffPage: React.FC = () => {
@@ -76,9 +78,10 @@ export const StaffPage: React.FC = () => {
   const [formEmail, setFormEmail] = useState('');
   const [formMobile, setFormMobile] = useState('');
   const [formPassword, setFormPassword] = useState('');
-  const [formRoleId, setFormRoleId] = useState('');
   const [formDepartment, setFormDepartment] = useState('Pathology Lab');
+  const [customDepartment, setCustomDepartment] = useState('');
   const [formDesignation, setFormDesignation] = useState('Lab Technician');
+  const [customDesignation, setCustomDesignation] = useState('');
   const [formBranchId, setFormBranchId] = useState('');
   const [formFranchiseId, setFormFranchiseId] = useState('');
 
@@ -123,10 +126,13 @@ export const StaffPage: React.FC = () => {
     setFormMobile('');
     setFormPassword('');
     setFormDepartment('Pathology Lab');
+    setCustomDepartment('');
     setFormDesignation('Lab Technician');
+    setCustomDesignation('');
     setFormBranchId('');
     setFormFranchiseId('');
-    setFormRoleId(roles[0]?.id || '');
+    const defaultRole = roles.find(r => r.slug.includes('staff') || r.slug.includes('employee') || r.slug.includes('lab') || r.slug.includes('executive')) || roles[0];
+    setFormRoleId(defaultRole?.id || '');
     setModalOpen(true);
   };
 
@@ -136,11 +142,28 @@ export const StaffPage: React.FC = () => {
     setFormEmail(s.user.email);
     setFormMobile(s.user.mobile || '');
     setFormPassword('');
-    setFormDepartment(s.department || 'Pathology Lab');
-    setFormDesignation(s.designation || 'Lab Technician');
+
+    const isCustomDept = s.department && !COMMON_DEPARTMENTS.filter(d => d !== 'Others').includes(s.department);
+    if (isCustomDept) {
+      setFormDepartment('Others');
+      setCustomDepartment(s.department || '');
+    } else {
+      setFormDepartment(s.department || 'Pathology Lab');
+      setCustomDepartment('');
+    }
+
+    const isCustomDesig = s.designation && !COMMON_DESIGNATIONS.filter(d => d !== 'Others').includes(s.designation);
+    if (isCustomDesig) {
+      setFormDesignation('Others');
+      setCustomDesignation(s.designation || '');
+    } else {
+      setFormDesignation(s.designation || 'Lab Technician');
+      setCustomDesignation('');
+    }
+
     setFormBranchId(s.branchId || (s as any).branch?.id || '');
     setFormFranchiseId(s.franchiseId || '');
-    setFormRoleId(s.role.id);
+    setFormRoleId(s.role?.id || roles[0]?.id || '');
     setModalOpen(true);
   };
 
@@ -153,19 +176,29 @@ export const StaffPage: React.FC = () => {
       toast.error('Enter a valid 10-digit mobile number');
       return;
     }
-    if (!formRoleId) {
-      toast.error('Please select an access role');
+
+    const finalDepartment = formDepartment === 'Others' ? customDepartment.trim() : formDepartment;
+    const finalDesignation = formDesignation === 'Others' ? customDesignation.trim() : formDesignation;
+
+    if (!finalDepartment) {
+      toast.error('Please enter department name');
       return;
     }
+    if (!finalDesignation) {
+      toast.error('Please enter staff role / designation');
+      return;
+    }
+
+    const activeRoleId = formRoleId || roles.find(r => r.slug.includes('staff') || r.slug.includes('employee') || r.slug.includes('lab') || r.slug.includes('executive'))?.id || roles[0]?.id;
 
     const payload = {
       name: formName.trim(),
       email: formEmail.trim(),
       mobile: formMobile.trim() || undefined,
-      roleId: formRoleId,
+      roleId: activeRoleId,
       userType: 'EMPLOYEE',
-      department: formDepartment || undefined,
-      designation: formDesignation || undefined,
+      department: finalDepartment || undefined,
+      designation: finalDesignation || undefined,
       branchId: formBranchId || undefined,
       franchiseId: formFranchiseId || undefined,
       password: formPassword || undefined,
@@ -530,6 +563,16 @@ export const StaffPage: React.FC = () => {
                       <option key={d} value={d}>{d}</option>
                     ))}
                   </select>
+                  {formDesignation === 'Others' && (
+                    <input
+                      type="text"
+                      value={customDesignation}
+                      onChange={e => setCustomDesignation(e.target.value)}
+                      placeholder="Type custom designation / role..."
+                      className="w-full h-10 px-3 mt-2 bg-background border border-indigo-300 dark:border-indigo-600 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/30"
+                      autoFocus
+                    />
+                  )}
                 </div>
 
                 {/* Department */}
@@ -544,10 +587,20 @@ export const StaffPage: React.FC = () => {
                       <option key={d} value={d}>{d}</option>
                     ))}
                   </select>
+                  {formDepartment === 'Others' && (
+                    <input
+                      type="text"
+                      value={customDepartment}
+                      onChange={e => setCustomDepartment(e.target.value)}
+                      placeholder="Type custom department name..."
+                      className="w-full h-10 px-3 mt-2 bg-background border border-indigo-300 dark:border-indigo-600 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/30"
+                      autoFocus
+                    />
+                  )}
                 </div>
 
                 {/* Assign Branch */}
-                <div>
+                <div className="md:col-span-2">
                   <label className="text-xs font-semibold text-foreground mb-1 block">Assign Branch</label>
                   <select
                     value={formBranchId}
@@ -557,21 +610,6 @@ export const StaffPage: React.FC = () => {
                     <option value="">All Branches / Central</option>
                     {branches.map(b => (
                       <option key={b.id} value={b.id}>{b.name} ({b.city})</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Access Role */}
-                <div>
-                  <label className="text-xs font-semibold text-foreground mb-1 block">System Access Role *</label>
-                  <select
-                    value={formRoleId}
-                    onChange={e => setFormRoleId(e.target.value)}
-                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/30"
-                  >
-                    <option value="">Select a role</option>
-                    {roles.map(r => (
-                      <option key={r.id} value={r.id}>{r.name}</option>
                     ))}
                   </select>
                 </div>
