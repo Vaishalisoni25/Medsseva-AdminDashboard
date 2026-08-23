@@ -176,8 +176,8 @@ export const StaffPage: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!formName.trim() || !formEmail.trim() || (!editing && !formPassword.trim())) {
-      toast.error('Name, Email, and Password are required');
+    if (!formName.trim() || !formEmail.trim()) {
+      toast.error('Name and Email are required');
       return;
     }
     if (formMobile && !/^[6-9]\d{9}$/.test(formMobile.trim())) {
@@ -213,7 +213,7 @@ export const StaffPage: React.FC = () => {
       designation: finalDesignation || undefined,
       branchId: formBranchId || undefined,
       franchiseId: formFranchiseId || undefined,
-      password: formPassword || undefined,
+      password: formPassword || 'MedsSeva@123',
     };
 
     setSaving(true);
@@ -545,20 +545,6 @@ export const StaffPage: React.FC = () => {
                     onChange={e => setFormMobile(e.target.value)}
                     placeholder="e.g. 9876543210"
                     maxLength={10}
-                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/30"
-                  />
-                </div>
-
-                {/* Password */}
-                <div className="md:col-span-2">
-                  <label className="text-xs font-semibold text-foreground mb-1 block">
-                    {editing ? 'New Password (leave blank to keep current)' : 'Password *'}
-                  </label>
-                  <input
-                    type="password"
-                    value={formPassword}
-                    onChange={e => setFormPassword(e.target.value)}
-                    placeholder={editing ? 'Enter new password to update' : 'Min 8 characters (e.g. Pass@123)'}
                     className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/30"
                   />
                 </div>
