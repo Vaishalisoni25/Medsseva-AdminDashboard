@@ -8,6 +8,8 @@ import {
   Bot, AlertCircle, Phone, FileText, Circle
 } from 'lucide-react';
 
+import { API_URL } from '../services/api';
+
 interface ChatMessage {
   id: string;
   conversationId: string;
@@ -35,7 +37,7 @@ interface Conversation {
   assignedTo?: { user: { name: string } };
 }
 
-const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+const SOCKET_URL = API_URL.replace('/api', '');
 
 const STATUS_LABELS: Record<string, string> = {
   AI_ACTIVE: 'AI Active',

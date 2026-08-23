@@ -89,7 +89,7 @@ if (matchedKeys) {
 // Filter sidebar items based on RBAC permissions
 const filteredNavItems = NAVIGATION_ITEMS.filter((item) => {
     if (!user) return false;
-    const isSuperAdmin = user.role === 'SUPER_ADMIN' || user.adminRoleSlug === 'super_admin';
+    const isSuperAdmin = user.role === 'SUPER_ADMIN' || user.adminRoleSlug === 'super_admin' || user.adminRoleSlug === 'super-admin';
     if (isSuperAdmin) return true;
     if (item.roles && !item.roles.includes(user.role as any)) return false;
     if (item.moduleKey) {

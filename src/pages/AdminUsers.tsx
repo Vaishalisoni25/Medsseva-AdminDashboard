@@ -148,8 +148,9 @@ export const AdminUsersPage: React.FC = () => {
     setFormRegistrationNo(u.registrationNo || '');
     setFormSignatureUrl(u.signatureUrl || '');
 
+    const currentRole = roles.find(r => r.id === u.role.id) || u.role;
     const rolePerms = new Set(
-      (u.role.permissions || []).map((rp: any) => rp.permission?.id || rp.permissionId)
+      ((currentRole as any)?.permissions || u.role.permissions || []).map((rp: any) => rp.permission?.id || rp.permissionId)
     );
     setSelectedPerms(rolePerms);
     setIsCustomRole(false);

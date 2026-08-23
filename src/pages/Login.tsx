@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks';
 import { loginStart, loginSuccess, loginFailure } from '@/redux/slices/authSlice';
+import { API_URL } from '@/services/api';
 
 import { HeartPulse, Lock, Mail, Loader2, Eye, EyeOff } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -27,7 +28,6 @@ const handleLogin = async (e: React.FormEvent) => {
     dispatch(loginStart());
 
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
       const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

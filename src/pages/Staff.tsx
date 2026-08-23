@@ -103,7 +103,7 @@ export const StaffPage: React.FC = () => {
         setBranches(branchRes.value.data);
       }
       if (rolesRes.status === 'fulfilled' && Array.isArray(rolesRes.value)) {
-        setRoles(rolesRes.value.filter((r: AdminRole) => r.slug !== 'super_admin'));
+        setRoles(rolesRes.value.filter((r: AdminRole) => r.slug !== 'super_admin' && r.slug !== 'super-admin'));
       }
     } catch (err) {
       console.error('Failed to load staff data:', err);

@@ -17,8 +17,9 @@ import {
   ClipboardCheck,
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import { API_URL } from '@/services/api';
 
-const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = API_URL;
 
 type PrescriptionStatus = 'PENDING' | 'UNDER_REVIEW' | 'REVIEWED' | 'COMPLETED';
 

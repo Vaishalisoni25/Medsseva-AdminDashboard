@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSampleQueueQuery } from '@/hooks/useAdminQueries';
-import { sampleService } from '../services/api';
+import { sampleService, API_URL } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   QrCode,
@@ -115,7 +115,7 @@ const { data: queueData, isLoading: queueLoading } = useSampleQueueQuery();
     if (!queueData) fetchQueue();
     const token = localStorage.getItem('medsseva_token');
     if (token) {
-      const socket = socketIO(import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000', {
+      const socket = socketIO(API_URL.replace('/api', ''), {
         auth: { token },
       });
       socketRef.current = socket;
