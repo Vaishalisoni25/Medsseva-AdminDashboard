@@ -216,19 +216,23 @@ export const StaffPage: React.FC = () => {
       password: formPassword || 'MedsSeva@123',
     };
 
+    console.log('[STAFF CREATE] Submitting payload to API:', payload);
     setSaving(true);
     try {
       if (editing) {
-        await adminUserService.updateAdminUser(editing.id, payload);
+        const res = await adminUserService.updateAdminUser(editing.id, payload);
+        console.log('[STAFF UPDATE] Success:', res);
         toast.success('Staff details updated');
       } else {
-        await adminUserService.createAdminUser(payload);
+        const res = await adminUserService.createAdminUser(payload);
+        console.log('[STAFF CREATE] Success:', res);
         toast.success('Staff member registered');
       }
       setModalOpen(false);
       loadData();
     } catch (e: any) {
-      toast.error(e.response?.data?.error || 'Failed to save staff');
+      console.error('[STAFF SAVE ERROR] Response data:', e.response?.data);
+      toast.error(e.response?.data?.error || e.response?.data?.message || 'Failed to save staff');
     } finally {
       setSaving(false);
     }
