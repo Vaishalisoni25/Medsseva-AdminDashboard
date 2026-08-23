@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { adminUserService, rbacService } from '@/services/api';
 import { branchService, Branch } from '@/services/branch.service';
+import { useAppSelector } from '@/redux/hooks';
 import { AdminRole } from '@/types/rbac';
 import {
   Briefcase, Plus, Pencil, Trash2, Search, X, Loader2,
@@ -60,6 +61,7 @@ const COMMON_DESIGNATIONS = [
 ];
 
 export const StaffPage: React.FC = () => {
+  const currentUser = useAppSelector(state => state.auth.user);
   const [staffList, setStaffList] = useState<StaffRecord[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [roles, setRoles] = useState<AdminRole[]>([]);
@@ -84,6 +86,7 @@ export const StaffPage: React.FC = () => {
   const [customDesignation, setCustomDesignation] = useState('');
   const [formBranchId, setFormBranchId] = useState('');
   const [formFranchiseId, setFormFranchiseId] = useState('');
+  const [formRoleId, setFormRoleId] = useState('');
 
   const loadData = async () => {
     setLoading(true);
@@ -106,7 +109,7 @@ export const StaffPage: React.FC = () => {
         setBranches(branchRes.value.data);
       }
       if (rolesRes.status === 'fulfilled' && Array.isArray(rolesRes.value)) {
-        setRoles(rolesRes.value.filter((r: AdminRole) => r.slug !== 'super_admin' && r.slug !== 'super-admin'));
+        setRoles(rolesRes.value.filter((r: AdminRole) => (r.slug || '') !== 'super_admin' && (r.slug || '') !== 'super-admin'));
       }
     } catch (err) {
       console.error('Failed to load staff data:', err);
@@ -129,9 +132,14 @@ export const StaffPage: React.FC = () => {
     setCustomDepartment('');
     setFormDesignation('Lab Technician');
     setCustomDesignation('');
-    setFormBranchId('');
+    const userBranch = (currentUser as any)?.branchId || '';
+    setFormBranchId(userBranch || '');
     setFormFranchiseId('');
-    const defaultRole = roles.find(r => r.slug.includes('staff') || r.slug.includes('employee') || r.slug.includes('lab') || r.slug.includes('executive')) || roles[0];
+    const defaultRole = (roles || []).find(r => {
+      const s = (r?.slug || '').toLowerCase();
+      const n = (r?.name || '').toLowerCase();
+      return s.includes('staff') || s.includes('employee') || s.includes('lab') || s.includes('executive') || n.includes('staff') || n.includes('employee') || n.includes('lab') || n.includes('executive');
+    }) || roles[0];
     setFormRoleId(defaultRole?.id || '');
     setModalOpen(true);
   };
@@ -168,8 +176,8 @@ export const StaffPage: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!formName.trim() || !formEmail.trim()) {
-      toast.error('Name and Email are required');
+    if (!formName.trim() || !formEmail.trim() || (!editing && !formPassword.trim())) {
+      toast.error('Name, Email, and Password are required');
       return;
     }
     if (formMobile && !/^[6-9]\d{9}$/.test(formMobile.trim())) {
@@ -189,7 +197,11 @@ export const StaffPage: React.FC = () => {
       return;
     }
 
-    const activeRoleId = formRoleId || roles.find(r => r.slug.includes('staff') || r.slug.includes('employee') || r.slug.includes('lab') || r.slug.includes('executive'))?.id || roles[0]?.id;
+    const activeRoleId = formRoleId || (roles || []).find(r => {
+      const s = (r?.slug || '').toLowerCase();
+      const n = (r?.name || '').toLowerCase();
+      return s.includes('staff') || s.includes('employee') || s.includes('lab') || s.includes('executive') || n.includes('staff') || n.includes('employee') || n.includes('lab') || n.includes('executive');
+    })?.id || roles[0]?.id;
 
     const payload = {
       name: formName.trim(),
@@ -533,6 +545,20 @@ export const StaffPage: React.FC = () => {
                     onChange={e => setFormMobile(e.target.value)}
                     placeholder="e.g. 9876543210"
                     maxLength={10}
+                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/30"
+                  />
+                </div>
+
+                {/* Password */}
+                <div className="md:col-span-2">
+                  <label className="text-xs font-semibold text-foreground mb-1 block">
+                    {editing ? 'New Password (leave blank to keep current)' : 'Password *'}
+                  </label>
+                  <input
+                    type="password"
+                    value={formPassword}
+                    onChange={e => setFormPassword(e.target.value)}
+                    placeholder={editing ? 'Enter new password to update' : 'Min 8 characters (e.g. Pass@123)'}
                     className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/30"
                   />
                 </div>
