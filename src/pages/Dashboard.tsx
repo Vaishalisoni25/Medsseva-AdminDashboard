@@ -52,6 +52,9 @@ export const DashboardPage: React.FC = () => {
 
   // Base role and branch filtered bookings
   const baseBookings = useMemo(() => {
+    const isSuper = user?.role === 'super_admin' || user?.role === 'SUPER_ADMIN' || (user as any)?.isSuperAdmin;
+    const userBranchId = (user as any)?.branchId;
+
     return bookings.filter(b => {
       if (user?.role === 'franchise_admin') {
         if (b.franchiseId !== user.franchiseId) return false;
@@ -59,24 +62,33 @@ export const DashboardPage: React.FC = () => {
       if (user?.role === 'phlebotomist') {
         if (b.phlebotomistId !== user.id) return false;
       }
-      if (currentCityId && currentCityId !== 'all') {
+      // Branch-scoped lock for Branch Admins ONLY
+      if (!isSuper && userBranchId) {
+        if (b.branchId && b.branchId !== userBranchId) return false;
+      }
+      // Super admin sees all, unless explicit manual city/branch filter selected
+      if (!isSuper && currentCityId && currentCityId !== 'all') {
         if (b.cityId !== currentCityId) return false;
       }
-      if (currentBranchId && currentBranchId !== 'all') {
+      if (!isSuper && currentBranchId && currentBranchId !== 'all') {
         if (b.branchId !== currentBranchId) return false;
       }
       return true;
     });
   }, [bookings, user, currentCityId, currentBranchId]);
 
-  // Helper to parse dates robustly
-  const parseDate = (dStr?: string) => {
-    if (!dStr) return new Date();
-    const d = new Date(dStr);
+  // Robust date parser for all date string formats (ISO, DD/MM/YYYY, YYYY-MM-DD)
+  const parseBookingDate = (b: any): Date => {
+    const raw = b.scheduledDate || (b as any).createdAt || b.bookingDate;
+    if (!raw) return new Date();
+    const d = new Date(raw);
     if (!isNaN(d.getTime())) return d;
-    const parts = dStr.split('/');
-    if (parts.length === 3) {
-      return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+    if (typeof raw === 'string') {
+      const parts = raw.split(/[\/\-\.]/);
+      if (parts.length === 3) {
+        if (parts[0].length === 4) return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        if (parts[2].length === 4) return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+      }
     }
     return new Date();
   };
@@ -86,6 +98,7 @@ export const DashboardPage: React.FC = () => {
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
     switch (preset) {
       case 'today':
@@ -98,18 +111,16 @@ export const DashboardPage: React.FC = () => {
         return { start: startOfYest, end: endOfYest };
       }
       case 'last7': {
-        const start7 = new Date(startOfToday);
-        start7.setDate(start7.getDate() - 6);
-        return { start: start7, end: endOfToday };
+        const start7 = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
+        return { start: start7, end: endOfMonth };
       }
       case 'last30': {
-        const start30 = new Date(startOfToday);
-        start30.setDate(start30.getDate() - 29);
-        return { start: start30, end: endOfToday };
+        const start30 = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29, 0, 0, 0, 0);
+        return { start: start30, end: endOfMonth };
       }
       case 'thisMonth': {
         const startMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-        return { start: startMonth, end: endOfToday };
+        return { start: startMonth, end: endOfMonth };
       }
       case 'lastMonth': {
         const startLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
@@ -117,14 +128,14 @@ export const DashboardPage: React.FC = () => {
         return { start: startLastMonth, end: endLastMonth };
       }
       default:
-        return { start: startOfToday, end: endOfToday };
+        return { start: startOfToday, end: endOfMonth };
     }
   }, [preset]);
 
   // Filtered Bookings for the selected Preset
   const filteredBookings = useMemo(() => {
     return baseBookings.filter(b => {
-      const bDate = parseDate(b.bookingDate || (b as any).createdAt);
+      const bDate = parseBookingDate(b);
       return bDate >= dateRange.start && bDate <= dateRange.end;
     });
   }, [baseBookings, dateRange]);
@@ -159,7 +170,7 @@ export const DashboardPage: React.FC = () => {
       slots.forEach(s => { slotMap[s] = { bookings: 0, revenue: 0 }; });
 
       filteredBookings.forEach(b => {
-        const d = parseDate(b.bookingDate || (b as any).createdAt);
+        const d = parseBookingDate(b);
         const hour = d.getHours();
         let matchedSlot = '08:00';
         if (hour >= 21) matchedSlot = '22:00';
@@ -172,7 +183,7 @@ export const DashboardPage: React.FC = () => {
 
         if (slotMap[matchedSlot]) {
           slotMap[matchedSlot].bookings += 1;
-          slotMap[matchedSlot].revenue += b.totalAmount || 0;
+          slotMap[matchedSlot].revenue += b.totalAmount || (b as any).totalPaid || 0;
         }
       });
 
@@ -192,7 +203,7 @@ export const DashboardPage: React.FC = () => {
       };
 
       filteredBookings.forEach(b => {
-        const d = parseDate(b.bookingDate || (b as any).createdAt);
+        const d = parseBookingDate(b);
         const day = d.getDate();
         let w = 'Week 1';
         if (day > 21) w = 'Week 4';
@@ -200,7 +211,7 @@ export const DashboardPage: React.FC = () => {
         else if (day > 7) w = 'Week 2';
 
         weekMap[w].bookings += 1;
-        weekMap[w].revenue += b.totalAmount || 0;
+        weekMap[w].revenue += b.totalAmount || (b as any).totalPaid || 0;
       });
 
       return weeks.map(w => ({
@@ -215,11 +226,11 @@ export const DashboardPage: React.FC = () => {
       months.forEach(m => { monthMap[m] = { bookings: 0, revenue: 0 }; });
 
       baseBookings.forEach(b => {
-        const d = parseDate(b.bookingDate || (b as any).createdAt);
+        const d = parseBookingDate(b);
         const mName = months[d.getMonth()];
         if (monthMap[mName]) {
           monthMap[mName].bookings += 1;
-          monthMap[mName].revenue += b.totalAmount || 0;
+          monthMap[mName].revenue += b.totalAmount || (b as any).totalPaid || 0;
         }
       });
 
@@ -242,11 +253,11 @@ export const DashboardPage: React.FC = () => {
       };
 
       filteredBookings.forEach(b => {
-        const date = parseDate(b.bookingDate || (b as any).createdAt);
+        const date = parseBookingDate(b);
         const dayName = daysOfWeek[date.getDay()];
         if (chartDataMap[dayName]) {
           chartDataMap[dayName].bookings += 1;
-          chartDataMap[dayName].revenue += b.totalAmount || 0;
+          chartDataMap[dayName].revenue += b.totalAmount || (b as any).totalPaid || 0;
         }
       });
 
@@ -361,7 +372,7 @@ export const DashboardPage: React.FC = () => {
   };
 
   const renderStatsWidgets = () => {
-    const isSuper = user?.role === 'super_admin';
+    const isSuper = user?.role === 'super_admin' || user?.role === 'SUPER_ADMIN' || (user as any)?.isSuperAdmin;
     const isLab = user?.role === 'lab_staff' || user?.role === 'technician';
 
     const presetSuffix: Record<Preset, string> = {
@@ -375,14 +386,14 @@ export const DashboardPage: React.FC = () => {
 
     const stats = [
       {
-        title: isSuper ? 'Franchise / Total Revenue' : isLab ? 'Awaiting Sample' : 'Branch Revenue',
+        title: isSuper ? 'Global Platform Revenue' : isLab ? 'Awaiting Sample' : 'Branch Revenue',
         value: `₹${totalRevenue.toLocaleString()}`,
         change: totalRevenue > 0 ? '+14.2%' : '0.0%',
         icon: isSuper ? ShoppingBag : Calendar,
         trend: totalRevenue > 0 ? 'up' : 'down'
       },
       {
-        title: isSuper ? 'Total Cases' : isLab ? 'Ready for Test' : 'Total Cases',
+        title: isSuper ? 'Global Bookings' : isLab ? 'Ready for Test' : 'Total Cases',
         value: `${totalBookingsCount} Bookings`,
         change: totalBookingsCount > 0 ? '+28.4%' : '0.0%',
         icon: TrendingUp,

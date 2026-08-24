@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useAppSelector } from '@/redux/hooks';
 import { doctorService } from '@/services/api';
 import { branchService, Branch } from '@/services/branch.service';
 import {
@@ -44,6 +45,10 @@ const COMMON_SPECIALIZATIONS = [
 ];
 
 export const DoctorsPage: React.FC = () => {
+  const currentUser = useAppSelector(state => state.auth.user);
+  const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'SUPER_ADMIN' || (currentUser as any)?.isSuperAdmin;
+  const userBranchId = (currentUser as any)?.branchId;
+
   const [doctors, setDoctors] = useState<DoctorRecord[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -184,8 +189,15 @@ export const DoctorsPage: React.FC = () => {
     }
   };
 
+  const baseDoctors = useMemo(() => {
+    if (!isSuperAdmin && userBranchId) {
+      return doctors.filter(d => d.branchId === userBranchId || d.branch?.id === userBranchId);
+    }
+    return doctors;
+  }, [doctors, isSuperAdmin, userBranchId]);
+
   const filteredDoctors = useMemo(() => {
-    return doctors.filter(d => {
+    return baseDoctors.filter(d => {
       if (specFilter !== 'ALL' && d.specialization !== specFilter) return false;
       if (branchFilter !== 'ALL' && d.branchId !== branchFilter) return false;
       if (search.trim()) {
@@ -200,7 +212,7 @@ export const DoctorsPage: React.FC = () => {
       }
       return true;
     });
-  }, [doctors, search, specFilter, branchFilter]);
+  }, [baseDoctors, search, specFilter, branchFilter]);
 
   return (
     <div className="space-y-6">
@@ -528,12 +540,15 @@ export const DoctorsPage: React.FC = () => {
                   <select
                     value={formBranchId}
                     onChange={e => setFormBranchId(e.target.value)}
-                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-500/30"
+                    disabled={!isSuperAdmin && !!userBranchId}
+                    className={`w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-500/30 ${!isSuperAdmin && !!userBranchId ? 'opacity-80 cursor-not-allowed bg-muted' : ''}`}
                   >
-                    <option value="">All Branches / Central Lab</option>
-                    {branches.map(b => (
-                      <option key={b.id} value={b.id}>{b.name} ({b.city})</option>
-                    ))}
+                    {isSuperAdmin && <option value="">All Branches / Central Lab</option>}
+                    {branches
+                      .filter(b => isSuperAdmin || !userBranchId || b.id === userBranchId)
+                      .map(b => (
+                        <option key={b.id} value={b.id}>{b.name} ({b.city})</option>
+                      ))}
                   </select>
                 </div>
 

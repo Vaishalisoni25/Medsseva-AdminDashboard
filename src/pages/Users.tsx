@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useUsersQuery, usePartnersQuery, useAdminUsersQuery } from '@/hooks/useAdminQueries';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useUsersQuery, usePartnersQuery, useAdminUsersQuery, useBookingsQuery } from '@/hooks/useAdminQueries';
 import { User, UserRole } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -50,8 +50,14 @@ const ROLE_THEMES: Record<UserRole, { bg: string; text: string; border: string }
   'PATHOLOGIST': { bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-200' },
 };
 
+import { useAppSelector } from '@/redux/hooks';
+
 export const UsersPage: React.FC = () => {
-const { data: adminUsersData } = useAdminUsersQuery();
+  const currentUser = useAppSelector(state => state.auth.user);
+  const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'SUPER_ADMIN' || (currentUser as any)?.isSuperAdmin;
+  const userBranchId = (currentUser as any)?.branchId;
+
+  const { data: adminUsersData } = useAdminUsersQuery();
   const { data: usersData } = useUsersQuery();
   const { data: partnersData } = usePartnersQuery();
 
@@ -66,17 +72,33 @@ const { data: adminUsersData } = useAdminUsersQuery();
   useEffect(() => {
     if (adminUsersData) {
       const labels: Record<string, string> = {};
-      const mapped = adminUsersData.map((au: any) => {
+      const filtered = adminUsersData.filter((au: any) => {
+        if (!isSuperAdmin && userBranchId) {
+          return au.branchId === userBranchId || au.branch?.id === userBranchId || au.user?.email === currentUser?.email;
+        }
+        return true;
+      });
+      const mapped = filtered.map((au: any) => {
         labels[au.role.slug] = au.role.name;
-        return { id: au.user.id, name: au.user.name, email: au.user.email, phone: au.user.mobile && !au.user.mobile.startsWith('adm_') ? au.user.mobile : '', role: au.role.slug as any, status: (au.isActive ? 'active' : 'inactive') as 'active' | 'inactive' };
+        return { 
+          id: au.user.id, 
+          name: au.user.name, 
+          email: au.user.email, 
+          phone: au.user.mobile && !au.user.mobile.startsWith('adm_') ? au.user.mobile : '', 
+          role: au.role.slug as any, 
+          status: (au.isActive ? 'active' : 'inactive') as 'active' | 'inactive' 
+        };
       });
       setAdminUsers(mapped);
       setRoleLabels(labels);
     }
-  }, [adminUsersData]);
+  }, [adminUsersData, isSuperAdmin, userBranchId, currentUser]);
 
   useEffect(() => {
-    if (usersData) setBackendPatients(usersData);
+    if (usersData) {
+      // If branch admin, filter patients who booked in their branch or show general
+      setBackendPatients(usersData);
+    }
   }, [usersData]);
 
   useEffect(() => {
@@ -89,14 +111,20 @@ const { data: adminUsersData } = useAdminUsersQuery();
         const data = await adminUserService.getAdminUsers();
         if (data && Array.isArray(data)) {
           const labels: Record<string, string> = {};
-          const mapped = data.map((au: any) => {
+          const filtered = data.filter((au: any) => {
+            if (!isSuperAdmin && userBranchId) {
+              return au.branchId === userBranchId || au.branch?.id === userBranchId || au.user?.email === currentUser?.email;
+            }
+            return true;
+          });
+          const mapped = filtered.map((au: any) => {
             labels[au.role.slug] = au.role.name;
             return {
               id: au.user.id,
               name: au.user.name,
               email: au.user.email,
               phone: au.user.mobile && !au.user.mobile.startsWith('adm_') ? au.user.mobile : '',
-            role: au.role.slug as any,
+              role: au.role.slug as any,
               status: (au.isActive ? 'active' : 'inactive') as 'active' | 'inactive',
             };
           });
@@ -180,7 +208,30 @@ const handleRegisterUser = (e: React.FormEvent) => {
     window.location.href = '/admin-users';
   };
 
-const displayList = ([...adminUsers, ...backendPatients, ...partners] as User[]).filter(user => {
+  const { bookings } = useAppSelector(state => state.bookings);
+  useBookingsQuery();
+
+  const branchPatientIds = useMemo(() => {
+    if (isSuperAdmin || !userBranchId) return null;
+    return new Set(
+      (bookings || [])
+        .filter(b => b.branchId === userBranchId)
+        .map(b => b.patient?.id || (b as any).userId)
+        .filter(Boolean)
+    );
+  }, [bookings, isSuperAdmin, userBranchId]);
+
+  const filteredPatients = useMemo(() => {
+    if (isSuperAdmin || !userBranchId) return backendPatients;
+    return backendPatients.filter(p => branchPatientIds?.has(p.id) || (p as any).branchId === userBranchId);
+  }, [backendPatients, branchPatientIds, isSuperAdmin, userBranchId]);
+
+  const filteredPartners = useMemo(() => {
+    if (isSuperAdmin || !userBranchId) return partners;
+    return partners.filter(p => (p as any).branchId === userBranchId);
+  }, [partners, isSuperAdmin, userBranchId]);
+
+  const displayList = ([...adminUsers, ...filteredPatients, ...filteredPartners] as User[]).filter(user => {
     if (!user || !user.name) return false;
     const matchesSearch = user.name.toLowerCase().includes(search.toLowerCase()) || 
                           (user.email && user.email.toLowerCase().includes(search.toLowerCase())) ||
@@ -189,7 +240,20 @@ const displayList = ([...adminUsers, ...backendPatients, ...partners] as User[])
     return matchesSearch && matchesRole;
   });
 
-// Confirmation modal state
+  const distinctRoles = useMemo(() => {
+    if (isSuperAdmin || !userBranchId) {
+      return ['All', ...Object.keys(roleLabels), 'Patient', 'PATHOLOGY_PARTNER'];
+    }
+    const rolesInDisplay = new Set(displayList.map(u => u.role));
+    return [
+      'All',
+      ...Object.keys(roleLabels).filter(r => rolesInDisplay.has(r as any)),
+      ...(filteredPatients.length > 0 ? ['Patient'] : []),
+      ...(filteredPartners.length > 0 ? ['PATHOLOGY_PARTNER'] : [])
+    ];
+  }, [displayList, roleLabels, isSuperAdmin, userBranchId, filteredPatients, filteredPartners]);
+
+  // Confirmation modal state for suspending credentials
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     userId: string;
@@ -230,7 +294,6 @@ const displayList = ([...adminUsers, ...backendPatients, ...partners] as User[])
       setIsUpdatingLock(false);
     }
   };
-const distinctRoles = ['All', ...Object.keys(roleLabels), 'Patient', 'PATHOLOGY_PARTNER'];
 
 if (pageLoading) {
     return (

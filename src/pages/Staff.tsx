@@ -259,8 +259,18 @@ export const StaffPage: React.FC = () => {
     }
   };
 
+  const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'SUPER_ADMIN' || (currentUser as any)?.isSuperAdmin;
+  const userBranchId = (currentUser as any)?.branchId;
+
+  const baseStaffList = useMemo(() => {
+    if (!isSuperAdmin && userBranchId) {
+      return staffList.filter(s => s.branchId === userBranchId || s.branch?.id === userBranchId);
+    }
+    return staffList;
+  }, [staffList, isSuperAdmin, userBranchId]);
+
   const filteredStaff = useMemo(() => {
-    return staffList.filter(s => {
+    return baseStaffList.filter(s => {
       if (deptFilter !== 'ALL' && s.department !== deptFilter) return false;
       if (branchFilter !== 'ALL' && s.branchId !== branchFilter) return false;
       if (search.trim()) {
@@ -277,10 +287,10 @@ export const StaffPage: React.FC = () => {
       }
       return true;
     });
-  }, [staffList, search, deptFilter, branchFilter]);
+  }, [baseStaffList, search, deptFilter, branchFilter]);
 
-  const countTechnicians = staffList.filter(s => s.designation?.toLowerCase().includes('technician') || s.department?.toLowerCase().includes('lab')).length;
-  const countPhlebotomists = staffList.filter(s => s.designation?.toLowerCase().includes('phlebotomist') || s.designation?.toLowerCase().includes('collector')).length;
+  const countTechnicians = baseStaffList.filter(s => s.designation?.toLowerCase().includes('technician') || s.department?.toLowerCase().includes('lab')).length;
+  const countPhlebotomists = baseStaffList.filter(s => s.designation?.toLowerCase().includes('phlebotomist') || s.designation?.toLowerCase().includes('collector')).length;
 
   return (
     <div className="space-y-6">
@@ -555,18 +565,7 @@ export const StaffPage: React.FC = () => {
 
                 {/* Designation */}
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-semibold text-foreground">Staff Role / Designation *</label>
-                    {formDesignation === 'Others' && (
-                      <button 
-                        type="button" 
-                        onClick={() => { setFormDesignation('Lab Technician'); setCustomDesignation(''); }}
-                        className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
-                      >
-                        ← Select Preset
-                      </button>
-                    )}
-                  </div>
+                  <label className="text-xs font-semibold text-foreground mb-1 block">Staff Role / Designation *</label>
 
                   {formDesignation === 'Others' ? (
                     <input
@@ -597,18 +596,7 @@ export const StaffPage: React.FC = () => {
 
                 {/* Department */}
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-semibold text-foreground">Department *</label>
-                    {formDepartment === 'Others' && (
-                      <button 
-                        type="button" 
-                        onClick={() => { setFormDepartment('Pathology Lab'); setCustomDepartment(''); }}
-                        className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
-                      >
-                        ← Select Preset
-                      </button>
-                    )}
-                  </div>
+                  <label className="text-xs font-semibold text-foreground mb-1 block">Department *</label>
 
                   {formDepartment === 'Others' ? (
                     <input
@@ -643,12 +631,15 @@ export const StaffPage: React.FC = () => {
                   <select
                     value={formBranchId}
                     onChange={e => setFormBranchId(e.target.value)}
-                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/30"
+                    disabled={!isSuperAdmin && !!userBranchId}
+                    className={`w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/30 ${!isSuperAdmin && !!userBranchId ? 'opacity-80 cursor-not-allowed bg-muted' : ''}`}
                   >
-                    <option value="">All Branches / Central</option>
-                    {branches.map(b => (
-                      <option key={b.id} value={b.id}>{b.name} ({b.city})</option>
-                    ))}
+                    {isSuperAdmin && <option value="">All Branches / Central</option>}
+                    {branches
+                      .filter(b => isSuperAdmin || !userBranchId || b.id === userBranchId)
+                      .map(b => (
+                        <option key={b.id} value={b.id}>{b.name} ({b.city})</option>
+                      ))}
                   </select>
                 </div>
               </div>

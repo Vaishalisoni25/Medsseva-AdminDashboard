@@ -38,8 +38,10 @@ export const deleteBranch = createAsyncThunk('branches/delete', async (id: strin
 
 export const toggleBranchStatus = createAsyncThunk(
   'branches/toggleStatus',
-  async ({ id, isActive }: { id: string; isActive: boolean }) => {
-    const res = await branchService.toggleStatus(id, isActive);
+  async (arg: string | { id: string; isActive?: boolean }) => {
+    const id = typeof arg === 'string' ? arg : arg.id;
+    const isActive = typeof arg === 'object' ? arg.isActive : undefined;
+    const res = await branchService.toggleStatus(id, isActive as any);
     return res.data;
   }
 );

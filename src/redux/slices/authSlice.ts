@@ -47,7 +47,7 @@ loginSuccess: (state, action: PayloadAction<{ user: User; token: string }>) => {
       } else {
         state.currentCityId = 'all';
       }
-      state.currentBranchId = 'all';
+      state.currentBranchId = action.payload.user.branchId || 'all';
     },
     loginFailure: (state, action: PayloadAction<string>) => {
       state.isLoading = false;

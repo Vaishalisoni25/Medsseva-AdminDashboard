@@ -57,7 +57,13 @@ const MODULE_PERMISSIONS: { module: string; label: string; actions: string[] }[]
   { module: 'audit_logs', label: 'API Monitor Logs', actions: ['view'] },
 ];
 
+import { useAppSelector } from '@/redux/hooks';
+
 export const AdminUsersPage: React.FC = () => {
+  const currentUser = useAppSelector(state => state.auth.user);
+  const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'SUPER_ADMIN' || (currentUser as any)?.isSuperAdmin;
+  const userBranchId = (currentUser as any)?.branchId;
+
   const [adminUsers, setAdminUsers] = useState<AdminUserRecord[]>([]);
   const [roles, setRoles] = useState<AdminRole[]>([]);
   const [branches, setBranches] = useState<BranchOption[]>([]);
@@ -97,11 +103,19 @@ export const AdminUsersPage: React.FC = () => {
   const loading = (adminUsersLoading && !adminUsers.length) || (rolesLoading && !roles.length);
 
   useEffect(() => {
-    if (adminUsersData) setAdminUsers(adminUsersData);
+    if (adminUsersData) {
+      const filtered = adminUsersData.filter((au: any) => {
+        if (!isSuperAdmin && userBranchId) {
+          return au.branchId === userBranchId || au.branch?.id === userBranchId || au.user?.email === currentUser?.email;
+        }
+        return true;
+      });
+      setAdminUsers(filtered);
+    }
     if (rolesData) setRoles(rolesData.filter((r: AdminRole) => r.slug !== 'super_admin'));
     if (permsData) setAllPermissions(permsData);
     if (branchesData) setBranches(branchesData);
-  }, [adminUsersData, rolesData, permsData, branchesData]);
+  }, [adminUsersData, rolesData, permsData, branchesData, isSuperAdmin, userBranchId, currentUser]);
 
   const openCreate = (defaultType: 'DOCTOR' | 'EMPLOYEE' | 'STAFF' | 'ADMIN' = 'DOCTOR') => {
     setEditing(null);
