@@ -48,7 +48,13 @@ const REJECTION_REASONS = [
   'Outside Service Area',
 ];
 
+import { useAppSelector } from '@/redux/hooks';
+
 export const PathologyPartnersPage: React.FC = () => {
+  const currentUser = useAppSelector(state => state.auth.user);
+  const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'SUPER_ADMIN' || (currentUser as any)?.isSuperAdmin;
+  const userBranchId = (currentUser as any)?.branchId;
+
   const [partners, setPartners] = useState<Partner[]>([]);
 
   const [search, setSearch] = useState('');
@@ -57,11 +63,11 @@ export const PathologyPartnersPage: React.FC = () => {
   const [isRejecting, setIsRejecting] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [customReason, setCustomReason] = useState('');
-const [isUpdating, setIsUpdating] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [partnerRatings, setPartnerRatings] = useState<any>(null);
   const [ratingsLoading, setRatingsLoading] = useState(false);
 
-const { data: partnersData, isLoading: partnersQueryLoading } = usePartnersQuery();
+  const { data: partnersData, isLoading: partnersQueryLoading } = usePartnersQuery();
   const isLoading = partnersQueryLoading && partners.length === 0;
 
   useEffect(() => {
@@ -118,7 +124,7 @@ const { data: partnersData, isLoading: partnersQueryLoading } = usePartnersQuery
     }
   };
 
-const loadPartnerRatings = async (partnerId: string) => {
+  const loadPartnerRatings = async (partnerId: string) => {
     setRatingsLoading(true);
     setPartnerRatings(null);
     try {
@@ -145,7 +151,14 @@ const loadPartnerRatings = async (partnerId: string) => {
     }
   };
 
-  const filtered = partners.filter(p => {
+  const basePartners = React.useMemo(() => {
+    if (!isSuperAdmin && userBranchId) {
+      return partners.filter((p: any) => p.branchId === userBranchId);
+    }
+    return partners;
+  }, [partners, isSuperAdmin, userBranchId]);
+
+  const filtered = basePartners.filter(p => {
     const matchesSearch =
       p.user.name.toLowerCase().includes(search.toLowerCase()) ||
       p.user.mobile.includes(search) ||
@@ -155,11 +168,11 @@ const loadPartnerRatings = async (partnerId: string) => {
   });
 
   const counts = {
-    ALL: partners.length,
-    PENDING: partners.filter(p => p.approvalStatus === 'PENDING').length,
-    APPROVED: partners.filter(p => p.approvalStatus === 'APPROVED').length,
-    REJECTED: partners.filter(p => p.approvalStatus === 'REJECTED').length,
-    SUSPENDED: partners.filter(p => p.approvalStatus === 'SUSPENDED').length,
+    ALL: basePartners.length,
+    PENDING: basePartners.filter(p => p.approvalStatus === 'PENDING').length,
+    APPROVED: basePartners.filter(p => p.approvalStatus === 'APPROVED').length,
+    REJECTED: basePartners.filter(p => p.approvalStatus === 'REJECTED').length,
+    SUSPENDED: basePartners.filter(p => p.approvalStatus === 'SUSPENDED').length,
   };
 
   return (

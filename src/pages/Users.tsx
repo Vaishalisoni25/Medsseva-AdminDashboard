@@ -228,7 +228,7 @@ const handleRegisterUser = (e: React.FormEvent) => {
 
   const filteredPartners = useMemo(() => {
     if (isSuperAdmin || !userBranchId) return partners;
-    return partners.filter(p => (p as any).branchId === userBranchId);
+    return partners.filter((p: any) => p.branchId === userBranchId);
   }, [partners, isSuperAdmin, userBranchId]);
 
   const displayList = ([...adminUsers, ...filteredPatients, ...filteredPartners] as User[]).filter(user => {
