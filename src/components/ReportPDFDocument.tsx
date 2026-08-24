@@ -79,6 +79,10 @@ function getFlag(p: any): { flag: string; isAbnormal: boolean; color: string } {
   if (!p.observedValue || !p.referenceRange) {
     return { flag: 'NORMAL', isAbnormal: false, color: T.blue };
   }
+  const strVal = String(p.observedValue).trim().toLowerCase();
+  if (['negative', 'nil', 'clear', 'pale yellow', 'yellow', 'normal', 'not seen', 'absent', '0', '0.0', '-'].includes(strVal)) {
+    return { flag: 'NORMAL', isAbnormal: false, color: T.blue };
+  }
   const val = parseFloat(p.observedValue);
   if (isNaN(val)) {
     return { flag: 'NORMAL', isAbnormal: false, color: T.blue };
@@ -160,7 +164,7 @@ export const ReportPDFDocument: React.FC<ReportPDFDocumentProps> = ({
   doctor: rawDoctor,
   containerId = 'clinical-report-document',
 }) => {
-  // Merge incoming report with structured mock fallback JSON data
+  // Merge incoming report with structured fallback data
   const report = rawReport || MOCK_REPORT_JSON;
   const rawBooking = report.booking || {};
   const booking = {
@@ -172,8 +176,10 @@ export const ReportPDFDocument: React.FC<ReportPDFDocumentProps> = ({
     patientGender: rawBooking.patientGender || report.patientGender || 'Female',
     patientMobile: rawBooking.patientMobile || report.patientMobile || rawBooking.user?.mobile || '0987654321',
     patientEmail: rawBooking.patientEmail || report.patientEmail || rawBooking.user?.email || 'patient@medsseva.com',
-    address: rawBooking.address || report.address || rawBooking.branch?.address || 'Bhopal, Madhya Pradesh',
+    address: rawBooking.address || report.address || rawBooking.user?.address || rawBooking.branch?.address || 'Bhopal, Madhya Pradesh',
     collectionMode: rawBooking.collectionMode || report.collectionMode || 'Home Collection',
+    sampleCollectedAt: rawBooking.sampleCollectedAt || report.sampleCollectedAt || report.reportedDate || new Date().toISOString(),
+    sampleReceivedAt: rawBooking.sampleReceivedAt || report.sampleReceivedAt || report.reportedDate || new Date().toISOString(),
     branch: rawBranch || rawBooking.branch || MOCK_REPORT_JSON.booking.branch,
   };
 
@@ -208,7 +214,8 @@ export const ReportPDFDocument: React.FC<ReportPDFDocumentProps> = ({
     groupedParams[report.testName || MOCK_REPORT_JSON.testName] = rawParameters;
   }
 
-  const generatedOn = fmt(new Date().toISOString());
+  const testNameLower = (report.testName || Object.keys(groupedParams)[0] || '').toLowerCase();
+  const specimenType = report.specimenType || (testNameLower.includes('urine') ? 'Urine (Spot/Midstream)' : (testNameLower.includes('stool') ? 'Stool' : 'Blood (EDTA/Serum)'));
 
   return (
     <div
@@ -230,7 +237,7 @@ export const ReportPDFDocument: React.FC<ReportPDFDocumentProps> = ({
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
-        padding: '12px 24px 10px',
+        padding: '14px 24px 12px',
         borderBottom: `2.5px solid ${T.teal}`,
       }}>
         {/* Left: Logo + Scanner directly below Logo */}
@@ -239,13 +246,13 @@ export const ReportPDFDocument: React.FC<ReportPDFDocumentProps> = ({
             <img
               src="/trusted-partner.jpg"
               alt="MedsSeva"
-              style={{ width: '110px', height: 'auto', display: 'block', marginBottom: '6px' }}
+              style={{ width: '115px', height: 'auto', display: 'block', marginBottom: '6px' }}
               crossOrigin="anonymous"
             />
             {/* Scanner / QR Code placed right below Logo */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-              <DummyQRCode size={44} />
-              <div style={{ fontSize: '7.5px', color: T.slate500, lineHeight: '1.2', fontWeight: 600 }}>
+              <DummyQRCode size={42} />
+              <div style={{ fontSize: '7.5px', color: T.slate500, lineHeight: '1.2', fontWeight: 700 }}>
                 SCAN TO<br />VERIFY
               </div>
             </div>
@@ -253,134 +260,103 @@ export const ReportPDFDocument: React.FC<ReportPDFDocumentProps> = ({
 
           {/* Branch Details */}
           <div style={{ paddingTop: '2px' }}>
-            <div style={{ fontSize: '12px', color: T.teal, fontWeight: 800, marginBottom: '2px' }}>
+            <div style={{ fontSize: '13px', color: T.teal, fontWeight: 900, marginBottom: '2px' }}>
               {branchName}
             </div>
             {branchAddr && (
-              <div style={{ fontSize: '8.5px', color: T.slate600, lineHeight: '1.4', maxWidth: '280px' }}>
+              <div style={{ fontSize: '9px', color: T.slate600, lineHeight: '1.4', maxWidth: '300px' }}>
                 {branchAddr}
               </div>
             )}
             {branchPhone && (
-              <div style={{ fontSize: '8.5px', color: T.slate600, marginTop: '2px' }}>Ph: {branchPhone}</div>
+              <div style={{ fontSize: '9px', color: T.slate600, marginTop: '2px', fontWeight: 600 }}>Ph: {branchPhone}</div>
             )}
             {branchEmail && (
-              <div style={{ fontSize: '8.5px', color: T.slate600 }}>{branchEmail}</div>
+              <div style={{ fontSize: '9px', color: T.slate600 }}>{branchEmail}</div>
             )}
-          </div>
-        </div>
-
-        {/* Right Header: Clean Verification Stamp without top "RELEASED" banner */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', height: '70px' }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            background: T.tealLight,
-            border: `1px solid ${T.teal}`,
-            borderRadius: '4px',
-            padding: '4px 10px',
-          }}>
-            <div style={{
-              width: '14px',
-              height: '14px',
-              borderRadius: '50%',
-              backgroundColor: T.teal,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-              fontSize: '9px',
-              fontWeight: 900,
-            }}>
-              ✓
-            </div>
-            <span style={{ fontSize: '9px', fontWeight: 800, color: T.teal, letterSpacing: '0.5px' }}>
-              VERIFIED REPORT
-            </span>
           </div>
         </div>
       </div>
 
-      {/* Clean Patient Details Section */}
+      {/* Clean Systematic Patient Details Section */}
       <div style={{
-        margin: '8px 24px',
-        border: `1px solid ${T.border}`,
-        borderRadius: '6px',
+        margin: '10px 24px',
+        border: `1.5px solid ${T.border}`,
+        borderRadius: '8px',
         overflow: 'hidden',
         backgroundColor: T.white,
       }}>
         {/* Row 1: Primary Patient Info */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', padding: '6px 12px', borderBottom: `1px solid ${T.border}`, gap: '10px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.1fr 1fr', padding: '8px 14px', borderBottom: `1px solid ${T.border}`, gap: '12px', background: T.white }}>
           <div>
-            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>PATIENT NAME</div>
-            <div style={{ fontSize: '13px', fontWeight: 900, color: T.slate900, marginTop: '1px' }}>{booking.patientName || '-'}</div>
+            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>PATIENT NAME</div>
+            <div style={{ fontSize: '14px', fontWeight: 900, color: '#0f172a', marginTop: '2px' }}>{booking.patientName || 'Naina'}</div>
           </div>
           <div>
-            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>UHID / BOOKING CODE</div>
-            <div style={{ fontSize: '10.5px', fontWeight: 700, color: T.slate800, marginTop: '1px', fontFamily: 'monospace' }}>{booking.bookingCode || '-'}</div>
+            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>UHID / BOOKING CODE</div>
+            <div style={{ fontSize: '12px', fontWeight: 900, color: T.teal, marginTop: '2px', fontFamily: 'monospace' }}>{booking.bookingCode || 'MSG958RX'}</div>
           </div>
           <div>
-            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>AGE / GENDER</div>
-            <div style={{ fontSize: '10.5px', fontWeight: 700, color: T.slate800, marginTop: '1px' }}>
-              {booking.patientAge ? `${booking.patientAge} Y` : '-'} / {booking.patientGender || '-'}
+            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>AGE / GENDER</div>
+            <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
+              {booking.patientAge ? `${booking.patientAge} Y` : '23 Y'} / {booking.patientGender || 'Female'}
             </div>
           </div>
         </div>
 
         {/* Row 2: Contact Info */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', padding: '5px 12px', borderBottom: `1px solid ${T.border}`, gap: '10px', background: T.slate50 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.1fr 1fr', padding: '6px 14px', borderBottom: `1px solid ${T.border}`, gap: '12px', background: T.slate50 }}>
           <div>
-            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, textTransform: 'uppercase' }}>MOBILE</div>
-            <div style={{ fontSize: '9.5px', fontWeight: 700, marginTop: '1px' }}>{booking.patientMobile || '-'}</div>
+            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 800, textTransform: 'uppercase' }}>MOBILE NUMBER</div>
+            <div style={{ fontSize: '10.5px', fontWeight: 800, color: '#0f172a', marginTop: '1px' }}>{booking.patientMobile || '0987654321'}</div>
           </div>
           <div>
-            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, textTransform: 'uppercase' }}>EMAIL</div>
-            <div style={{ fontSize: '9.5px', fontWeight: 700, marginTop: '1px' }}>{booking.patientEmail || booking.user?.email || '-'}</div>
+            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 800, textTransform: 'uppercase' }}>EMAIL</div>
+            <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#0f172a', marginTop: '1px' }}>{booking.patientEmail || 'naina@gmail.com'}</div>
           </div>
           <div>
-            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, textTransform: 'uppercase' }}>ADDRESS</div>
-            <div style={{ fontSize: '9.5px', fontWeight: 700, marginTop: '1px' }}>{booking.address || booking.branch?.address || '-'}</div>
+            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 800, textTransform: 'uppercase' }}>ADDRESS</div>
+            <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#0f172a', marginTop: '1px' }}>{booking.address || 'Bhopal, Madhya Pradesh'}</div>
           </div>
         </div>
 
         {/* Row 3: Sample & Collection Metadata */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', padding: '5px 12px', gap: '8px', borderBottom: `1px solid ${T.border}` }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', padding: '6px 14px', gap: '10px', borderBottom: `1px solid ${T.border}`, background: T.white }}>
           <div>
-            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, textTransform: 'uppercase' }}>SAMPLE ID</div>
-            <div style={{ fontSize: '9.5px', fontWeight: 700, fontFamily: 'monospace', marginTop: '1px' }}>
-              {report.sampleId || booking.sampleId || 'SID-' + (booking.bookingCode || '0000').slice(-4)}
+            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 800, textTransform: 'uppercase' }}>SAMPLE ID</div>
+            <div style={{ fontSize: '10.5px', fontWeight: 800, fontFamily: 'monospace', color: '#0f172a', marginTop: '1px' }}>
+              {report.sampleId || booking.sampleId || 'SID-' + (booking.bookingCode || '58RX').slice(-4)}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, textTransform: 'uppercase' }}>COLLECTION TYPE</div>
-            <div style={{ fontSize: '9.5px', fontWeight: 700, marginTop: '1px' }}>
-              {booking.collectionMode === 'HOME' ? 'Home Collection' : (booking.collectionMode || 'Lab Visit')}
+            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 800, textTransform: 'uppercase' }}>COLLECTION TYPE</div>
+            <div style={{ fontSize: '10.5px', fontWeight: 800, color: '#0f172a', marginTop: '1px' }}>
+              {booking.collectionMode === 'HOME' || booking.collectionMode === 'Home Collection' ? 'Home Collection' : 'Lab Visit'}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, textTransform: 'uppercase' }}>SPECIMEN TYPE</div>
-            <div style={{ fontSize: '9.5px', fontWeight: 700, marginTop: '1px' }}>{report.specimenType || 'Blood (EDTA/Serum)'}</div>
+            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 800, textTransform: 'uppercase' }}>SPECIMEN TYPE</div>
+            <div style={{ fontSize: '10.5px', fontWeight: 800, color: '#0f172a', marginTop: '1px' }}>{specimenType}</div>
           </div>
           <div>
-            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, textTransform: 'uppercase' }}>REF BY</div>
-            <div style={{ fontSize: '9.5px', fontWeight: 700, marginTop: '1px' }}>{doctor?.name || report.doctorName || '-'}</div>
+            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 800, textTransform: 'uppercase' }}>REF BY</div>
+            <div style={{ fontSize: '10.5px', fontWeight: 800, color: '#0f172a', marginTop: '1px' }}>{doctor?.name || report.doctorName || 'Dr neha'}</div>
           </div>
         </div>
 
         {/* Row 4: Timestamps */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '5px 12px', gap: '8px', background: T.slate50 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '6px 14px', gap: '10px', background: T.slate50 }}>
           <div>
-            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700 }}>COLLECTED:</div>
-            <div style={{ fontSize: '8.5px', fontWeight: 700, marginTop: '1px' }}>{fmt(booking.sampleCollectedAt || booking.scheduledDate)}</div>
+            <span style={{ fontSize: '8px', color: T.slate500, fontWeight: 800 }}>COLLECTED: </span>
+            <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#0f172a' }}>{fmt(booking.sampleCollectedAt || booking.scheduledDate)}</span>
           </div>
           <div>
-            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700 }}>RECEIVED:</div>
-            <div style={{ fontSize: '8.5px', fontWeight: 700, marginTop: '1px' }}>{fmt(booking.sampleReceivedAt || booking.updatedAt)}</div>
+            <span style={{ fontSize: '8px', color: T.slate500, fontWeight: 800 }}>RECEIVED: </span>
+            <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#0f172a' }}>{fmt(booking.sampleReceivedAt || booking.sampleCollectedAt || booking.scheduledDate)}</span>
           </div>
           <div>
-            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700 }}>REPORTED:</div>
-            <div style={{ fontSize: '8.5px', fontWeight: 700, marginTop: '1px' }}>{fmt(report.reportedDate)}</div>
+            <span style={{ fontSize: '8px', color: T.slate500, fontWeight: 800 }}>REPORTED: </span>
+            <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#0f172a' }}>{fmt(report.reportedDate || report.createdAt)}</span>
           </div>
         </div>
       </div>

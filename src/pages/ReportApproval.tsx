@@ -138,17 +138,39 @@ const buildBranchAndDoctor = useCallback(() => {
     }
   }, [selectedReport, buildBranchAndDoctor, dispatch]);
 
-  const handlePrintPDF = useCallback(async () => {
-    if (!selectedReport) return;
-
-    if (selectedReport.pdfUrl) {
+  const downloadReportPdfBlob = async (url: string, filename: string) => {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const pdfBlob = new Blob([blob], { type: 'application/pdf' });
+      const blobUrl = URL.createObjectURL(pdfBlob);
       const link = document.createElement('a');
-   link.href = selectedReport.pdfUrl;
-      link.download = `MedsSeva_Report_${selectedReport.booking?.patientName?.replace(/\s+/g, '_') || 'Report'}_${selectedReport.booking?.bookingCode || ''}.pdf`;
+      link.href = blobUrl;
+      link.download = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    } catch {
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.download = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  const handlePrintPDF = useCallback(async () => {
+    if (!selectedReport) return;
+    const patientName = selectedReport.booking?.patientName?.replace(/\s+/g, '_') || selectedReport.patientName?.replace(/\s+/g, '_') || 'Patient';
+    const bookingCode = selectedReport.booking?.bookingCode || selectedReport.bookingCode || selectedReport.id.slice(0, 8);
+    const pdfFileName = `MedsSeva_Report_${patientName}_${bookingCode}.pdf`;
+
+    if (selectedReport.pdfUrl) {
       toast.success('Downloading PDF', 'The finalized report is being downloaded.');
+      await downloadReportPdfBlob(selectedReport.pdfUrl, pdfFileName);
       return;
     }
 
@@ -166,13 +188,7 @@ const buildBranchAndDoctor = useCallback(() => {
       setSelectedReport(updated);
       await dispatch(fetchAllReports());
 
-    const link = document.createElement('a');
-      link.href = result.pdfUrl;
-      link.download = `MedsSeva_Report_${selectedReport.booking?.patientName?.replace(/\s+/g, '_') || 'Report'}_${selectedReport.booking?.bookingCode || ''}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
+      await downloadReportPdfBlob(result.pdfUrl, pdfFileName);
       toast.success('PDF downloaded', 'Report has been saved to your downloads folder.');
     } catch (err) {
       console.error('PDF generation failed:', err);
@@ -217,7 +233,7 @@ const handleFinalize = async () => {
       setFinalizing(false);
     }
   };
- const handleSend = async (recipientId: string) => {
+  const handleSend = async (recipientId: string) => {
     if (!selectedReport) return;
     setSending(true);
     try {
@@ -226,12 +242,9 @@ const handleFinalize = async () => {
       if (!reportToSend.pdfUrl) {
         toast.success('Generating PDF', 'No PDF found, generating now before sending...');
         try {
-          const result = await generateAndUploadPDF(reportToSend);
-      if (!reportToSend.pdfUrl) {
-        try {
-          const result = await generateAndUploadPDF(reportToSend);
-          if (result && result.pdfUrl) {
-            reportToSend = { ...reportToSend, pdfUrl: result.pdfUrl, pdfPublicId: result.pdfPublicId };
+          const pdfResult = await generateAndUploadPDF(reportToSend);
+          if (pdfResult && pdfResult.pdfUrl) {
+            reportToSend = { ...reportToSend, pdfUrl: pdfResult.pdfUrl, pdfPublicId: pdfResult.pdfPublicId };
             setSelectedReport(reportToSend);
           }
         } catch (pdfErr) {
@@ -239,12 +252,12 @@ const handleFinalize = async () => {
         }
       }
 
-      const result = await dispatch(sendReportThunk({
+      const sendResult = await dispatch(sendReportThunk({
         id: reportToSend.id,
         recipientType: sendRecipientType,
         recipientId,
       })).unwrap();
-      setSelectedReport(result);
+      setSelectedReport(sendResult);
       setShowSendModal(false);
       await dispatch(fetchAllReports());
       toast.success('Report sent', 'The report has been delivered to the recipient.');
