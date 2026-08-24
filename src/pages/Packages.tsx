@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppSelector, useAppDispatch } from '../redux/hooks';
-import { upsertPackage } from '../redux/slices/testSlice';
-import { useEffect } from 'react';
+import { upsertPackage, fetchTests, fetchPackages } from '../redux/slices/testSlice';
 import { usePackagesQuery, useTestsQuery } from '@/hooks/useAdminQueries';
 import { MedicalPackage } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,7 +14,8 @@ import {
   X,
   Percent,
   Info,
-  Save
+  Save,
+  Loader2
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { useToast } from '../components/Toast';
@@ -26,13 +26,17 @@ export const PackagesPage: React.FC = () => {
   const tests = useAppSelector(state => state.tests.tests);
   const packages = useAppSelector(state => state.tests.packages);
 
-  useTestsQuery();
+  useEffect(() => {
+    dispatch(fetchTests());
+    dispatch(fetchPackages());
+  }, [dispatch]);
+
   const { isLoading: pkgLoading } = usePackagesQuery();
-  const [pageLoading, setPageLoading] = useState(pkgLoading);
+  const [pageLoading, setPageLoading] = useState(pkgLoading && packages.length === 0);
 
   useEffect(() => {
-    if (!pkgLoading) setPageLoading(false);
-  }, [pkgLoading]);
+    if (!pkgLoading || packages.length > 0) setPageLoading(false);
+  }, [pkgLoading, packages.length]);
   const [search, setSearch] = useState('');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingPackage, setEditingPackage] = useState<MedicalPackage | null>(null);
@@ -360,29 +364,36 @@ if (pageLoading) {
                   </div>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1">
-                    {tests.map(test => {
-                      const isPicked = selectedTestIds.includes(test.id);
-                      return (
-                        <button
-                          type="button"
-                          key={test.id}
-                          onClick={() => handleToggleTestSelection(test.id)}
-                          className={cn(
-                            "p-2.5 text-left border rounded-lg text-xs transition-all flex justify-between items-center",
-                            isPicked 
-                              ? "bg-primary/5 border-primary font-bold text-primary" 
-                              : "border-border hover:border-primary/40 bg-background text-foreground"
-                          )}
-                        >
-                          <span className="truncate max-w-[160px]">{test.name}</span>
-                          {isPicked ? (
-                            <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
-                          ) : (
-                            <span className="text-[10px] text-muted-foreground shrink-0">₹{test.discountedPrice || test.price}</span>
-                          )}
-                        </button>
-                      );
-                    })}
+                    {tests.length === 0 ? (
+                      <div className="col-span-2 py-6 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                        <span>Loading available laboratory tests...</span>
+                      </div>
+                    ) : (
+                      tests.map(test => {
+                        const isPicked = selectedTestIds.includes(test.id);
+                        return (
+                          <button
+                            type="button"
+                            key={test.id}
+                            onClick={() => handleToggleTestSelection(test.id)}
+                            className={cn(
+                              "p-2.5 text-left border rounded-lg text-xs transition-all flex justify-between items-center",
+                              isPicked 
+                                ? "bg-primary/5 border-primary font-bold text-primary" 
+                                : "border-border hover:border-primary/40 bg-background text-foreground"
+                            )}
+                          >
+                            <span className="truncate max-w-[160px]">{test.name}</span>
+                            {isPicked ? (
+                              <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground shrink-0">₹{test.discountedPrice || test.price}</span>
+                            )}
+                          </button>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
 
