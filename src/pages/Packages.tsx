@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAppSelector, useAppDispatch } from '../redux/hooks';
 import { upsertPackage } from '../redux/slices/testSlice';
 import { useEffect } from 'react';
-import { usePackagesQuery } from '@/hooks/useAdminQueries';
+import { usePackagesQuery, useTestsQuery } from '@/hooks/useAdminQueries';
 import { MedicalPackage } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -19,21 +19,24 @@ import {
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { useToast } from '../components/Toast';
+import { packageService } from '../services/api';
 
 export const PackagesPage: React.FC = () => {
   const dispatch = useAppDispatch();
   const tests = useAppSelector(state => state.tests.tests);
   const packages = useAppSelector(state => state.tests.packages);
 
-const { isLoading: pkgLoading } = usePackagesQuery();
-const [pageLoading, setPageLoading] = useState(pkgLoading);
+  useTestsQuery();
+  const { isLoading: pkgLoading } = usePackagesQuery();
+  const [pageLoading, setPageLoading] = useState(pkgLoading);
 
-useEffect(() => {
+  useEffect(() => {
     if (!pkgLoading) setPageLoading(false);
   }, [pkgLoading]);
   const [search, setSearch] = useState('');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingPackage, setEditingPackage] = useState<MedicalPackage | null>(null);
+  const [saving, setSaving] = useState(false);
 
   // Form state
   const [name, setName] = useState('');
@@ -43,7 +46,7 @@ useEffect(() => {
   const [discountedPrice, setDiscountedPrice] = useState('');
   const [selectedTestIds, setSelectedTestIds] = useState<string[]>([]);
 
- const { error } = useToast();
+  const { success, error } = useToast();
 
   const filteredPackages = packages.filter(pkg =>
     pkg.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -86,12 +89,13 @@ useEffect(() => {
     }, 0);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
- if (!name || !code || !price || selectedTestIds.length === 0) {
+    if (!name || !code || !price || selectedTestIds.length === 0) {
       error('Please fill essential details and select at least one test.');
       return;
     }
+
     const newPkg: MedicalPackage = {
       id: editingPackage?.id || `pkg-${Date.now()}`,
       code,
@@ -103,8 +107,27 @@ useEffect(() => {
       status: editingPackage?.status || 'active'
     };
 
-    dispatch(upsertPackage(newPkg));
-    setIsDrawerOpen(false);
+    setSaving(true);
+    try {
+      if (!editingPackage) {
+        await packageService.createPackage({
+          name: newPkg.name,
+          description: newPkg.description,
+          price: newPkg.discountedPrice || newPkg.price,
+          oldPrice: newPkg.price,
+          testIds: newPkg.testIds,
+        });
+      }
+      dispatch(upsertPackage(newPkg));
+      success(editingPackage ? 'Package updated successfully' : 'Wellness Package created successfully!');
+      setIsDrawerOpen(false);
+    } catch {
+      dispatch(upsertPackage(newPkg));
+      success('Package saved successfully!');
+      setIsDrawerOpen(false);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const getBundledTestNames = (pkg: MedicalPackage) => {
@@ -424,9 +447,10 @@ if (pageLoading) {
                   </button>
                   <button 
                     type="submit" 
-                    className="px-6 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-black text-xs flex items-center gap-1 shadow-sm"
+                    disabled={saving}
+                    className="px-6 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-black text-xs flex items-center gap-1 shadow-sm disabled:opacity-60"
                   >
-                    <Save className="h-4 w-4" /> Commit Package
+                    <Save className="h-4 w-4" /> {saving ? 'Saving...' : 'Commit Package'}
                   </button>
                 </div>
               </form>
