@@ -202,6 +202,7 @@ export const ReportPDFDocument: React.FC<ReportPDFDocumentProps> = ({
   const branchAddr  = [rawBranch?.line1, rawBranch?.city, rawBranch?.state, rawBranch?.pincode].filter(Boolean).join(', ') || booking.branch?.address || 'General Post Office, Bhopal, Madhya Pradesh - 462001';
   const branchPhone = rawBranch?.contactNumber || booking.branch?.contactNumber || '9998886661';
   const branchEmail = rawBranch?.email || booking.branch?.email || 'bhopal@gmail.com';
+  const generatedOn = fmt(report.reportedDate || report.createdAt || new Date().toISOString());
 
   const rawParameters = (report.parameters && report.parameters.length > 0) ? report.parameters : MOCK_REPORT_JSON.parameters;
   const groupedParams: Record<string, any[]> = {};
