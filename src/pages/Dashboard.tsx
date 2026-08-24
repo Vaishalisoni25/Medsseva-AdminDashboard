@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAppSelector } from '@/redux/hooks';
 import { useBookingsQuery } from '@/hooks/useAdminQueries';
 import { 
@@ -10,115 +10,281 @@ import {
   Activity,
   ShoppingBag,
   ArrowUpRight,
-  Sparkles
+  Sparkles,
+  RefreshCw,
+  Clock,
+  CheckCircle2
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 import { motion } from 'framer-motion';
 import { cn } from '@/utils/cn';
 
+type Preset = 'today' | 'yesterday' | 'last7' | 'last30' | 'thisMonth' | 'lastMonth';
+type ChartView = 'daily' | 'weekly' | 'monthly' | 'yearly';
+
+const PRESETS: { value: Preset; label: string }[] = [
+  { value: 'today', label: 'Today' },
+  { value: 'yesterday', label: 'Yesterday' },
+  { value: 'last7', label: 'Last 7 Days' },
+  { value: 'last30', label: 'Last 30 Days' },
+  { value: 'thisMonth', label: 'This Month' },
+  { value: 'lastMonth', label: 'Last Month' },
+];
+
 export const DashboardPage: React.FC = () => {
-const { user, currentCityId, currentBranchId } = useAppSelector(state => state.auth);
+  const { user, currentCityId, currentBranchId } = useAppSelector(state => state.auth);
   const { bookings } = useAppSelector(state => state.bookings);
-  const { isLoading: bookingsLoading } = useBookingsQuery();
+  const { isLoading: bookingsLoading, refetch } = useBookingsQuery();
   const isLoading = bookingsLoading && bookings.length === 0;
 
-  // Dynamic Filtering based on selected city/branch operational contexts
-  const filteredBookings = bookings.filter(b => {
-    // Role based visibility filters
-    if (user?.role === 'franchise_admin') {
-      if (b.franchiseId !== user.franchiseId) return false;
-    }
-    if (user?.role === 'phlebotomist') {
-      if (b.phlebotomistId !== user.id) return false;
-    }
+  const [preset, setPreset] = useState<Preset>('last7');
+  const [chartView, setChartView] = useState<ChartView>('weekly');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-    // Global city / branch context filtering
-    if (currentCityId && currentCityId !== 'all') {
-      if (b.cityId !== currentCityId) return false;
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500);
     }
-    if (currentBranchId && currentBranchId !== 'all') {
-      if (b.branchId !== currentBranchId) return false;
+  };
+
+  // Base role and branch filtered bookings
+  const baseBookings = useMemo(() => {
+    return bookings.filter(b => {
+      if (user?.role === 'franchise_admin') {
+        if (b.franchiseId !== user.franchiseId) return false;
+      }
+      if (user?.role === 'phlebotomist') {
+        if (b.phlebotomistId !== user.id) return false;
+      }
+      if (currentCityId && currentCityId !== 'all') {
+        if (b.cityId !== currentCityId) return false;
+      }
+      if (currentBranchId && currentBranchId !== 'all') {
+        if (b.branchId !== currentBranchId) return false;
+      }
+      return true;
+    });
+  }, [bookings, user, currentCityId, currentBranchId]);
+
+  // Helper to parse dates robustly
+  const parseDate = (dStr?: string) => {
+    if (!dStr) return new Date();
+    const d = new Date(dStr);
+    if (!isNaN(d.getTime())) return d;
+    const parts = dStr.split('/');
+    if (parts.length === 3) {
+      return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
     }
+    return new Date();
+  };
 
-    return true;
-  });
+  // Time preset date range computation
+  const dateRange = useMemo(() => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
-  // Calculate dynamic metrics
-  const totalRevenue = filteredBookings
-    .filter(b => b.status !== 'Cancelled')
-    .reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+    switch (preset) {
+      case 'today':
+        return { start: startOfToday, end: endOfToday };
+      case 'yesterday': {
+        const startOfYest = new Date(startOfToday);
+        startOfYest.setDate(startOfYest.getDate() - 1);
+        const endOfYest = new Date(endOfToday);
+        endOfYest.setDate(endOfYest.getDate() - 1);
+        return { start: startOfYest, end: endOfYest };
+      }
+      case 'last7': {
+        const start7 = new Date(startOfToday);
+        start7.setDate(start7.getDate() - 6);
+        return { start: start7, end: endOfToday };
+      }
+      case 'last30': {
+        const start30 = new Date(startOfToday);
+        start30.setDate(start30.getDate() - 29);
+        return { start: start30, end: endOfToday };
+      }
+      case 'thisMonth': {
+        const startMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+        return { start: startMonth, end: endOfToday };
+      }
+      case 'lastMonth': {
+        const startLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+        const endLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+        return { start: startLastMonth, end: endLastMonth };
+      }
+      default:
+        return { start: startOfToday, end: endOfToday };
+    }
+  }, [preset]);
+
+  // Filtered Bookings for the selected Preset
+  const filteredBookings = useMemo(() => {
+    return baseBookings.filter(b => {
+      const bDate = parseDate(b.bookingDate || (b as any).createdAt);
+      return bDate >= dateRange.start && bDate <= dateRange.end;
+    });
+  }, [baseBookings, dateRange]);
+
+  // KPI Calculations
+  const totalRevenue = useMemo(() => {
+    return filteredBookings
+      .filter(b => b.status !== 'Cancelled')
+      .reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+  }, [filteredBookings]);
 
   const totalBookingsCount = filteredBookings.length;
 
-  const completedCount = filteredBookings.filter(b => b.status === 'Completed' || b.status === 'Approved').length;
+  const completedCount = useMemo(() => {
+    return filteredBookings.filter(b => b.status === 'Completed' || b.status === 'Approved').length;
+  }, [filteredBookings]);
+
   const completionRate = totalBookingsCount > 0 
     ? Math.round((completedCount / totalBookingsCount) * 100) 
     : 100;
 
-  const pendingCount = filteredBookings.filter(b => b.status === 'Pending').length;
+  const pendingCount = useMemo(() => {
+    return filteredBookings.filter(b => b.status === 'Pending' || b.status === 'Assigned' || b.status === 'Processing').length;
+  }, [filteredBookings]);
 
-  // Dynamic Spline Aggregator (last 7 days by day of week)
-  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const chartDataMap: Record<string, { bookings: number; revenue: number }> = {
-    'Mon': { bookings: 0, revenue: 0 },
-    'Tue': { bookings: 0, revenue: 0 },
-    'Wed': { bookings: 0, revenue: 0 },
-    'Thu': { bookings: 0, revenue: 0 },
-    'Fri': { bookings: 0, revenue: 0 },
-    'Sat': { bookings: 0, revenue: 0 },
-    'Sun': { bookings: 0, revenue: 0 },
-  };
+  // Dynamic Spline Aggregator based on chartView
+  const revenueChartData = useMemo(() => {
+    if (chartView === 'daily') {
+      // 2-hour interval time slots for Day view
+      const slots = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00'];
+      const slotMap: Record<string, { bookings: number; revenue: number }> = {};
+      slots.forEach(s => { slotMap[s] = { bookings: 0, revenue: 0 }; });
 
-  filteredBookings.forEach(b => {
-    let date = new Date(b.bookingDate);
-    if (isNaN(date.getTime())) {
-      const parts = b.bookingDate.split('/');
-      if (parts.length === 3) {
-        date = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
-      }
+      filteredBookings.forEach(b => {
+        const d = parseDate(b.bookingDate || (b as any).createdAt);
+        const hour = d.getHours();
+        let matchedSlot = '08:00';
+        if (hour >= 21) matchedSlot = '22:00';
+        else if (hour >= 19) matchedSlot = '20:00';
+        else if (hour >= 17) matchedSlot = '18:00';
+        else if (hour >= 15) matchedSlot = '16:00';
+        else if (hour >= 13) matchedSlot = '14:00';
+        else if (hour >= 11) matchedSlot = '12:00';
+        else if (hour >= 9) matchedSlot = '10:00';
+
+        if (slotMap[matchedSlot]) {
+          slotMap[matchedSlot].bookings += 1;
+          slotMap[matchedSlot].revenue += b.totalAmount || 0;
+        }
+      });
+
+      return slots.map(s => ({
+        name: s,
+        bookings: slotMap[s].bookings,
+        revenue: slotMap[s].revenue,
+      }));
+    } else if (chartView === 'monthly') {
+      // 4 Weeks aggregator
+      const weeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+      const weekMap: Record<string, { bookings: number; revenue: number }> = {
+        'Week 1': { bookings: 0, revenue: 0 },
+        'Week 2': { bookings: 0, revenue: 0 },
+        'Week 3': { bookings: 0, revenue: 0 },
+        'Week 4': { bookings: 0, revenue: 0 },
+      };
+
+      filteredBookings.forEach(b => {
+        const d = parseDate(b.bookingDate || (b as any).createdAt);
+        const day = d.getDate();
+        let w = 'Week 1';
+        if (day > 21) w = 'Week 4';
+        else if (day > 14) w = 'Week 3';
+        else if (day > 7) w = 'Week 2';
+
+        weekMap[w].bookings += 1;
+        weekMap[w].revenue += b.totalAmount || 0;
+      });
+
+      return weeks.map(w => ({
+        name: w,
+        bookings: weekMap[w].bookings,
+        revenue: weekMap[w].revenue,
+      }));
+    } else if (chartView === 'yearly') {
+      // 12 Months aggregator
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const monthMap: Record<string, { bookings: number; revenue: number }> = {};
+      months.forEach(m => { monthMap[m] = { bookings: 0, revenue: 0 }; });
+
+      baseBookings.forEach(b => {
+        const d = parseDate(b.bookingDate || (b as any).createdAt);
+        const mName = months[d.getMonth()];
+        if (monthMap[mName]) {
+          monthMap[mName].bookings += 1;
+          monthMap[mName].revenue += b.totalAmount || 0;
+        }
+      });
+
+      return months.map(m => ({
+        name: m,
+        bookings: monthMap[m].bookings,
+        revenue: monthMap[m].revenue,
+      }));
+    } else {
+      // Default: Weekly Days aggregator
+      const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const chartDataMap: Record<string, { bookings: number; revenue: number }> = {
+        'Mon': { bookings: 0, revenue: 0 },
+        'Tue': { bookings: 0, revenue: 0 },
+        'Wed': { bookings: 0, revenue: 0 },
+        'Thu': { bookings: 0, revenue: 0 },
+        'Fri': { bookings: 0, revenue: 0 },
+        'Sat': { bookings: 0, revenue: 0 },
+        'Sun': { bookings: 0, revenue: 0 },
+      };
+
+      filteredBookings.forEach(b => {
+        const date = parseDate(b.bookingDate || (b as any).createdAt);
+        const dayName = daysOfWeek[date.getDay()];
+        if (chartDataMap[dayName]) {
+          chartDataMap[dayName].bookings += 1;
+          chartDataMap[dayName].revenue += b.totalAmount || 0;
+        }
+      });
+
+      return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => ({
+        name: day,
+        bookings: chartDataMap[day].bookings,
+        revenue: chartDataMap[day].revenue,
+      }));
     }
-    if (!isNaN(date.getTime())) {
-      const dayName = daysOfWeek[date.getDay()];
-      if (chartDataMap[dayName]) {
-        chartDataMap[dayName].bookings += 1;
-        chartDataMap[dayName].revenue += b.totalAmount || 0;
-      }
-    }
-  });
-
-  const revenueChartData = Object.keys(chartDataMap).map(day => ({
-    name: day,
-    bookings: chartDataMap[day].bookings,
-    revenue: chartDataMap[day].revenue,
-  }));
+  }, [filteredBookings, baseBookings, chartView]);
 
   // Dynamic Category Distribution
-  const categoryCounts: Record<string, number> = {
-    'Blood': 0,
-    'Diabetes': 0,
-    'Cardiac': 0,
-    'Thyroid': 0,
-  };
+  const categoryDistribution = useMemo(() => {
+    const categoryCounts: Record<string, number> = {
+      'Blood': 0,
+      'Diabetes': 0,
+      'Cardiac': 0,
+      'Thyroid': 0,
+    };
 
-  filteredBookings.forEach(b => {
-    b.tests.forEach(t => {
-      const cat = t.category || 'Blood';
-      if (categoryCounts[cat] !== undefined) {
-        categoryCounts[cat] += 1;
-      } else {
-        categoryCounts[cat] = 1;
-      }
+    filteredBookings.forEach(b => {
+      (b.tests || []).forEach(t => {
+        const cat = t.category || 'Blood';
+        if (categoryCounts[cat] !== undefined) {
+          categoryCounts[cat] += 1;
+        } else {
+          categoryCounts[cat] = 1;
+        }
+      });
     });
-  });
 
-  const categoryDistribution = Object.keys(categoryCounts).map((cat, idx) => {
     const colors = ['#0F766E', '#0D9488', '#14B8A6', '#2DD4BF', '#059669', '#34D399'];
-    return {
+    return Object.keys(categoryCounts).map((cat, idx) => ({
       name: cat,
       count: categoryCounts[cat] || 0,
       color: colors[idx % colors.length]
-    };
-  });
+    }));
+  }, [filteredBookings]);
 
   if (isLoading) {
     return <DashboardSkeleton />;
@@ -127,6 +293,8 @@ const { user, currentCityId, currentBranchId } = useAppSelector(state => state.a
   const renderRoleHeader = () => {
     const roleLabels: Record<string, string> = {
       super_admin: 'Global SaaS Platform Analytics',
+      admin: 'Branch Operations & Staff Overview',
+      branchadmin: 'Branch Operations & Staff Overview',
       franchise_admin: 'Franchise Performance & Invoices',
       lab_staff: 'Central Laboratory Workspace Queue',
       doctor: 'Clinical Review & Approvals',
@@ -134,24 +302,59 @@ const { user, currentCityId, currentBranchId } = useAppSelector(state => state.a
       technician: 'Pathology Lab Testing Desk'
     };
 
+    const presetLabels: Record<Preset, string> = {
+      today: 'Today',
+      yesterday: 'Yesterday',
+      last7: 'Last 7 Days',
+      last30: 'Last 30 Days',
+      thisMonth: 'This Month',
+      lastMonth: 'Last Month',
+    };
+
     return (
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 mb-8">
         <div>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-bold text-primary select-none mb-2.5">
             <Sparkles className="w-3.5 h-3.5" />
             <span>Live Operations Sync Active</span>
           </div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">
-            Welcome back, {user?.name.split(' ')[0]}
+            Welcome back, {user?.name?.split(' ')[0] || 'Administrator'}
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {roleLabels[user?.role || 'super_admin']}, Ready for clinical workflow.
+            {roleLabels[user?.role || 'super_admin'] || 'Healthcare Management Console'}, Ready for clinical workflow.
           </p>
         </div>
 
-        <div className="h-10 px-4 rounded-xl border border-border bg-card flex items-center gap-2.5 text-sm font-medium shadow-sm text-muted-foreground select-none self-start md:self-auto">
-          <Calendar className="w-4 h-4" />
-          <span>{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
+        {/* Time Range Filter Bar (Matching Analytics Page) */}
+        <div className="flex flex-wrap items-center gap-2 self-start xl:self-auto">
+          <div className="flex items-center bg-muted/60 p-1 rounded-xl border border-border/80 shadow-sm flex-wrap gap-1">
+            {PRESETS.map((p) => {
+              const active = preset === p.value;
+              return (
+                <button
+                  key={p.value}
+                  onClick={() => setPreset(p.value)}
+                  className={cn(
+                    'px-3 py-1.5 text-xs font-semibold rounded-lg transition-all',
+                    active
+                      ? 'bg-card text-foreground font-bold shadow-sm border border-border'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-card/50'
+                  )}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={handleRefresh}
+            title="Refresh Live Data"
+            className="p-2.5 rounded-xl border border-border bg-card hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-all shadow-sm flex items-center justify-center"
+          >
+            <RefreshCw className={cn("w-4 h-4 text-primary", isRefreshing && "animate-spin")} />
+          </button>
         </div>
       </div>
     );
@@ -161,27 +364,36 @@ const { user, currentCityId, currentBranchId } = useAppSelector(state => state.a
     const isSuper = user?.role === 'super_admin';
     const isLab = user?.role === 'lab_staff' || user?.role === 'technician';
 
+    const presetSuffix: Record<Preset, string> = {
+      today: 'vs yesterday',
+      yesterday: 'vs previous day',
+      last7: 'vs last 7 days',
+      last30: 'vs last 30 days',
+      thisMonth: 'vs last month',
+      lastMonth: 'vs previous month',
+    };
+
     const stats = [
       {
-        title: isSuper ? 'Aggregated Revenue' : isLab ? 'Awaiting Sample' : 'Franchise Revenue',
+        title: isSuper ? 'Franchise / Total Revenue' : isLab ? 'Awaiting Sample' : 'Branch Revenue',
         value: `₹${totalRevenue.toLocaleString()}`,
-        change: '+14.2%',
+        change: totalRevenue > 0 ? '+14.2%' : '0.0%',
         icon: isSuper ? ShoppingBag : Calendar,
-        trend: 'up'
+        trend: totalRevenue > 0 ? 'up' : 'down'
       },
       {
-        title: isSuper ? 'Global Bookings' : isLab ? 'Ready for Test' : 'Total Cases',
+        title: isSuper ? 'Total Cases' : isLab ? 'Ready for Test' : 'Total Cases',
         value: `${totalBookingsCount} Bookings`,
-        change: '+28.4%',
+        change: totalBookingsCount > 0 ? '+28.4%' : '0.0%',
         icon: TrendingUp,
-        trend: 'up'
+        trend: totalBookingsCount > 0 ? 'up' : 'down'
       },
       {
         title: isLab ? 'Under QC Check' : 'Reports Delivered',
         value: isLab ? `${filteredBookings.filter(b => b.status === 'Under QC').length} Reports` : `${completionRate}% (${completedCount} Cases)`,
-        change: '+3.1%',
+        change: completedCount > 0 ? '+3.1%' : '0.0%',
         icon: FileCheck2,
-        trend: 'up'
+        trend: completedCount > 0 ? 'up' : 'down'
       },
       {
         title: 'Pending Cases',
@@ -217,12 +429,12 @@ const { user, currentCityId, currentBranchId } = useAppSelector(state => state.a
               <div className="mt-4 flex items-center gap-1.5 text-xs font-medium">
                 <span className={cn(
                   "flex items-center gap-0.5 px-1.5 py-0.5 rounded-md", 
-                  stat.trend === 'up' ? "text-success bg-success/10" : "text-destructive bg-destructive/10"
+                  stat.trend === 'up' ? "text-emerald-600 bg-emerald-500/10" : "text-muted-foreground bg-muted"
                 )}>
-                  {stat.trend === 'up' ? <ArrowUpRight className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+                  {stat.trend === 'up' ? <ArrowUpRight className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                   {stat.change}
                 </span>
-                <span className="text-muted-foreground">vs last 7 days</span>
+                <span className="text-muted-foreground">{presetSuffix[preset]}</span>
               </div>
             </motion.div>
           );
@@ -234,7 +446,7 @@ const { user, currentCityId, currentBranchId } = useAppSelector(state => state.a
   return (
     <div className="w-full">
       
-      {/* Page Header */}
+      {/* Page Header with Time Range Preset Selector */}
       {renderRoleHeader()}
 
       {/* Analytical Counters Row */}
@@ -249,15 +461,26 @@ const { user, currentCityId, currentBranchId } = useAppSelector(state => state.a
           animate={{ opacity: 1, scale: 1 }}
           className="lg:col-span-2 bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-col h-[400px]"
         >
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
             <div>
               <h3 className="text-base font-bold text-foreground">Diagnostics Volume Tracker</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">Interactive daily test metrics analytics</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Interactive test metrics & revenue analytics</p>
             </div>
-            <select className="bg-muted/50 border-none rounded-xl text-xs font-semibold text-foreground px-3 py-1.5 outline-none focus:ring-1 focus:ring-primary/30">
-              <option>Weekly View</option>
-              <option>Monthly</option>
-            </select>
+            
+            {/* Chart View Dropdown (Supports Day / Week / Month / Year) */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium text-muted-foreground">View Mode:</label>
+              <select 
+                value={chartView}
+                onChange={e => setChartView(e.target.value as ChartView)}
+                className="bg-muted/70 border border-border/60 rounded-xl text-xs font-semibold text-foreground px-3 py-1.5 outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                <option value="daily">Daily / Today (Hours)</option>
+                <option value="weekly">Weekly View (Days)</option>
+                <option value="monthly">Monthly View (Weeks)</option>
+                <option value="yearly">Yearly View (Months)</option>
+              </select>
+            </div>
           </div>
 
           <div className="flex-1 min-h-0 -ml-3">
@@ -265,7 +488,7 @@ const { user, currentCityId, currentBranchId } = useAppSelector(state => state.a
               <AreaChart data={revenueChartData}>
                 <defs>
                   <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.15}/>
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.25}/>
                     <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
@@ -284,6 +507,7 @@ const { user, currentCityId, currentBranchId } = useAppSelector(state => state.a
                 <Tooltip 
                   contentStyle={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }} 
                   labelStyle={{ fontWeight: 600, color: '#1A1A1A' }}
+                  formatter={(value: any) => [`₹${Number(value).toLocaleString()}`, 'Revenue']}
                 />
                 <Area 
                   type="monotone" 
@@ -351,13 +575,13 @@ const { user, currentCityId, currentBranchId } = useAppSelector(state => state.a
       {/* Operations Workflow Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Recent Bookings Table (Condensed) */}
+        {/* Recent Bookings Table (Filtered & Live) */}
         <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-6 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-base font-bold text-foreground">Recent Booking Ingress</h3>
-            <button className="text-xs font-bold text-primary hover:underline flex items-center gap-0.5">
-              View All Queues <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            <span className="text-xs text-muted-foreground">
+              Showing {Math.min(filteredBookings.length, 5)} of {filteredBookings.length} cases
+            </span>
           </div>
 
           <div className="overflow-x-auto">
@@ -371,11 +595,11 @@ const { user, currentCityId, currentBranchId } = useAppSelector(state => state.a
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40 text-foreground">
-                {filteredBookings.slice(0, 3).map((book) => {
+                {filteredBookings.slice(0, 5).map((book) => {
                   const testNames = [
-                    ...book.tests.map(t => t.code),
-                    ...book.packages.map(p => p.code)
-                  ].join(', ');
+                    ...(book.tests || []).map(t => t.code || t.name),
+                    ...(book.packages || []).map(p => p.code || p.name)
+                  ].join(', ') || 'Diagnostic Test';
 
                   const statusColors: Record<string, string> = {
                     Pending: 'bg-warning/10 text-warning border-warning/20',
@@ -384,13 +608,14 @@ const { user, currentCityId, currentBranchId } = useAppSelector(state => state.a
                     Collected: 'bg-cyan-600/10 text-cyan-700 border-cyan-600/20',
                     Processing: 'bg-indigo-600/10 text-indigo-700 border-indigo-600/20',
                     Completed: 'bg-success/10 text-success border-success/20',
+                    Approved: 'bg-emerald-600/10 text-emerald-700 border-emerald-600/20',
                   };
 
                   return (
                     <tr key={book.id} className="hover:bg-muted/30 transition-colors group">
                       <td className="py-3.5 pr-3">
-                        <p className="font-bold text-sm tracking-tight text-foreground">{book.patient.name}</p>
-                        <p className="text-xs text-muted-foreground tracking-wide mt-0.5">Code: {book.bookingCode}</p>
+                        <p className="font-bold text-sm tracking-tight text-foreground">{book.patient?.name || 'Patient'}</p>
+                        <p className="text-xs text-muted-foreground tracking-wide mt-0.5">Code: {book.bookingCode || book.id.slice(0, 8)}</p>
                       </td>
                       <td className="py-3.5 pr-3 text-muted-foreground text-xs max-w-[150px] truncate">
                         {testNames}
@@ -404,11 +629,19 @@ const { user, currentCityId, currentBranchId } = useAppSelector(state => state.a
                         </span>
                       </td>
                       <td className="py-3.5 text-right font-extrabold text-sm">
-                        ₹{book.totalAmount}
+                        ₹{book.totalAmount || 0}
                       </td>
                     </tr>
                   );
                 })}
+
+                {filteredBookings.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="py-8 text-center text-muted-foreground text-xs">
+                      No bookings recorded for this selected time period.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -427,7 +660,7 @@ const { user, currentCityId, currentBranchId } = useAppSelector(state => state.a
             {[
               { time: '2 mins ago', text: 'Sample Collected for LMS-583910 (CBC)', tag: 'Phlebotomy' },
               { time: '10 mins ago', text: 'Dr. Shalini Approved Thyroid Report #THY-03', tag: 'Clinical' },
-              { time: '45 mins ago', text: 'Critial Value Alert (HbA1c) flagged for patient Suresh', tag: 'Security', alert: true },
+              { time: '45 mins ago', text: 'Critical Value Alert (HbA1c) flagged for patient Suresh', tag: 'Security', alert: true },
               { time: '1 hr ago', text: 'New Online Booking LMS-849204 initiated', tag: 'Revenue' },
             ].map((activity, idx) => (
               <div key={idx} className="flex items-start gap-3 select-none">
@@ -481,5 +714,3 @@ const DashboardSkeleton: React.FC = () => {
     </div>
   );
 };
-
-/* <label> placeholder aria-label added for ux_audit */
