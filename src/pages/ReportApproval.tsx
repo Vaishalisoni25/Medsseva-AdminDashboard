@@ -280,11 +280,11 @@ const handleFinalize = async () => {
   };
 
   const selectedBooking = selectedReport
-    ? bookingsForReport.find((b: any) => b.id === selectedReport.bookingId)
+    ? (selectedReport.booking || bookingsForReport.find((b: any) => b.id === selectedReport.bookingId))
     : null;
 
   const users = selectedBooking
-    ? [{ id: selectedBooking.userId, name: selectedBooking.patientName, mobile: selectedBooking.patientMobile || selectedBooking.user?.mobile }]
+    ? [{ id: selectedBooking.userId, name: selectedBooking.patientName || selectedBooking.user?.name, mobile: selectedBooking.patientMobile || selectedBooking.user?.mobile }]
     : [];
 
   const partners = selectedBooking?.assignedPartnerId
