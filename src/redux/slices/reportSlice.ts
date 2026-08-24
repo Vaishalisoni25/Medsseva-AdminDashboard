@@ -80,6 +80,17 @@ export const savePdfUrlThunk = createAsyncThunk('reports/savePdfUrl', async ({ i
     return rejectWithValue(e.response?.data?.error || 'Failed to save PDF URL');
   }
 });
+
+export const uploadReportPdfThunk = createAsyncThunk('reports/uploadPdf', async ({ id, formData }: { id: string; formData: FormData }, { rejectWithValue }) => {
+  try {
+    const res = await api.post(`/reports/${id}/upload-pdf`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data;
+  } catch (e: any) {
+    return rejectWithValue(e.response?.data?.error || 'Failed to upload report PDF');
+  }
+});
 const reportSlice = createSlice({
   name: 'reports',
   initialState,

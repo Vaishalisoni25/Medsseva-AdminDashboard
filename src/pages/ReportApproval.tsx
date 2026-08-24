@@ -8,6 +8,7 @@ import {
   finalizeReportThunk,
   sendReportThunk,
   savePdfUrlThunk,
+  uploadReportPdfThunk,
 } from '../redux/slices/reportSlice';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -121,34 +122,21 @@ const buildBranchAndDoctor = useCallback(() => {
       }
 
       const pdfBlob = pdf.output('blob');
-
-      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
       const patientName = reportData.booking?.patientName?.replace(/\s+/g, '_') || 'Report';
       const bookingCode = reportData.booking?.bookingCode || reportData.id.slice(0, 8);
-      const fileName = `MedsSeva_Report_${patientName}_${bookingCode}_${Date.now()}`;
+      const fileName = `MedsSeva_Report_${patientName}_${bookingCode}_${Date.now()}.pdf`;
 
       const formData = new FormData();
-      formData.append('file', pdfBlob, `${fileName}.pdf`);
-      formData.append('upload_preset', uploadPreset);
-      formData.append('public_id', fileName);
-      formData.append('resource_type', 'raw');
+      formData.append('pdf', pdfBlob, fileName);
 
- const uploadRes = await fetch(
-        `https://api.cloudinary.com/v1_1/${cloudName}/raw/upload`,
-        { method: 'POST', body: formData }
-      );
-
-      if (!uploadRes.ok) throw new Error('Cloudinary upload failed');
-
-     const uploadData = await uploadRes.json();
-      return { pdfUrl: uploadData.secure_url, pdfPublicId: uploadData.public_id };
+      const uploadResult = await dispatch(uploadReportPdfThunk({ id: reportData.id, formData })).unwrap();
+      return { pdfUrl: uploadResult.pdfUrl, pdfPublicId: uploadResult.pdfPublicId };
     } finally {
       setPortalReport(null);
       setPortalBranch(null);
       setPortalDoctor(undefined);
     }
-  }, [selectedReport, buildBranchAndDoctor]);
+  }, [selectedReport, buildBranchAndDoctor, dispatch]);
 
   const handlePrintPDF = useCallback(async () => {
     if (!selectedReport) return;
