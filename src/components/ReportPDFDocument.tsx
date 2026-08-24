@@ -142,6 +142,41 @@ const DummyQRCode: React.FC<{ size?: number }> = ({ size = 48 }) => (
   </svg>
 );
 
+// Barcode Component for Patient Details section
+const DummyBarcode: React.FC<{ value?: string; height?: number }> = ({ value = '1049', height = 20 }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+    <svg width="105" height={height} viewBox="0 0 105 24" fill="#000000">
+      <rect x="0" y="0" width="2" height="24" />
+      <rect x="3" y="0" width="1" height="24" />
+      <rect x="6" y="0" width="3" height="24" />
+      <rect x="11" y="0" width="2" height="24" />
+      <rect x="15" y="0" width="1" height="24" />
+      <rect x="18" y="0" width="4" height="24" />
+      <rect x="24" y="0" width="2" height="24" />
+      <rect x="28" y="0" width="1" height="24" />
+      <rect x="31" y="0" width="3" height="24" />
+      <rect x="36" y="0" width="1" height="24" />
+      <rect x="39" y="0" width="2" height="24" />
+      <rect x="43" y="0" width="4" height="24" />
+      <rect x="49" y="0" width="1" height="24" />
+      <rect x="52" y="0" width="3" height="24" />
+      <rect x="57" y="0" width="2" height="24" />
+      <rect x="61" y="0" width="1" height="24" />
+      <rect x="64" y="0" width="4" height="24" />
+      <rect x="70" y="0" width="2" height="24" />
+      <rect x="74" y="0" width="1" height="24" />
+      <rect x="77" y="0" width="3" height="24" />
+      <rect x="82" y="0" width="2" height="24" />
+      <rect x="86" y="0" width="1" height="24" />
+      <rect x="89" y="0" width="3" height="24" />
+      <rect x="94" y="0" width="2" height="24" />
+      <rect x="98" y="0" width="4" height="24" />
+      <rect x="103" y="0" width="2" height="24" />
+    </svg>
+    <span style={{ fontSize: '9px', fontWeight: 700, fontFamily: 'monospace', color: '#1e293b' }}>{value}</span>
+  </div>
+);
+
 export interface DoctorDetails {
   name: string;
   qualification: string;
@@ -197,6 +232,23 @@ export const ReportPDFDocument: React.FC<ReportPDFDocumentProps> = ({
       day: '2-digit', month: 'short', year: 'numeric',
       hour: '2-digit', minute: '2-digit', hour12: true,
     }) : '-';
+
+  const formatDateTime = (dt: string | null | undefined, includeTime = true) => {
+    if (!dt) return '-';
+    const d = new Date(dt);
+    if (isNaN(d.getTime())) return '-';
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    if (!includeTime) return `${dd}/${mm}/${yyyy}`;
+    let hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const hh = String(hours).padStart(2, '0');
+    return `${dd}/${mm}/${yyyy} ${hh}:${minutes} ${ampm}`;
+  };
 
   const branchName  = rawBranch?.name || booking.branch?.name || report.branchName || 'Bhopal branch';
   const branchAddr  = [rawBranch?.line1, rawBranch?.city, rawBranch?.state, rawBranch?.pincode].filter(Boolean).join(', ') || booking.branch?.address || 'General Post Office, Bhopal, Madhya Pradesh - 462001';
@@ -279,86 +331,92 @@ export const ReportPDFDocument: React.FC<ReportPDFDocumentProps> = ({
         </div>
       </div>
 
-      {/* Clean Systematic Patient Details Section */}
+      {/* Patient Details Section - Sequential Clinical Format */}
       <div style={{
-        margin: '10px 24px',
-        border: `1.5px solid ${T.border}`,
-        borderRadius: '8px',
-        overflow: 'hidden',
-        backgroundColor: T.white,
+        margin: '8px 24px 10px',
+        borderTop: `1px solid ${T.teal}`,
+        borderBottom: `1px solid ${T.border}`,
+        paddingTop: '6px',
+        paddingBottom: '8px',
+        display: 'grid',
+        gridTemplateColumns: '1.25fr 1fr',
+        gap: '0',
       }}>
-        {/* Row 1: Primary Patient Info */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.1fr 1fr', padding: '8px 14px', borderBottom: `1px solid ${T.border}`, gap: '12px', background: T.white }}>
-          <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>PATIENT NAME</div>
-            <div style={{ fontSize: '14px', fontWeight: 900, color: '#0f172a', marginTop: '2px' }}>{booking.patientName || 'Naina'}</div>
+        {/* Left Column: Patient Info & Registration Sequence */}
+        <div style={{ paddingRight: '16px' }}>
+          <div style={{ fontSize: '14px', fontWeight: 900, color: '#0f172a', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+            {booking.patientName?.toLowerCase().startsWith('mr') || booking.patientName?.toLowerCase().startsWith('ms') || booking.patientName?.toLowerCase().startsWith('mrs') || booking.patientName?.toLowerCase().startsWith('dr')
+              ? booking.patientName
+              : `${booking.patientGender === 'Female' ? 'Ms.' : 'Mr.'} ${booking.patientName || 'Patient'}`}
           </div>
-          <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>UHID / BOOKING CODE</div>
-            <div style={{ fontSize: '12px', fontWeight: 900, color: T.teal, marginTop: '2px', fontFamily: 'monospace' }}>{booking.bookingCode || 'MSG958RX'}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>AGE / GENDER</div>
-            <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
-              {booking.patientAge ? `${booking.patientAge} Y` : '23 Y'} / {booking.patientGender || 'Female'}
-            </div>
-          </div>
+          <table style={{ borderCollapse: 'collapse', fontSize: '9.5px', lineHeight: '1.65', width: '100%' }}>
+            <tbody>
+              <tr>
+                <td style={{ color: T.slate700, width: '80px', padding: '1.5px 0', fontWeight: 500 }}>Age / Sex</td>
+                <td style={{ color: T.slate700, width: '12px', padding: '1.5px 2px' }}>:</td>
+                <td style={{ fontWeight: 600, color: '#0f172a' }}>
+                  {booking.patientAge ? `${booking.patientAge} YRS` : '22 YRS'} / {booking.patientGender === 'Female' ? 'F' : 'M'}
+                </td>
+              </tr>
+              <tr>
+                <td style={{ color: T.slate700, padding: '1.5px 0', fontWeight: 500 }}>Referred by</td>
+                <td style={{ color: T.slate700, padding: '1.5px 2px' }}>:</td>
+                <td style={{ fontWeight: 600, color: '#0f172a' }}>
+                  {doctor?.name || report.doctorName || 'Self'}
+                </td>
+              </tr>
+              <tr>
+                <td style={{ color: T.slate700, padding: '1.5px 0', fontWeight: 500 }}>Reg. no.</td>
+                <td style={{ color: T.slate700, padding: '1.5px 2px' }}>:</td>
+                <td style={{ fontWeight: 900, color: '#0f172a', fontFamily: 'monospace' }}>
+                  {booking.bookingCode || '1049'}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
-        {/* Row 2: Contact Info */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.1fr 1fr', padding: '6px 14px', borderBottom: `1px solid ${T.border}`, gap: '12px', background: T.slate50 }}>
-          <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 800, textTransform: 'uppercase' }}>MOBILE NUMBER</div>
-            <div style={{ fontSize: '10.5px', fontWeight: 800, color: '#0f172a', marginTop: '1px' }}>{booking.patientMobile || '0987654321'}</div>
+        {/* Right Column: Barcode & Sequential Timestamps */}
+        <div style={{
+          paddingLeft: '16px',
+          borderLeft: `1px solid #cbd5e1`,
+        }}>
+          {/* Barcode on top */}
+          <div style={{ marginBottom: '6px' }}>
+            <DummyBarcode value={booking.bookingCode || '1049'} height={20} />
           </div>
-          <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 800, textTransform: 'uppercase' }}>EMAIL</div>
-            <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#0f172a', marginTop: '1px' }}>{booking.patientEmail || 'naina@gmail.com'}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 800, textTransform: 'uppercase' }}>ADDRESS</div>
-            <div style={{ fontSize: '10.5px', fontWeight: 700, color: '#0f172a', marginTop: '1px' }}>{booking.address || 'Bhopal, Madhya Pradesh'}</div>
-          </div>
-        </div>
-
-        {/* Row 3: Sample & Collection Metadata */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', padding: '6px 14px', gap: '10px', borderBottom: `1px solid ${T.border}`, background: T.white }}>
-          <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 800, textTransform: 'uppercase' }}>SAMPLE ID</div>
-            <div style={{ fontSize: '10.5px', fontWeight: 800, fontFamily: 'monospace', color: '#0f172a', marginTop: '1px' }}>
-              {report.sampleId || booking.sampleId || 'SID-' + (booking.bookingCode || '58RX').slice(-4)}
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 800, textTransform: 'uppercase' }}>COLLECTION TYPE</div>
-            <div style={{ fontSize: '10.5px', fontWeight: 800, color: '#0f172a', marginTop: '1px' }}>
-              {booking.collectionMode === 'HOME' || booking.collectionMode === 'Home Collection' ? 'Home Collection' : 'Lab Visit'}
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 800, textTransform: 'uppercase' }}>SPECIMEN TYPE</div>
-            <div style={{ fontSize: '10.5px', fontWeight: 800, color: '#0f172a', marginTop: '1px' }}>{specimenType}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: '8px', color: T.slate500, fontWeight: 800, textTransform: 'uppercase' }}>REF BY</div>
-            <div style={{ fontSize: '10.5px', fontWeight: 800, color: '#0f172a', marginTop: '1px' }}>{doctor?.name || report.doctorName || 'Dr neha'}</div>
-          </div>
-        </div>
-
-        {/* Row 4: Timestamps */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '6px 14px', gap: '10px', background: T.slate50 }}>
-          <div>
-            <span style={{ fontSize: '8px', color: T.slate500, fontWeight: 800 }}>COLLECTED: </span>
-            <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#0f172a' }}>{fmt(booking.sampleCollectedAt || booking.scheduledDate)}</span>
-          </div>
-          <div>
-            <span style={{ fontSize: '8px', color: T.slate500, fontWeight: 800 }}>RECEIVED: </span>
-            <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#0f172a' }}>{fmt(booking.sampleReceivedAt || booking.sampleCollectedAt || booking.scheduledDate)}</span>
-          </div>
-          <div>
-            <span style={{ fontSize: '8px', color: T.slate500, fontWeight: 800 }}>REPORTED: </span>
-            <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#0f172a' }}>{fmt(report.reportedDate || report.createdAt)}</span>
-          </div>
+          <table style={{ borderCollapse: 'collapse', fontSize: '9.5px', lineHeight: '1.65', width: '100%' }}>
+            <tbody>
+              <tr>
+                <td style={{ color: T.slate700, width: '90px', padding: '1.5px 0', fontWeight: 500 }}>Registered on</td>
+                <td style={{ color: T.slate700, width: '12px', padding: '1.5px 2px' }}>:</td>
+                <td style={{ color: '#0f172a', fontWeight: 500 }}>
+                  {formatDateTime(booking.createdAt || booking.sampleCollectedAt || report.createdAt)}
+                </td>
+              </tr>
+              <tr>
+                <td style={{ color: T.slate700, padding: '1.5px 0', fontWeight: 500 }}>Collected on</td>
+                <td style={{ color: T.slate700, padding: '1.5px 2px' }}>:</td>
+                <td style={{ color: '#0f172a', fontWeight: 500 }}>
+                  {formatDateTime(booking.sampleCollectedAt || booking.scheduledDate || report.createdAt, false)}
+                </td>
+              </tr>
+              <tr>
+                <td style={{ color: T.slate700, padding: '1.5px 0', fontWeight: 500 }}>Received on</td>
+                <td style={{ color: T.slate700, padding: '1.5px 2px' }}>:</td>
+                <td style={{ color: '#0f172a', fontWeight: 500 }}>
+                  {formatDateTime(booking.sampleReceivedAt || booking.sampleCollectedAt || report.createdAt, false)}
+                </td>
+              </tr>
+              <tr>
+                <td style={{ color: T.slate700, padding: '1.5px 0', fontWeight: 500 }}>Reported on</td>
+                <td style={{ color: T.slate700, padding: '1.5px 2px' }}>:</td>
+                <td style={{ color: '#0f172a', fontWeight: 600 }}>
+                  {formatDateTime(report.reportedDate || report.createdAt)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
