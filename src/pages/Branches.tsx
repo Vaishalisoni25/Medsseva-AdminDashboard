@@ -73,6 +73,7 @@ export default function Branches() {
   const [branchAdmins, setBranchAdmins] = useState<any[]>([]);
   const [branchDoctors, setBranchDoctors] = useState<any[]>([]);
   const [branchStaff, setBranchStaff] = useState<any[]>([]);
+  const [viewTab, setViewTab] = useState<'all' | 'admins' | 'doctors' | 'staff'>('all');
   const currentUser = useSelector((s: RootState) => (s as any).auth?.user);
   const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'SUPER_ADMIN' || (currentUser as any)?.isSuperAdmin;
   const userBranchId = (currentUser as any)?.branchId;
