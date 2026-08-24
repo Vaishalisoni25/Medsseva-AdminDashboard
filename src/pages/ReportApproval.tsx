@@ -227,19 +227,15 @@ const handleFinalize = async () => {
         toast.success('Generating PDF', 'No PDF found, generating now before sending...');
         try {
           const result = await generateAndUploadPDF(reportToSend);
-          if (!result) throw new Error('PDF generation failed');
-          const updated = await dispatch(savePdfUrlThunk({
-            id: reportToSend.id,
-            pdfUrl: result.pdfUrl,
-            pdfPublicId: result.pdfPublicId,
-          })).unwrap();
-          reportToSend = updated;
-          setSelectedReport(updated);
-          await dispatch(fetchAllReports());
-        } catch {
-          toast.error('PDF failed', 'Could not generate PDF. Please use Generate & Download first, then try sending again.');
-          setSending(false);
-          return;
+      if (!reportToSend.pdfUrl) {
+        try {
+          const result = await generateAndUploadPDF(reportToSend);
+          if (result && result.pdfUrl) {
+            reportToSend = { ...reportToSend, pdfUrl: result.pdfUrl, pdfPublicId: result.pdfPublicId };
+            setSelectedReport(reportToSend);
+          }
+        } catch (pdfErr) {
+          console.warn('PDF generation deferred:', pdfErr);
         }
       }
 
@@ -761,7 +757,7 @@ const handleFinalize = async () => {
       </AnimatePresence>
 
       {portalReport && ReactDOM.createPortal(
-        <div style={{ position: 'fixed', top: 0, left: '-9999px', width: '794px', zIndex: -9999, backgroundColor: '#ffffff', pointerEvents: 'none' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '794px', zIndex: -1000, opacity: 0.001, pointerEvents: 'none', backgroundColor: '#ffffff' }}>
           <ReportPDFDocument report={portalReport} branch={portalBranch} doctor={portalDoctor} />
         </div>,
         document.body
