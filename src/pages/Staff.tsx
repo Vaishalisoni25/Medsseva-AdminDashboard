@@ -555,49 +555,85 @@ export const StaffPage: React.FC = () => {
 
                 {/* Designation */}
                 <div>
-                  <label className="text-xs font-semibold text-foreground mb-1 block">Staff Role / Designation *</label>
-                  <select
-                    value={formDesignation}
-                    onChange={e => setFormDesignation(e.target.value)}
-                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/30 font-medium"
-                  >
-                    {COMMON_DESIGNATIONS.map(d => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
-                  {formDesignation === 'Others' && (
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-foreground">Staff Role / Designation *</label>
+                    {formDesignation === 'Others' && (
+                      <button 
+                        type="button" 
+                        onClick={() => { setFormDesignation('Lab Technician'); setCustomDesignation(''); }}
+                        className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
+                      >
+                        ← Select Preset
+                      </button>
+                    )}
+                  </div>
+
+                  {formDesignation === 'Others' ? (
                     <input
                       type="text"
                       value={customDesignation}
                       onChange={e => setCustomDesignation(e.target.value)}
-                      placeholder="Type custom designation / role..."
-                      className="w-full h-10 px-3 mt-2 bg-background border border-indigo-300 dark:border-indigo-600 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/30"
+                      placeholder="Type custom role (e.g. Office Staff)"
+                      className="w-full h-10 px-3 bg-background border border-indigo-500 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/30"
                       autoFocus
                     />
+                  ) : (
+                    <select
+                      value={formDesignation}
+                      onChange={e => {
+                        setFormDesignation(e.target.value);
+                        if (e.target.value === 'Others') {
+                          setCustomDesignation('');
+                        }
+                      }}
+                      className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/30 font-medium"
+                    >
+                      {COMMON_DESIGNATIONS.map(d => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
                   )}
                 </div>
 
                 {/* Department */}
                 <div>
-                  <label className="text-xs font-semibold text-foreground mb-1 block">Department *</label>
-                  <select
-                    value={formDepartment}
-                    onChange={e => setFormDepartment(e.target.value)}
-                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/30 font-medium"
-                  >
-                    {COMMON_DEPARTMENTS.map(d => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
-                  {formDepartment === 'Others' && (
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-foreground">Department *</label>
+                    {formDepartment === 'Others' && (
+                      <button 
+                        type="button" 
+                        onClick={() => { setFormDepartment('Pathology Lab'); setCustomDepartment(''); }}
+                        className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
+                      >
+                        ← Select Preset
+                      </button>
+                    )}
+                  </div>
+
+                  {formDepartment === 'Others' ? (
                     <input
                       type="text"
                       value={customDepartment}
                       onChange={e => setCustomDepartment(e.target.value)}
-                      placeholder="Type custom department name..."
-                      className="w-full h-10 px-3 mt-2 bg-background border border-indigo-300 dark:border-indigo-600 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/30"
+                      placeholder="Type custom department (e.g. Accounts, HR)"
+                      className="w-full h-10 px-3 bg-background border border-indigo-500 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/30"
                       autoFocus
                     />
+                  ) : (
+                    <select
+                      value={formDepartment}
+                      onChange={e => {
+                        setFormDepartment(e.target.value);
+                        if (e.target.value === 'Others') {
+                          setCustomDepartment('');
+                        }
+                      }}
+                      className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/30 font-medium"
+                    >
+                      {COMMON_DEPARTMENTS.map(d => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
                   )}
                 </div>
 
