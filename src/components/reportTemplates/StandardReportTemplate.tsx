@@ -54,7 +54,7 @@ export const DummyQRCode: React.FC<{ size?: number }> = ({ size = 48 }) => (
   </svg>
 );
 
-export const DummyBarcode: React.FC<{ value?: string; height?: number }> = ({ value = '1049', height = 20 }) => (
+export const DummyBarcode: React.FC<{ value?: string; height?: number }> = ({ value = '', height = 20 }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
     <svg width="105" height={height} viewBox="0 0 105 24" fill="#000000">
       <rect x="0" y="0" width="2" height="24" />
@@ -84,7 +84,7 @@ export const DummyBarcode: React.FC<{ value?: string; height?: number }> = ({ va
       <rect x="98" y="0" width="4" height="24" />
       <rect x="103" y="0" width="2" height="24" />
     </svg>
-    <span style={{ fontSize: '9px', fontWeight: 700, fontFamily: 'monospace', color: '#1e293b' }}>{value}</span>
+    {value && <span style={{ fontSize: '9px', fontWeight: 700, fontFamily: 'monospace', color: '#1e293b' }}>{value}</span>}
   </div>
 );
 
@@ -110,14 +110,31 @@ export const StandardReportTemplate: React.FC<TemplateProps> = ({
   formatDateTime,
   getFlag,
 }) => {
-  const branchName = branch?.name || booking.branch?.name || report.branchName || 'MedsSeva Pathology Lab';
-  const branchAddr = [branch?.line1, branch?.city, branch?.state, branch?.pincode].filter(Boolean).join(', ') || booking.branch?.address || 'Bhopal, Madhya Pradesh';
-  const branchPhone = branch?.contactNumber || booking.branch?.contactNumber || '+91 8968522455';
-  const branchEmail = branch?.email || booking.branch?.email || 'contact@medsseva.com';
+  const branchName = branch?.name || booking?.branch?.name || report?.reportBranch?.name || report?.branchName || 'MedsSeva Pathology Lab';
+  const branchAddr = [
+    branch?.line1 || booking?.branch?.line1,
+    branch?.city || booking?.branch?.city,
+    branch?.state || booking?.branch?.state,
+    branch?.pincode || booking?.branch?.pincode,
+  ].filter(Boolean).join(', ') || booking?.branch?.address || '';
+  const branchPhone = branch?.contactNumber || booking?.branch?.contactNumber || '';
+  const branchEmail = branch?.email || booking?.branch?.email || '';
+
+  const rawPatientName = booking?.patientName || report?.patientName || '';
+  const patientDisplayName = rawPatientName.toLowerCase().startsWith('mr') ||
+    rawPatientName.toLowerCase().startsWith('ms') ||
+    rawPatientName.toLowerCase().startsWith('mrs') ||
+    rawPatientName.toLowerCase().startsWith('dr')
+      ? rawPatientName
+      : (rawPatientName ? `${booking?.patientGender === 'Female' ? 'Ms.' : 'Mr.'} ${rawPatientName}` : '-');
+
+  const refDoctor = booking?.partnerNote?.startsWith('Ref:')
+    ? booking.partnerNote.replace('Ref:', '').trim()
+    : (doctor?.name || report?.doctorName || 'Self');
 
   return (
     <div style={{ width: '100%', minHeight: '1120px', backgroundColor: T.white, boxSizing: 'border-box' }}>
-      {/* Header Section: Medsseva Logo + Lab Info on Left */}
+      {/* Header Section */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -153,14 +170,16 @@ export const StandardReportTemplate: React.FC<TemplateProps> = ({
                 {branchAddr}
               </div>
             )}
-            {branchPhone && (
-              <div style={{ fontSize: '9px', color: T.slate600, marginTop: '2px', fontWeight: 600 }}>Ph: {branchPhone} | www.medsseva.com</div>
-            )}
+            <div>
+              <span style={{ fontSize: '9px', color: T.slate600 }}>www.medsseva.com</span>
+              {branchPhone && <span style={{ fontSize: '9px', color: T.slate600, fontWeight: 600 }}> | Ph: {branchPhone}</span>}
+              {branchEmail && <span style={{ fontSize: '9px', color: T.slate600 }}> | {branchEmail}</span>}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Patient Details Block */}
+      {/* Patient Details Block (100% Dynamic) */}
       <div style={{
         margin: '8px 24px 10px',
         borderTop: `1px solid ${T.teal}`,
@@ -174,9 +193,7 @@ export const StandardReportTemplate: React.FC<TemplateProps> = ({
         {/* Left Column */}
         <div style={{ paddingRight: '16px' }}>
           <div style={{ fontSize: '14px', fontWeight: 900, color: '#0f172a', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
-            {booking.patientName?.toLowerCase().startsWith('mr') || booking.patientName?.toLowerCase().startsWith('ms') || booking.patientName?.toLowerCase().startsWith('mrs') || booking.patientName?.toLowerCase().startsWith('dr')
-              ? booking.patientName
-              : `${booking.patientGender === 'Female' ? 'Ms.' : 'Mr.'} ${booking.patientName || 'Patient'}`}
+            {patientDisplayName}
           </div>
           <table style={{ borderCollapse: 'collapse', fontSize: '9.5px', lineHeight: '1.65', width: '100%' }}>
             <tbody>
@@ -184,34 +201,34 @@ export const StandardReportTemplate: React.FC<TemplateProps> = ({
                 <td style={{ color: T.slate700, width: '80px', padding: '1.5px 0', fontWeight: 500 }}>Age / Sex</td>
                 <td style={{ color: T.slate700, width: '12px', padding: '1.5px 2px' }}>:</td>
                 <td style={{ fontWeight: 600, color: '#0f172a' }}>
-                  {booking.patientAge ? `${booking.patientAge} YRS` : '22 YRS'} / {booking.patientGender === 'Female' ? 'F' : 'M'}
+                  {booking?.patientAge ? `${booking.patientAge} YRS` : '-'} / {booking?.patientGender === 'Female' ? 'F' : (booking?.patientGender === 'Male' ? 'M' : '-')}
                 </td>
               </tr>
               <tr>
                 <td style={{ color: T.slate700, padding: '1.5px 0', fontWeight: 500 }}>Referred by</td>
                 <td style={{ color: T.slate700, padding: '1.5px 2px' }}>:</td>
                 <td style={{ fontWeight: 600, color: '#0f172a' }}>
-                  {booking.partnerNote?.startsWith('Ref:') ? booking.partnerNote.replace('Ref:', '').trim() : (doctor?.name || report.doctorName || 'Self')}
+                  {refDoctor}
                 </td>
               </tr>
               <tr>
                 <td style={{ color: T.slate700, padding: '1.5px 0', fontWeight: 500 }}>Reg. no.</td>
                 <td style={{ color: T.slate700, padding: '1.5px 2px' }}>:</td>
                 <td style={{ fontWeight: 900, color: '#0f172a', fontFamily: 'monospace' }}>
-                  {booking.bookingCode || '1049'}
+                  {booking?.bookingCode || report?.id?.slice(0, 8) || '-'}
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        {/* Right Column: Barcode & Sequential Timestamps */}
+        {/* Right Column */}
         <div style={{
           paddingLeft: '16px',
           borderLeft: `1px solid #cbd5e1`,
         }}>
           <div style={{ marginBottom: '6px' }}>
-            <DummyBarcode value={booking.bookingCode || '1049'} height={20} />
+            <DummyBarcode value={booking?.bookingCode || report?.id?.slice(0, 8) || ''} height={20} />
           </div>
           <table style={{ borderCollapse: 'collapse', fontSize: '9.5px', lineHeight: '1.65', width: '100%' }}>
             <tbody>
@@ -219,28 +236,28 @@ export const StandardReportTemplate: React.FC<TemplateProps> = ({
                 <td style={{ color: T.slate700, width: '90px', padding: '1.5px 0', fontWeight: 500 }}>Registered on</td>
                 <td style={{ color: T.slate700, width: '12px', padding: '1.5px 2px' }}>:</td>
                 <td style={{ color: '#0f172a', fontWeight: 500 }}>
-                  {formatDateTime(booking.createdAt || booking.sampleCollectedAt || report.createdAt)}
+                  {formatDateTime(booking?.createdAt || booking?.sampleCollectedAt || report?.createdAt)}
                 </td>
               </tr>
               <tr>
                 <td style={{ color: T.slate700, padding: '1.5px 0', fontWeight: 500 }}>Collected on</td>
                 <td style={{ color: T.slate700, padding: '1.5px 2px' }}>:</td>
                 <td style={{ color: '#0f172a', fontWeight: 500 }}>
-                  {formatDateTime(booking.sampleCollectedAt || booking.scheduledDate || report.createdAt, false)}
+                  {formatDateTime(booking?.sampleCollectedAt || booking?.scheduledDate || report?.createdAt, false)}
                 </td>
               </tr>
               <tr>
                 <td style={{ color: T.slate700, padding: '1.5px 0', fontWeight: 500 }}>Received on</td>
                 <td style={{ color: T.slate700, padding: '1.5px 2px' }}>:</td>
                 <td style={{ color: '#0f172a', fontWeight: 500 }}>
-                  {formatDateTime(booking.sampleReceivedAt || booking.sampleCollectedAt || report.createdAt, false)}
+                  {formatDateTime(booking?.sampleReceivedAt || booking?.sampleCollectedAt || report?.createdAt, false)}
                 </td>
               </tr>
               <tr>
                 <td style={{ color: T.slate700, padding: '1.5px 0', fontWeight: 500 }}>Reported on</td>
                 <td style={{ color: T.slate700, padding: '1.5px 2px' }}>:</td>
                 <td style={{ color: '#0f172a', fontWeight: 600 }}>
-                  {formatDateTime(report.reportedDate || report.createdAt)}
+                  {formatDateTime(report?.reportedDate || report?.createdAt)}
                 </td>
               </tr>
             </tbody>
@@ -262,7 +279,7 @@ export const StandardReportTemplate: React.FC<TemplateProps> = ({
         </div>
       </div>
 
-      {/* Test Parameters Tables */}
+      {/* Test Parameters Tables (100% Dynamic) */}
       <div style={{ margin: '0 24px' }}>
         {Object.entries(groupedParams).map(([groupName, params], gi) => (
           <div key={gi}>
@@ -337,7 +354,7 @@ export const StandardReportTemplate: React.FC<TemplateProps> = ({
       </div>
 
       {/* Clinical Notes & Remarks Section */}
-      {(report.doctorInterpretation || report.clinicalNotes || report.technicianRemarks || report.doctorRemarks) && (
+      {(report?.doctorInterpretation || report?.clinicalNotes || report?.technicianRemarks || report?.doctorRemarks) && (
         <div style={{ margin: '8px 24px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
           {report.clinicalNotes && (
             <div style={{ border: `1px solid ${T.border}`, borderRadius: '4px', padding: '6px 8px', background: T.slate50 }}>
@@ -363,7 +380,7 @@ export const StandardReportTemplate: React.FC<TemplateProps> = ({
       {/* Signatures Footer */}
       <div style={{ margin: '12px 24px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: '10px' }}>
         <div>
-          <div style={{ fontSize: '9px', fontWeight: 700, color: T.slate700 }}>DMLT, Lab Incharge</div>
+          <div style={{ fontSize: '9px', fontWeight: 700, color: T.slate700 }}>Lab Incharge</div>
           <div style={{ fontSize: '7.5px', color: T.slate500, marginTop: '2px' }}>Verified Quality Checks Passed</div>
         </div>
 
@@ -371,9 +388,9 @@ export const StandardReportTemplate: React.FC<TemplateProps> = ({
           <div style={{ fontSize: '8px', color: T.slate500 }}>Powered by <strong>MedsSeva Lab Platform</strong></div>
         </div>
 
-        {doctor?.name && (
+        {(doctor?.name || report?.doctorName) && (
           <div style={{ textAlign: 'right', minWidth: '160px' }}>
-            {doctor.signatureUrl ? (
+            {doctor?.signatureUrl ? (
               <img
                 src={doctor.signatureUrl}
                 alt="Doctor Signature"
@@ -396,13 +413,13 @@ export const StandardReportTemplate: React.FC<TemplateProps> = ({
                 DIGITALLY SIGNED ✓
               </div>
             )}
-            <div style={{ fontSize: '11px', fontWeight: 900, color: T.teal }}>{doctor.name}</div>
-            {doctor.qualification && (
-              <div style={{ fontSize: '7.5px', color: T.slate600, marginTop: '1px' }}>{doctor.qualification}</div>
+            <div style={{ fontSize: '11px', fontWeight: 900, color: T.teal }}>{doctor?.name || report?.doctorName}</div>
+            {(doctor?.qualification || report?.doctorQualification) && (
+              <div style={{ fontSize: '7.5px', color: T.slate600, marginTop: '1px' }}>{doctor?.qualification || report?.doctorQualification}</div>
             )}
-            {doctor.designation && (
+            {(doctor?.designation || report?.doctorDesignation) && (
               <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, marginTop: '1px', textTransform: 'uppercase' }}>
-                {doctor.designation}
+                {doctor?.designation || report?.doctorDesignation}
               </div>
             )}
           </div>
