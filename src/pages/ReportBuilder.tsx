@@ -349,18 +349,23 @@ const toast = useToast();
     }
 
     setCreatingWalkin(true);
+    const payload = {
+      patientName: walkinForm.patientName.trim(),
+      mobile: walkinForm.mobile.trim().replace(/\D/g, ''),
+      address: walkinForm.address.trim(),
+      gender: walkinForm.gender,
+      age: Number(walkinForm.age),
+      reference: walkinForm.reference.trim() || undefined,
+      testIds: selectedTestIds,
+      packageIds: selectedPackageIds,
+      branchId: verification.reportBranchId || undefined,
+    };
+
+    console.log('[Walk-in Flow] Submitting Walk-in Patient Data:', payload);
+
     try {
-      const newBooking = await testService.createWalkinBooking({
-        patientName: walkinForm.patientName.trim(),
-        mobile: walkinForm.mobile.trim().replace(/\D/g, ''),
-        address: walkinForm.address.trim(),
-        gender: walkinForm.gender,
-        age: Number(walkinForm.age),
-        reference: walkinForm.reference.trim() || undefined,
-        testIds: selectedTestIds,
-        packageIds: selectedPackageIds,
-        branchId: verification.reportBranchId || undefined,
-      });
+      const newBooking = await testService.createWalkinBooking(payload);
+      console.log('[Walk-in Flow] Successfully registered walk-in booking:', newBooking);
 
       toast.success('Patient Registered', 'Walk-in patient saved. Loading report builder...');
 
@@ -383,8 +388,9 @@ const toast = useToast();
 
       handleSelectBooking(newBooking);
     } catch (err: any) {
-      console.error('Walk-in creation error:', err);
-      toast.error('Failed to create patient', err.response?.data?.error || err.message || 'Please check details and try again.');
+      console.error('[Walk-in Flow] Error response:', err.response?.status, err.response?.data || err.message);
+      const errMsg = err.response?.data?.error || err.response?.data?.message || err.message || 'Please check details and try again.';
+      toast.error('Failed to create patient', errMsg);
     } finally {
       setCreatingWalkin(false);
     }
