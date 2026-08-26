@@ -61,6 +61,20 @@ export const testService = {
     const response = await api.get('/bookings');
     return response.data;
   },
+  createWalkinBooking: async (data: {
+    patientName: string;
+    mobile: string;
+    address: string;
+    gender: string;
+    age: number | string;
+    reference?: string;
+    testIds?: string[];
+    packageIds?: string[];
+    branchId?: string;
+  }) => {
+    const response = await api.post('/bookings/walkin', data);
+    return response.data;
+  },
   updateBookingStatus: async (id: string, status: string) => {
     const response = await api.patch(`/bookings/${id}/status`, { status });
     return response.data;

@@ -34,13 +34,14 @@ export const ReportApprovalPage: React.FC = () => {
   const { reports, bookingsForReport, loading } = useAppSelector(state => state.reports);
 
   const [selectedReport, setSelectedReport] = useState<any>(null);
- const [generatingPDF, setGeneratingPDF] = useState(false);
+  const [approvalTemplate, setApprovalTemplate] = useState<'STANDARD' | 'DETAILED'>('STANDARD');
+  const [generatingPDF, setGeneratingPDF] = useState(false);
   const [uploadingPDF, setUploadingPDF] = useState(false);
   const [portalReport, setPortalReport] = useState<any>(null);
   const [portalBranch, setPortalBranch] = useState<any>(null);
   const [portalDoctor, setPortalDoctor] = useState<DoctorDetails | undefined>(undefined);
 
-const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
+  const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
   const [showSendModal, setShowSendModal] = useState(false);
   const [showResendConfirm, setShowResendConfirm] = useState(false);
   const [sendRecipientType, setSendRecipientType] = useState<'USER' | 'PARTNER'>('USER');
@@ -49,10 +50,17 @@ const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
   const [sending, setSending] = useState(false);
 
-useReportsQuery();
+  useReportsQuery();
   useBookingsForReportQuery();
 
-const buildBranchAndDoctor = useCallback(() => {
+  React.useEffect(() => {
+    if (selectedReport) {
+      const isDetailed = selectedReport.templateType === 'DETAILED' || selectedReport.internalNotes?.includes('[TEMPLATE:DETAILED]');
+      setApprovalTemplate(isDetailed ? 'DETAILED' : 'STANDARD');
+    }
+  }, [selectedReport?.id]);
+
+  const buildBranchAndDoctor = useCallback(() => {
     const rb = selectedReport?.reportBranch || null;
     const branch = rb ? {
       ...rb,
@@ -80,7 +88,7 @@ const buildBranchAndDoctor = useCallback(() => {
 
   const generateAndUploadPDF = useCallback(async (reportData: any): Promise<{ pdfUrl: string; pdfPublicId: string } | null> => {
     const { branch, doctor } = buildBranchAndDoctor();
-    setPortalReport({ ...reportData, status: 'RELEASED' });
+    setPortalReport({ ...reportData, status: 'RELEASED', templateType: approvalTemplate });
     setPortalBranch(branch);
     setPortalDoctor(doctor);
 
@@ -402,7 +410,35 @@ const handleFinalize = async () => {
                     {getStatusBadge(selectedReport.status)}
                   </div>
                   <div className="flex items-center gap-2">
-                  <button
+                    {/* Template Switcher */}
+                    <div className="flex items-center gap-1 bg-muted p-1 rounded-lg border border-border">
+                      <button
+                        onClick={() => setApprovalTemplate('STANDARD')}
+                        className={cn(
+                          "px-2.5 py-1 rounded text-[11px] font-bold transition-all",
+                          approvalTemplate === 'STANDARD'
+                            ? "bg-background text-foreground shadow-xs"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                        title="Medsseva Standard Layout"
+                      >
+                        Standard
+                      </button>
+                      <button
+                        onClick={() => setApprovalTemplate('DETAILED')}
+                        className={cn(
+                          "px-2.5 py-1 rounded text-[11px] font-bold transition-all",
+                          approvalTemplate === 'DETAILED'
+                            ? "bg-primary text-white shadow-xs"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                        title="Detailed Diagnostic Layout"
+                      >
+                        Detailed
+                      </button>
+                    </div>
+
+                    <button
                       onClick={handlePrintPDF}
                       disabled={generatingPDF || uploadingPDF}
                       className="px-2.5 py-1.5 border border-border hover:bg-background rounded text-[11px] font-bold flex items-center gap-1 bg-card shadow-sm disabled:opacity-60"
@@ -418,7 +454,7 @@ const handleFinalize = async () => {
                         <CheckSquare className="h-3.5 w-3.5" /> Finalize Report
                       </button>
                     )}
-               {selectedReport.status === 'APPROVED' && (
+                    {selectedReport.status === 'APPROVED' && (
                       <button
                         onClick={() => setShowSendModal(true)}
                         disabled={sending}
@@ -771,7 +807,7 @@ const handleFinalize = async () => {
 
       {portalReport && ReactDOM.createPortal(
         <div style={{ position: 'fixed', top: 0, left: 0, width: '794px', zIndex: -1000, opacity: 0.001, pointerEvents: 'none', backgroundColor: '#ffffff' }}>
-          <ReportPDFDocument report={portalReport} branch={portalBranch} doctor={portalDoctor} />
+          <ReportPDFDocument report={portalReport} branch={portalBranch} doctor={portalDoctor} templateType={approvalTemplate} />
         </div>,
         document.body
       )}

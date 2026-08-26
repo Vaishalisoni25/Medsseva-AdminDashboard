@@ -23,10 +23,14 @@ import {
   ChevronDown,
   Building2,
   UserCheck,
+  UserPlus,
+  Check,
+  Loader2,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { branchService, Branch } from '../services/branch.service';
-import { doctorService } from '../services/api';
+import { doctorService, testService, packageService } from '../services/api';
 import { useToast } from '../components/Toast';
 
 type Flag = 'NORMAL' | 'HIGH' | 'LOW' | 'CRITICAL_HIGH' | 'CRITICAL_LOW' | 'PENDING';
@@ -274,6 +278,23 @@ const toast = useToast();
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [reportTemplate, setReportTemplate] = useState<'STANDARD' | 'DETAILED'>('STANDARD');
+  const [modalTab, setModalTab] = useState<'existing' | 'walkin'>('existing');
+  const [walkinForm, setWalkinForm] = useState({
+    patientName: '',
+    mobile: '',
+    address: '',
+    gender: '',
+    age: '',
+    reference: '',
+  });
+  const [walkinErrors, setWalkinErrors] = useState<Record<string, string>>({});
+  const [availableTests, setAvailableTests] = useState<any[]>([]);
+  const [availablePackages, setAvailablePackages] = useState<any[]>([]);
+  const [selectedTestIds, setSelectedTestIds] = useState<string[]>([]);
+  const [selectedPackageIds, setSelectedPackageIds] = useState<string[]>([]);
+  const [testFilterQuery, setTestFilterQuery] = useState('');
+  const [creatingWalkin, setCreatingWalkin] = useState(false);
   const [editingParam, setEditingParam] = useState<{ groupIdx: number; paramIdx: number } | null>(null);
 
   useReportsQuery();
@@ -287,7 +308,87 @@ const toast = useToast();
     doctorService.getDoctors().then(docs => {
       if (Array.isArray(docs)) setAvailableDoctors(docs);
     }).catch(() => {});
+
+    testService.getAllTests().then(data => {
+      if (Array.isArray(data)) setAvailableTests(data);
+    }).catch(() => {});
+
+    packageService.getAllPackages().then(data => {
+      if (Array.isArray(data)) setAvailablePackages(data);
+    }).catch(() => {});
   }, []);
+
+  const validateWalkinForm = () => {
+    const errors: Record<string, string> = {};
+    if (!walkinForm.patientName.trim()) {
+      errors.patientName = 'Patient Full Name is required.';
+    }
+    const cleanMobile = walkinForm.mobile.trim().replace(/\D/g, '');
+    if (!cleanMobile) {
+      errors.mobile = 'Mobile Number is required.';
+    } else if (cleanMobile.length !== 10) {
+      errors.mobile = 'Mobile Number must be 10 digits.';
+    }
+    if (!walkinForm.address.trim()) {
+      errors.address = 'Address is required.';
+    }
+    if (!walkinForm.gender) {
+      errors.gender = 'Gender is required.';
+    }
+    if (!walkinForm.age || isNaN(Number(walkinForm.age)) || Number(walkinForm.age) <= 0 || Number(walkinForm.age) > 130) {
+      errors.age = 'Please enter a valid age (1-130).';
+    }
+    setWalkinErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleGenerateWalkinReport = async () => {
+    if (!validateWalkinForm()) {
+      toast.error('Validation Error', 'Please complete all required fields.');
+      return;
+    }
+
+    setCreatingWalkin(true);
+    try {
+      const newBooking = await testService.createWalkinBooking({
+        patientName: walkinForm.patientName.trim(),
+        mobile: walkinForm.mobile.trim().replace(/\D/g, ''),
+        address: walkinForm.address.trim(),
+        gender: walkinForm.gender,
+        age: Number(walkinForm.age),
+        reference: walkinForm.reference.trim() || undefined,
+        testIds: selectedTestIds,
+        packageIds: selectedPackageIds,
+        branchId: verification.reportBranchId || undefined,
+      });
+
+      toast.success('Patient Registered', 'Walk-in patient saved. Loading report builder...');
+
+      dispatch(fetchBookingsForReport());
+      dispatch(fetchAllReports());
+
+      setWalkinForm({
+        patientName: '',
+        mobile: '',
+        address: '',
+        gender: '',
+        age: '',
+        reference: '',
+      });
+      setSelectedTestIds([]);
+      setSelectedPackageIds([]);
+      setWalkinErrors({});
+      setModalTab('existing');
+      setShowModal(false);
+
+      handleSelectBooking(newBooking);
+    } catch (err: any) {
+      console.error('Walk-in creation error:', err);
+      toast.error('Failed to create patient', err.response?.data?.error || err.message || 'Please check details and try again.');
+    } finally {
+      setCreatingWalkin(false);
+    }
+  };
 
   useEffect(() => {
     if (!preselectedBookingId || bookingsForReport.length === 0) return;
@@ -312,6 +413,8 @@ const toast = useToast();
     setEditingParam(null);
     const existingReport = reports.find((r: any) => r.bookingId === booking.id);
     if (existingReport) {
+      const isDetailed = existingReport.internalNotes?.includes('[TEMPLATE:DETAILED]') || existingReport.templateType === 'DETAILED';
+      setReportTemplate(isDetailed ? 'DETAILED' : 'STANDARD');
       const groups = buildTestGroups(booking);
       groups.forEach(g => {
         g.parameters.forEach(p => {
@@ -328,7 +431,7 @@ const toast = useToast();
         clinicalNotes: existingReport.clinicalNotes || '',
         technicianRemarks: existingReport.technicianRemarks || '',
         doctorRemarks: existingReport.doctorRemarks || '',
-        internalNotes: existingReport.internalNotes || '',
+        internalNotes: (existingReport.internalNotes || '').replace(/\[TEMPLATE:(STANDARD|DETAILED)\]/g, '').trim(),
       });
     const fallbackBranchId = booking.collectionMode === 'HOME'
         ? (booking.sampleDelivery?.branch?.id || '')
@@ -342,6 +445,7 @@ const toast = useToast();
         doctorVerifiedAt: existingReport.doctorVerifiedAt || new Date().toISOString(),
       });
     } else {
+      setReportTemplate('STANDARD');
       setTestGroups(buildTestGroups(booking));
       setNotes({ clinicalNotes: '', technicianRemarks: '', doctorRemarks: '', internalNotes: '' });
   const defaultBranchId = booking.collectionMode === 'HOME'
@@ -386,8 +490,11 @@ const toast = useToast();
   const addRange = (groupIdx: number, paramIdx: number) => {
     setTestGroups(prev => prev.map((g, gi) => gi !== groupIdx ? g : {
       ...g,
-      parameters: g.parameters.map((p, pi) => pi !== paramIdx ? p : {
-        ...p, referenceRanges: [...p.referenceRanges, { gender: 'ANY', minAge: 0, maxAge: 120, minRange: 0, maxRange: 0 }],
+      parameters: g.parameters.map((p, pi) => {
+        if (pi !== paramIdx) return p;
+        const newRanges = [...p.referenceRanges, { gender: 'ANY' as const, minAge: 0, maxAge: 120, minRange: 0, maxRange: 0 }];
+        const flag = computeFlag(p.value, { ...p, referenceRanges: newRanges });
+        return { ...p, referenceRanges: newRanges, referenceRange: buildRangeString(newRanges), flag, isAbnormal: flag !== 'NORMAL' && flag !== 'PENDING' };
       }),
     }));
   };
@@ -395,8 +502,11 @@ const toast = useToast();
   const deleteRange = (groupIdx: number, paramIdx: number, rangeIdx: number) => {
     setTestGroups(prev => prev.map((g, gi) => gi !== groupIdx ? g : {
       ...g,
-      parameters: g.parameters.map((p, pi) => pi !== paramIdx ? p : {
-        ...p, referenceRanges: p.referenceRanges.filter((_, ri) => ri !== rangeIdx),
+      parameters: g.parameters.map((p, pi) => {
+        if (pi !== paramIdx) return p;
+        const newRanges = p.referenceRanges.filter((_, ri) => ri !== rangeIdx);
+        const flag = computeFlag(p.value, { ...p, referenceRanges: newRanges });
+        return { ...p, referenceRanges: newRanges, referenceRange: buildRangeString(newRanges), flag, isAbnormal: flag !== 'NORMAL' && flag !== 'PENDING' };
       }),
     }));
   };
@@ -442,13 +552,19 @@ const toast = useToast();
       ...(selectedBooking?.tests?.map((bt: any) => bt.test?.name) || []),
       ...(selectedBooking?.packages?.map((bp: any) => bp.package?.name) || []),
     ].filter(Boolean).join(', ');
+
+    const rawInternalNotes = notes.internalNotes || '';
+    const cleanInternalNotes = rawInternalNotes.replace(/\[TEMPLATE:(STANDARD|DETAILED)\]/g, '').trim();
+    const finalInternalNotes = `${cleanInternalNotes} [TEMPLATE:${reportTemplate}]`.trim();
+
     return {
       bookingId: selectedBooking.id,
       testName: testNames || 'Diagnostic Test',
       clinicalNotes: notes.clinicalNotes,
       technicianRemarks: notes.technicianRemarks,
       doctorRemarks: notes.doctorRemarks,
-      internalNotes: notes.internalNotes,
+      internalNotes: finalInternalNotes,
+      templateType: reportTemplate,
       parameters,
       recipientType: 'USER',
       recipientId: selectedBooking.userId,
@@ -519,49 +635,408 @@ const filteredBookings = useMemo(() => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Report Builder</h1>
-          <p className="text-sm text-muted-foreground">Select a booking, enter test values, and save as draft.</p>
+          <p className="text-sm text-muted-foreground">Select a booking or register a walk-in patient, enter test values, and save as draft.</p>
         </div>
-        <button onClick={() => setShowModal(true)} className="px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg flex items-center gap-2 shadow-sm hover:bg-primary/90">
-          <FileText className="h-4 w-4" /> Create Report
-        </button>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => { setModalTab('walkin'); setShowModal(true); }}
+            className="px-3.5 py-2 bg-card border border-primary/30 text-primary hover:bg-primary/5 text-sm font-bold rounded-lg flex items-center gap-1.5 shadow-xs transition-colors"
+          >
+            <UserPlus className="h-4 w-4" /> Add New Patient
+          </button>
+          <button
+            onClick={() => { setModalTab('existing'); setShowModal(true); }}
+            className="px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg flex items-center gap-2 shadow-sm hover:bg-primary/90 transition-colors"
+          >
+            <FileText className="h-4 w-4" /> Create Report
+          </button>
+        </div>
       </div>
 
       {showModal && (
         <>
-          <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setShowModal(false)} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-background border border-border rounded-2xl z-[60] shadow-2xl p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-foreground">Select Booking</h3>
-              <button onClick={() => setShowModal(false)} className="p-1 hover:bg-muted rounded-lg"><X className="h-4 w-4" /></button>
+          <div className="fixed inset-0 bg-black/50 z-50 backdrop-blur-xs" onClick={() => setShowModal(false)} />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl bg-background border border-border rounded-2xl z-[60] shadow-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+            
+            {/* Header & Tabs */}
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2 bg-muted/60 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setModalTab('existing')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5",
+                    modalTab === 'existing'
+                      ? "bg-background text-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <ClipboardList className="h-3.5 w-3.5 text-primary" /> Select Existing Booking
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalTab('walkin')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5",
+                    modalTab === 'walkin'
+                      ? "bg-primary text-white shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <UserPlus className="h-3.5 w-3.5" /> + Add New Patient
+                </button>
+              </div>
+              <button onClick={() => setShowModal(false)} className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
             </div>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-             <input type="text" placeholder="Search by name, code, mobile, test, package..." value={searchInput} onChange={e => setSearchInput(e.target.value)} className="w-full pl-9 pr-4 py-2.5 text-sm border border-input rounded-lg outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 bg-card" />
-            </div>
-            <div className="max-h-64 overflow-y-auto space-y-2">
-             {bookingsLoading ? <div className="text-center py-8 text-sm text-muted-foreground">Loading...</div>
-                : bookingsWithoutReport.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
-                    <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-                      <Search className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                    <div className="text-sm font-semibold text-foreground">No matching bookings found</div>
-                    <div className="text-xs text-muted-foreground max-w-xs">Try searching by patient name, booking code, mobile number, test name, or package name.</div>
+
+            {/* TAB 1: Existing Patient Selection */}
+            {modalTab === 'existing' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between bg-primary/5 border border-primary/20 rounded-xl p-3">
+                  <div>
+                    <div className="font-bold text-xs text-foreground">Direct / Walk-in Patient?</div>
+                    <div className="text-[11px] text-muted-foreground">Patient did not book via the mobile app? Register them directly.</div>
                   </div>
-                )
-                : bookingsWithoutReport.map((b: any) => (
-                  <button key={b.id} onClick={() => handleSelectBooking(b)} className="w-full text-left p-3 border border-border rounded-xl hover:border-primary/50 hover:bg-muted/30 transition-all">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-bold text-sm text-foreground">{b.patientName}</div>
-                        <div className="text-xs text-muted-foreground font-mono">{b.bookingCode}</div>
-                        <div className="text-xs text-muted-foreground mt-0.5">{getBookingTestNames(b)}</div>
-                      </div>
-                      <div className="text-xs text-muted-foreground">{b.patientMobile || b.user?.mobile}</div>
-                    </div>
+                  <button
+                    type="button"
+                    onClick={() => setModalTab('walkin')}
+                    className="px-3 py-1.5 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90 flex items-center gap-1.5 shadow-xs shrink-0"
+                  >
+                    <UserPlus className="h-3.5 w-3.5" /> Add New Patient
                   </button>
-                ))}
-            </div>
+                </div>
+
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Search existing bookings by name, code, mobile, test..."
+                    value={searchInput}
+                    onChange={e => setSearchInput(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2.5 text-sm border border-input rounded-xl outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 bg-card"
+                  />
+                </div>
+
+                <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+                  {bookingsLoading ? (
+                    <div className="text-center py-10 text-sm text-muted-foreground flex flex-col items-center gap-2">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                      Loading bookings...
+                    </div>
+                  ) : bookingsWithoutReport.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-10 gap-3 text-center bg-muted/20 rounded-xl border border-dashed border-border">
+                      <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                        <Search className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <div className="text-sm font-semibold text-foreground">No matching bookings found</div>
+                      <div className="text-xs text-muted-foreground max-w-xs">
+                        If this is a walk-in patient, click below to register them.
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setModalTab('walkin')}
+                        className="mt-2 px-4 py-1.5 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90 flex items-center gap-1.5"
+                      >
+                        <UserPlus className="h-3.5 w-3.5" /> Register Walk-in Patient
+                      </button>
+                    </div>
+                  ) : (
+                    bookingsWithoutReport.map((b: any) => (
+                      <button
+                        key={b.id}
+                        onClick={() => handleSelectBooking(b)}
+                        className="w-full text-left p-3.5 border border-border rounded-xl hover:border-primary/50 hover:bg-primary/5 transition-all flex items-center justify-between group"
+                      >
+                        <div>
+                          <div className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">
+                            {b.patientName}
+                          </div>
+                          <div className="text-xs text-muted-foreground font-mono mt-0.5">{b.bookingCode}</div>
+                          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
+                            <span className="font-semibold text-foreground/80">{getBookingTestNames(b)}</span>
+                            {b.collectionMode && (
+                              <span className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-bold uppercase">
+                                {b.collectionMode}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xs font-mono font-medium text-muted-foreground">
+                            {b.patientMobile || b.user?.mobile}
+                          </div>
+                          <span className="inline-block mt-2 text-xs font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                            Select →
+                          </span>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: Add New Patient (Walk-in / Direct) Form */}
+            {modalTab === 'walkin' && (
+              <div className="space-y-4">
+                <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 text-xs flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-foreground">Direct / Walk-in Patient Registration</span>
+                    <p className="text-muted-foreground text-[11px] mt-0.5">Fill patient details to continue into report generation.</p>
+                  </div>
+                  <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold uppercase">
+                    Walk-in Mode
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Patient Full Name */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-foreground block">
+                      Patient Full Name <span className="text-destructive">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Rajesh Kumar"
+                      value={walkinForm.patientName}
+                      onChange={e => {
+                        setWalkinForm(f => ({ ...f, patientName: e.target.value }));
+                        if (walkinErrors.patientName) setWalkinErrors(err => ({ ...err, patientName: '' }));
+                      }}
+                      className={cn(
+                        "w-full px-3 py-2 text-xs border rounded-lg bg-card outline-none focus:ring-2",
+                        walkinErrors.patientName ? "border-destructive focus:ring-destructive/20" : "border-input focus:ring-primary/20"
+                      )}
+                    />
+                    {walkinErrors.patientName && (
+                      <p className="text-[10px] text-destructive font-medium">{walkinErrors.patientName}</p>
+                    )}
+                  </div>
+
+                  {/* Mobile Number */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-foreground block">
+                      Mobile Number <span className="text-destructive">*</span>
+                    </label>
+                    <input
+                      type="tel"
+                      maxLength={10}
+                      placeholder="10-digit mobile number"
+                      value={walkinForm.mobile}
+                      onChange={e => {
+                        const val = e.target.value.replace(/\D/g, '');
+                        setWalkinForm(f => ({ ...f, mobile: val }));
+                        if (walkinErrors.mobile) setWalkinErrors(err => ({ ...err, mobile: '' }));
+                      }}
+                      className={cn(
+                        "w-full px-3 py-2 text-xs border rounded-lg bg-card outline-none focus:ring-2 font-mono",
+                        walkinErrors.mobile ? "border-destructive focus:ring-destructive/20" : "border-input focus:ring-primary/20"
+                      )}
+                    />
+                    {walkinErrors.mobile && (
+                      <p className="text-[10px] text-destructive font-medium">{walkinErrors.mobile}</p>
+                    )}
+                  </div>
+
+                  {/* Gender */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-foreground block">
+                      Gender <span className="text-destructive">*</span>
+                    </label>
+                    <select
+                      value={walkinForm.gender}
+                      onChange={e => {
+                        setWalkinForm(f => ({ ...f, gender: e.target.value }));
+                        if (walkinErrors.gender) setWalkinErrors(err => ({ ...err, gender: '' }));
+                      }}
+                      className={cn(
+                        "w-full px-3 py-2 text-xs border rounded-lg bg-card outline-none focus:ring-2",
+                        walkinErrors.gender ? "border-destructive focus:ring-destructive/20" : "border-input focus:ring-primary/20"
+                      )}
+                    >
+                      <option value="">Select Gender</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                    {walkinErrors.gender && (
+                      <p className="text-[10px] text-destructive font-medium">{walkinErrors.gender}</p>
+                    )}
+                  </div>
+
+                  {/* Age */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-foreground block">
+                      Age (in years) <span className="text-destructive">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={120}
+                      placeholder="e.g. 35"
+                      value={walkinForm.age}
+                      onChange={e => {
+                        setWalkinForm(f => ({ ...f, age: e.target.value }));
+                        if (walkinErrors.age) setWalkinErrors(err => ({ ...err, age: '' }));
+                      }}
+                      className={cn(
+                        "w-full px-3 py-2 text-xs border rounded-lg bg-card outline-none focus:ring-2",
+                        walkinErrors.age ? "border-destructive focus:ring-destructive/20" : "border-input focus:ring-primary/20"
+                      )}
+                    />
+                    {walkinErrors.age && (
+                      <p className="text-[10px] text-destructive font-medium">{walkinErrors.age}</p>
+                    )}
+                  </div>
+
+                  {/* Address */}
+                  <div className="md:col-span-2 space-y-1">
+                    <label className="text-xs font-bold text-foreground block">
+                      Address <span className="text-destructive">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Flat 302, Green Avenue, Bhopal"
+                      value={walkinForm.address}
+                      onChange={e => {
+                        setWalkinForm(f => ({ ...f, address: e.target.value }));
+                        if (walkinErrors.address) setWalkinErrors(err => ({ ...err, address: '' }));
+                      }}
+                      className={cn(
+                        "w-full px-3 py-2 text-xs border rounded-lg bg-card outline-none focus:ring-2",
+                        walkinErrors.address ? "border-destructive focus:ring-destructive/20" : "border-input focus:ring-primary/20"
+                      )}
+                    />
+                    {walkinErrors.address && (
+                      <p className="text-[10px] text-destructive font-medium">{walkinErrors.address}</p>
+                    )}
+                  </div>
+
+                  {/* Reference */}
+                  <div className="md:col-span-2 space-y-1">
+                    <label className="text-xs font-bold text-foreground block">
+                      Reference / Referring Doctor <span className="text-muted-foreground text-[10px] font-normal">(Optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Self / Dr. A. K. Sharma / City Hospital"
+                      value={walkinForm.reference}
+                      onChange={e => setWalkinForm(f => ({ ...f, reference: e.target.value }))}
+                      className="w-full px-3 py-2 text-xs border border-input rounded-lg bg-card outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                  </div>
+
+                  {/* Diagnostic Tests / Packages Selection */}
+                  <div className="md:col-span-2 space-y-2 pt-2 border-t border-border">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-foreground block">
+                        Select Diagnostic Tests / Packages
+                      </label>
+                      <span className="text-[10px] font-semibold text-primary">
+                        {selectedTestIds.length + selectedPackageIds.length} Selected
+                      </span>
+                    </div>
+
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <input
+                        type="text"
+                        placeholder="Search tests catalog (e.g. CBC, Lipid, Thyroid, Glucose)..."
+                        value={testFilterQuery}
+                        onChange={e => setTestFilterQuery(e.target.value)}
+                        className="w-full pl-8 pr-3 py-1.5 text-xs border border-input rounded-lg bg-card outline-none focus:ring-1 focus:ring-primary/20"
+                      />
+                    </div>
+
+                    <div className="max-h-36 overflow-y-auto p-2 bg-muted/20 rounded-lg border border-border flex flex-wrap gap-1.5">
+                      {availableTests
+                        .filter(t => !testFilterQuery || t.name.toLowerCase().includes(testFilterQuery.toLowerCase()))
+                        .slice(0, 30)
+                        .map(t => {
+                          const isSelected = selectedTestIds.includes(t.id);
+                          return (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedTestIds(prev =>
+                                  isSelected ? prev.filter(id => id !== t.id) : [...prev, t.id]
+                                );
+                              }}
+                              className={cn(
+                                "text-[11px] px-2.5 py-1 rounded-md border font-medium transition-all flex items-center gap-1",
+                                isSelected
+                                  ? "bg-primary text-white border-primary shadow-xs"
+                                  : "bg-card border-border text-foreground hover:border-primary/40"
+                              )}
+                            >
+                              {isSelected && <Check className="h-3 w-3" />}
+                              {t.name}
+                            </button>
+                          );
+                        })}
+
+                      {availablePackages
+                        .filter(p => !testFilterQuery || p.name.toLowerCase().includes(testFilterQuery.toLowerCase()))
+                        .map(p => {
+                          const isSelected = selectedPackageIds.includes(p.id);
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedPackageIds(prev =>
+                                  isSelected ? prev.filter(id => id !== p.id) : [...prev, p.id]
+                                );
+                              }}
+                              className={cn(
+                                "text-[11px] px-2.5 py-1 rounded-md border font-bold transition-all flex items-center gap-1",
+                                isSelected
+                                  ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                                  : "bg-card border-border text-indigo-700 dark:text-indigo-300 hover:border-indigo-400"
+                              )}
+                            >
+                              {isSelected && <Check className="h-3 w-3" />}
+                              [Pkg] {p.name}
+                            </button>
+                          );
+                        })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Form Action Footer */}
+                <div className="flex items-center justify-between pt-4 border-t border-border">
+                  <button
+                    type="button"
+                    onClick={() => setModalTab('existing')}
+                    className="px-4 py-2 border border-border hover:bg-muted rounded-lg text-xs font-bold text-muted-foreground hover:text-foreground"
+                  >
+                    ← Back to Existing Bookings
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleGenerateWalkinReport}
+                    disabled={creatingWalkin}
+                    className="px-6 py-2 bg-primary text-white text-xs font-black rounded-lg hover:bg-primary/90 flex items-center gap-2 shadow-sm disabled:opacity-60"
+                  >
+                    {creatingWalkin ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" /> Registering Patient...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" /> Generate Report
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
           </div>
         </>
       )}
@@ -765,6 +1240,74 @@ const filteredBookings = useMemo(() => {
                   </div>
                 ))}
 
+                {/* Report Template Format Selection */}
+                <div className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-sm text-foreground flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-primary" /> Report Template Format
+                    </h4>
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-primary/10 text-primary">
+                      {reportTemplate === 'STANDARD' ? 'Standard Layout' : 'Detailed Layout'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {/* Standard Report */}
+                    <div
+                      onClick={() => setReportTemplate('STANDARD')}
+                      className={cn(
+                        "cursor-pointer p-4 rounded-xl border-2 transition-all flex items-start gap-3 relative",
+                        reportTemplate === 'STANDARD'
+                          ? "border-primary bg-primary/5 shadow-xs"
+                          : "border-border hover:border-primary/40 bg-card"
+                      )}
+                    >
+                      <div className={cn(
+                        "h-4 w-4 rounded-full border-2 flex items-center justify-center mt-0.5 shrink-0",
+                        reportTemplate === 'STANDARD' ? "border-primary bg-primary" : "border-muted-foreground"
+                      )}>
+                        {reportTemplate === 'STANDARD' && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+                      </div>
+                      <div>
+                        <div className="font-bold text-sm text-foreground flex items-center gap-2">
+                          Standard Report
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-semibold">Existing</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                          Current Medsseva layout with patient details grid, test parameters table, and digital verification badge.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Detailed Report */}
+                    <div
+                      onClick={() => setReportTemplate('DETAILED')}
+                      className={cn(
+                        "cursor-pointer p-4 rounded-xl border-2 transition-all flex items-start gap-3 relative",
+                        reportTemplate === 'DETAILED'
+                          ? "border-primary bg-primary/5 shadow-xs"
+                          : "border-border hover:border-primary/40 bg-card"
+                      )}
+                    >
+                      <div className={cn(
+                        "h-4 w-4 rounded-full border-2 flex items-center justify-center mt-0.5 shrink-0",
+                        reportTemplate === 'DETAILED' ? "border-primary bg-primary" : "border-muted-foreground"
+                      )}>
+                        {reportTemplate === 'DETAILED' && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+                      </div>
+                      <div>
+                        <div className="font-bold text-sm text-foreground flex items-center gap-2">
+                          Detailed Report
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold">Detailed Diagnostic</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                          Detailed diagnostic format with structured Test/Results/Units/Bio-Interval, methodology notes, interpretation table, and comments.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-4">
                   <h4 className="font-bold text-sm text-foreground">Notes & Remarks</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -943,10 +1486,26 @@ const filteredBookings = useMemo(() => {
                 </div>
               </motion.div>
             ) : (
-              <div className="bg-card border border-dashed border-border rounded-2xl h-[450px] flex flex-col items-center justify-center text-center p-8 shadow-inner">
-                <div className="h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-4"><ClipboardList className="h-6 w-6" /></div>
-                <h3 className="text-lg font-bold text-foreground mb-1">No booking selected</h3>
-                <p className="text-sm text-muted-foreground max-w-md">Click "Create Report" to select a booking and start entering test values.</p>
+              <div className="bg-card border border-dashed border-border rounded-2xl h-[450px] flex flex-col items-center justify-center text-center p-8 shadow-inner space-y-4">
+                <div className="h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center"><ClipboardList className="h-6 w-6" /></div>
+                <div>
+                  <h3 className="text-lg font-bold text-foreground mb-1">No booking selected</h3>
+                  <p className="text-sm text-muted-foreground max-w-md">Select an existing booking from mobile app or register a new walk-in patient.</p>
+                </div>
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    onClick={() => { setModalTab('walkin'); setShowModal(true); }}
+                    className="px-4 py-2 bg-card border border-primary/30 text-primary hover:bg-primary/5 text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-xs"
+                  >
+                    <UserPlus className="h-4 w-4" /> Add New Patient
+                  </button>
+                  <button
+                    onClick={() => { setModalTab('existing'); setShowModal(true); }}
+                    className="px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-xs hover:bg-primary/90"
+                  >
+                    <FileText className="h-4 w-4" /> Select Existing Booking
+                  </button>
+                </div>
               </div>
             )}
           </AnimatePresence>
