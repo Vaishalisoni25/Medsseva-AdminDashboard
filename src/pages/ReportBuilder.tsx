@@ -5,6 +5,7 @@ import {
   fetchBookingsForReport,
   createReportThunk,
   updateReportDraftThunk,
+  finalizeReportThunk,
   fetchAllReports,
 } from '../redux/slices/reportSlice';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -611,9 +612,35 @@ export const ReportBuilderPage: React.FC = () => {
         await dispatch(createReportThunk(payload)).unwrap();
       }
       await dispatch(fetchAllReports());
-     toast.success('Draft saved', 'Report draft has been saved successfully.');
+      toast.success('Draft saved', 'Report draft has been saved successfully.');
     } catch (e: any) {
       toast.error('Save failed', typeof e === 'string' ? e : 'Failed to save draft. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveAndFinalize = async () => {
+    if (!selectedBooking) return;
+    setSaving(true);
+    try {
+      const existingReport = reports.find((r: any) => r.bookingId === selectedBooking.id);
+      const payload = buildPayload();
+      let repId = existingReport?.id;
+      if (existingReport) {
+        await dispatch(updateReportDraftThunk({ id: existingReport.id, payload })).unwrap();
+      } else {
+        const created = await dispatch(createReportThunk(payload)).unwrap();
+        repId = created.id;
+      }
+      if (repId) {
+        await dispatch(finalizeReportThunk(repId)).unwrap();
+      }
+      await dispatch(fetchAllReports());
+      toast.success('Report Finalized', 'Report has been generated, finalized, and digitally verified.');
+      setSelectedBooking(null);
+    } catch (e: any) {
+      toast.error('Finalize failed', typeof e === 'string' ? e : 'Failed to finalize report. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -1524,10 +1551,13 @@ const filteredBookings = useMemo(() => {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-3 pt-2 border-t border-border">
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-border">
                   <button onClick={() => setSelectedBooking(null)} className="px-4 py-2 border border-border hover:bg-muted rounded-lg text-xs font-bold">Back</button>
-                  <button onClick={handleSaveDraft} disabled={saving} className="px-6 py-2 bg-primary text-white hover:bg-primary/90 rounded-lg text-xs font-black flex items-center gap-2 shadow-sm disabled:opacity-60">
-                    <Save className="h-4 w-4" /> {saving ? 'Saving...' : 'Save Draft'}
+                  <button onClick={handleSaveDraft} disabled={saving} className="px-4 py-2 border border-border hover:bg-muted rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs disabled:opacity-60">
+                    <Save className="h-3.5 w-3.5" /> {saving ? 'Saving...' : 'Save Draft'}
+                  </button>
+                  <button onClick={handleSaveAndFinalize} disabled={saving} className="px-6 py-2 bg-primary text-white hover:bg-primary/90 rounded-lg text-xs font-black flex items-center gap-2 shadow-sm disabled:opacity-60">
+                    <Sparkles className="h-4 w-4" /> {saving ? 'Processing...' : 'Save & Finalize Report'}
                   </button>
                 </div>
               </motion.div>

@@ -174,13 +174,7 @@ export const ReportApprovalPage: React.FC = () => {
     if (!selectedReport) return;
     const patientName = selectedReport.booking?.patientName?.replace(/\s+/g, '_') || selectedReport.patientName?.replace(/\s+/g, '_') || 'Patient';
     const bookingCode = selectedReport.booking?.bookingCode || selectedReport.bookingCode || selectedReport.id.slice(0, 8);
-    const pdfFileName = `MedsSeva_Report_${patientName}_${bookingCode}.pdf`;
-
-    if (selectedReport.pdfUrl) {
-      toast.success('Downloading PDF', 'The finalized report is being downloaded.');
-      await downloadReportPdfBlob(selectedReport.pdfUrl, pdfFileName);
-      return;
-    }
+    const pdfFileName = `MedsSeva_Report_${patientName}_${bookingCode}_${approvalTemplate.toLowerCase()}.pdf`;
 
     setGeneratingPDF(true);
     try {
@@ -197,14 +191,14 @@ export const ReportApprovalPage: React.FC = () => {
       await dispatch(fetchAllReports());
 
       await downloadReportPdfBlob(result.pdfUrl, pdfFileName);
-      toast.success('PDF downloaded', 'Report has been saved to your downloads folder.');
+      toast.success('PDF downloaded', `Report downloaded in ${approvalTemplate === 'DETAILED' ? 'Detailed (Dr. Lal)' : 'Standard'} format.`);
     } catch (err) {
       console.error('PDF generation failed:', err);
       toast.error('PDF failed', 'Could not generate the PDF. Please try again.');
     } finally {
       setGeneratingPDF(false);
     }
-  }, [selectedReport, generateAndUploadPDF, dispatch]);
+  }, [selectedReport, approvalTemplate, generateAndUploadPDF, dispatch]);
   const draftReports = reports.filter((r: any) => r.status === 'DRAFT' || r.status === 'UNDER_REVIEW');
   const approvedReports = reports.filter((r: any) => r.status === 'APPROVED' || r.status === 'RELEASED');
 
