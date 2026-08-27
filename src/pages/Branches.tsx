@@ -102,10 +102,29 @@ export default function Branches() {
       state: b.state, pincode: b.pincode, latitude: b.latitude,
       longitude: b.longitude, contactNumber: b.contactNumber || '',
       email: b.email || '', workingHours: b.workingHours || '',
-      availableSlots: b.availableSlots || [], homeCollection: b.homeCollection,
+      availableSlots: Array.isArray(b.availableSlots) && b.availableSlots.length > 0 ? b.availableSlots : [...DEFAULT_SLOTS],
+      homeCollection: b.homeCollection,
       labVisit: b.labVisit, isActive: b.isActive,
     });
     setModalOpen(true);
+  };
+
+  const handleSlotToggle = (slot: string) => {
+    setForm(f => {
+      const current = Array.isArray(f.availableSlots) ? f.availableSlots : [];
+      const updated = current.includes(slot)
+        ? current.filter(s => s !== slot)
+        : [...current, slot];
+      return { ...f, availableSlots: updated };
+    });
+  };
+
+  const handleSelectAllSlots = () => {
+    setForm(f => ({ ...f, availableSlots: [...DEFAULT_SLOTS] }));
+  };
+
+  const handleClearSlots = () => {
+    setForm(f => ({ ...f, availableSlots: [] }));
   };
 
   const openView = async (b: Branch) => {
@@ -196,14 +215,6 @@ export default function Branches() {
     }
   };
 
-  const handleSlotToggle = (slot: string) => {
-    setForm(f => ({
-      ...f,
-      availableSlots: f.availableSlots?.includes(slot)
-        ? f.availableSlots.filter(s => s !== slot)
-        : [...(f.availableSlots || []), slot],
-    }));
-  };
 
   const handleSubmit = async () => {
     if (!form.name || !form.code || !form.line1 || !form.city || !form.pincode) {
@@ -719,15 +730,87 @@ export default function Branches() {
                 </div>
               </div>
 
+              {/* Working Hours & Preset Selector */}
               <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1">Working Hours</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-gray-700">Working Hours</label>
+                  <span className="text-[11px] text-muted-foreground font-medium">Quick Select Presets:</span>
+                </div>
                 <input
                   type="text"
                   placeholder="e.g. Mon-Sat: 07:00 AM - 08:00 PM"
                   value={form.workingHours}
                   onChange={e => setForm(f => ({ ...f, workingHours: e.target.value }))}
-                  className="w-full border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full border rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-2"
                 />
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    '07:00 AM - 08:00 PM',
+                    '08:00 AM - 08:00 PM',
+                    '06:00 AM - 09:00 PM',
+                    'Mon-Sat: 07:00 AM - 08:00 PM',
+                    'Mon-Sun: 06:00 AM - 10:00 PM',
+                    '24x7 Open',
+                  ].map(preset => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, workingHours: preset }))}
+                      className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition ${
+                        form.workingHours === preset
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : 'bg-muted/40 text-gray-700 border-border hover:bg-muted'
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Available Time Slots Selector */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                    <Clock size={14} className="text-blue-600" /> Available Time Slots ({form.availableSlots?.length || 0} Selected)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSelectAllSlots}
+                      className="text-[11px] text-blue-600 hover:text-blue-700 font-semibold"
+                    >
+                      Select All
+                    </button>
+                    <span className="text-gray-300">|</span>
+                    <button
+                      type="button"
+                      onClick={handleClearSlots}
+                      className="text-[11px] text-gray-500 hover:text-gray-700 font-semibold"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1.5 p-3 bg-muted/20 border border-border rounded-xl max-h-48 overflow-y-auto">
+                  {DEFAULT_SLOTS.map(slot => {
+                    const isSelected = form.availableSlots?.includes(slot);
+                    return (
+                      <button
+                        key={slot}
+                        type="button"
+                        onClick={() => handleSlotToggle(slot)}
+                        className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition ${
+                          isSelected
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                            : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300 hover:bg-blue-50/50'
+                        }`}
+                      >
+                        {slot}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Services & Toggles */}

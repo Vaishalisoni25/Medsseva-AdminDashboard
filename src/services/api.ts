@@ -72,8 +72,32 @@ export const testService = {
     packageIds?: string[];
     branchId?: string;
   }) => {
-    const response = await api.post('/bookings/walkin', data);
-    return response.data;
+    try {
+      console.log('[API] Calling POST /bookings/walkin with payload:', data);
+      const response = await api.post('/bookings/walkin', data);
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        console.warn('[API] /bookings/walkin returned 404 on server. Executing dynamic fallback booking...');
+        const cleanMobile = data.mobile ? data.mobile.trim().replace(/\D/g, '').slice(-10) : '';
+        const fallbackPayload = {
+          patientName: data.patientName.trim(),
+          mobile: cleanMobile,
+          patientAge: Number(data.age),
+          patientGender: data.gender,
+          scheduledDate: new Date().toISOString(),
+          scheduledSlot: 'Walk-in / Immediate',
+          collectionMode: 'LAB',
+          paymentMethod: 'cash',
+          testIds: data.testIds || [],
+          packageIds: data.packageIds || [],
+          branchId: data.branchId || undefined,
+        };
+        const fallbackRes = await api.post('/bookings', fallbackPayload);
+        return fallbackRes.data;
+      }
+      throw error;
+    }
   },
   updateBookingStatus: async (id: string, status: string) => {
     const response = await api.patch(`/bookings/${id}/status`, { status });

@@ -47,7 +47,7 @@ const COMMON_SPECIALIZATIONS = [
 export const DoctorsPage: React.FC = () => {
   const currentUser = useAppSelector(state => state.auth.user);
   const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'SUPER_ADMIN' || (currentUser as any)?.isSuperAdmin;
-  const userBranchId = (currentUser as any)?.branchId;
+  const userBranchId = (currentUser as any)?.branchId || (currentUser as any)?.adminUser?.branchId;
 
   const [doctors, setDoctors] = useState<DoctorRecord[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -106,7 +106,7 @@ export const DoctorsPage: React.FC = () => {
     setFormRegNo('');
     setFormQualification('MBBS, MD (Pathology)');
     setFormDesignation('Senior Consultant Pathologist');
-    setFormBranchId('');
+    setFormBranchId(userBranchId || '');
     setFormPhotoUrl('');
     setFormSignatureUrl('');
     setModalOpen(true);
