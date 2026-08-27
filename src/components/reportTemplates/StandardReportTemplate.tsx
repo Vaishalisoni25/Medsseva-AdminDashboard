@@ -2,7 +2,9 @@ import React from 'react';
 
 const T = {
   teal: '#006d6f',
+  tealDark: '#004d4f',
   tealLight: '#e6f7f7',
+  cyanLine: '#00a896',
   white: '#ffffff',
   navy: '#0f2a3f',
   slate900: '#0f172a',
@@ -16,47 +18,55 @@ const T = {
   blue: '#1d4ed8',
   criticalRed: '#dc2626',
   border: '#e2e8f0',
+  darkBorder: '#cbd5e1',
 };
 
-export const DummyQRCode: React.FC<{ size?: number }> = ({ size = 48 }) => (
-  <svg width={size} height={size} viewBox="0 0 100 100" style={{ display: 'block', borderRadius: '3px' }}>
-    <rect width="100" height="100" fill="#ffffff" stroke={T.border} strokeWidth="2" rx="4" />
-    <rect x="8" y="8" width="26" height="26" fill="#006d6f" rx="3" />
-    <rect x="13" y="13" width="16" height="16" fill="#ffffff" rx="1" />
-    <rect x="17" y="17" width="8" height="8" fill="#006d6f" rx="1" />
-    <rect x="66" y="8" width="26" height="26" fill="#006d6f" rx="3" />
-    <rect x="71" y="13" width="16" height="16" fill="#ffffff" rx="1" />
-    <rect x="75" y="17" width="8" height="8" fill="#006d6f" rx="1" />
-    <rect x="8" y="66" width="26" height="26" fill="#006d6f" rx="3" />
-    <rect x="13" y="71" width="16" height="16" fill="#ffffff" rx="1" />
-    <rect x="17" y="75" width="8" height="8" fill="#006d6f" rx="1" />
-    <rect x="40" y="10" width="5" height="5" fill="#0f2a3f" />
-    <rect x="50" y="10" width="6" height="6" fill="#006d6f" />
-    <rect x="40" y="22" width="6" height="6" fill="#0f2a3f" />
-    <rect x="52" y="24" width="5" height="5" fill="#0f2a3f" />
-    <rect x="10" y="42" width="6" height="6" fill="#0f2a3f" />
-    <rect x="22" y="42" width="5" height="5" fill="#006d6f" />
-    <rect x="42" y="42" width="8" height="8" fill="#006d6f" rx="1" />
-    <rect x="56" y="42" width="6" height="6" fill="#0f2a3f" />
-    <rect x="68" y="42" width="5" height="5" fill="#0f2a3f" />
-    <rect x="80" y="46" width="6" height="6" fill="#006d6f" />
-    <rect x="40" y="56" width="6" height="6" fill="#0f2a3f" />
-    <rect x="52" y="56" width="6" height="6" fill="#006d6f" />
-    <rect x="68" y="56" width="8" height="8" fill="#0f2a3f" />
-    <rect x="40" y="68" width="6" height="6" fill="#0f2a3f" />
-    <rect x="52" y="70" width="5" height="5" fill="#006d6f" />
-    <rect x="68" y="70" width="6" height="6" fill="#0f2a3f" />
-    <rect x="80" y="74" width="6" height="6" fill="#006d6f" />
-    <rect x="40" y="82" width="6" height="6" fill="#006d6f" />
-    <rect x="52" y="84" width="6" height="6" fill="#0f2a3f" />
-    <rect x="68" y="82" width="6" height="6" fill="#0f2a3f" />
-    <rect x="80" y="84" width="6" height="6" fill="#006d6f" />
-  </svg>
+export const DummyQRCode: React.FC<{ size?: number; label?: string }> = ({ size = 48, label = 'SCAN TO VERIFY' }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+    <svg width={size} height={size} viewBox="0 0 100 100" style={{ display: 'block', borderRadius: '3px' }}>
+      <rect width="100" height="100" fill="#ffffff" stroke={T.border} strokeWidth="1.5" rx="3" />
+      <rect x="8" y="8" width="26" height="26" fill="#006d6f" rx="3" />
+      <rect x="13" y="13" width="16" height="16" fill="#ffffff" rx="1" />
+      <rect x="17" y="17" width="8" height="8" fill="#006d6f" rx="1" />
+      <rect x="66" y="8" width="26" height="26" fill="#006d6f" rx="3" />
+      <rect x="71" y="13" width="16" height="16" fill="#ffffff" rx="1" />
+      <rect x="75" y="17" width="8" height="8" fill="#006d6f" rx="1" />
+      <rect x="8" y="66" width="26" height="26" fill="#006d6f" rx="3" />
+      <rect x="13" y="71" width="16" height="16" fill="#ffffff" rx="1" />
+      <rect x="17" y="75" width="8" height="8" fill="#006d6f" rx="1" />
+      <rect x="40" y="10" width="5" height="5" fill="#0f2a3f" />
+      <rect x="50" y="10" width="6" height="6" fill="#006d6f" />
+      <rect x="40" y="22" width="6" height="6" fill="#0f2a3f" />
+      <rect x="52" y="24" width="5" height="5" fill="#0f2a3f" />
+      <rect x="10" y="42" width="6" height="6" fill="#0f2a3f" />
+      <rect x="22" y="42" width="5" height="5" fill="#006d6f" />
+      <rect x="42" y="42" width="8" height="8" fill="#006d6f" rx="1" />
+      <rect x="56" y="42" width="6" height="6" fill="#0f2a3f" />
+      <rect x="68" y="42" width="5" height="5" fill="#0f2a3f" />
+      <rect x="80" y="46" width="6" height="6" fill="#006d6f" />
+      <rect x="40" y="56" width="6" height="6" fill="#0f2a3f" />
+      <rect x="52" y="56" width="6" height="6" fill="#006d6f" />
+      <rect x="68" y="56" width="8" height="8" fill="#0f2a3f" />
+      <rect x="40" y="68" width="6" height="6" fill="#0f2a3f" />
+      <rect x="52" y="70" width="5" height="5" fill="#006d6f" />
+      <rect x="68" y="70" width="6" height="6" fill="#0f2a3f" />
+      <rect x="80" y="74" width="6" height="6" fill="#006d6f" />
+      <rect x="40" y="82" width="6" height="6" fill="#006d6f" />
+      <rect x="52" y="84" width="6" height="6" fill="#0f2a3f" />
+      <rect x="68" y="82" width="6" height="6" fill="#0f2a3f" />
+      <rect x="80" y="84" width="6" height="6" fill="#006d6f" />
+    </svg>
+    {label && (
+      <div style={{ fontSize: '7px', color: T.slate500, fontWeight: 700, textAlign: 'center', letterSpacing: '0.3px', lineHeight: '1.1' }}>
+        {label}
+      </div>
+    )}
+  </div>
 );
 
-export const DummyBarcode: React.FC<{ value?: string; height?: number }> = ({ value = '', height = 20 }) => (
+export const DummyBarcode: React.FC<{ value?: string; height?: number; showCode?: boolean }> = ({ value = '', height = 22, showCode = true }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-    <svg width="105" height={height} viewBox="0 0 105 24" fill="#000000">
+    <svg width="115" height={height} viewBox="0 0 115 24" fill="#000000">
       <rect x="0" y="0" width="2" height="24" />
       <rect x="3" y="0" width="1" height="24" />
       <rect x="6" y="0" width="3" height="24" />
@@ -82,9 +92,15 @@ export const DummyBarcode: React.FC<{ value?: string; height?: number }> = ({ va
       <rect x="89" y="0" width="3" height="24" />
       <rect x="94" y="0" width="2" height="24" />
       <rect x="98" y="0" width="4" height="24" />
-      <rect x="103" y="0" width="2" height="24" />
+      <rect x="104" y="0" width="2" height="24" />
+      <rect x="108" y="0" width="3" height="24" />
+      <rect x="113" y="0" width="2" height="24" />
     </svg>
-    {value && <span style={{ fontSize: '9px', fontWeight: 700, fontFamily: 'monospace', color: '#1e293b' }}>{value}</span>}
+    {showCode && value && (
+      <span style={{ fontSize: '9.5px', fontWeight: 800, fontFamily: 'monospace', color: '#1e293b' }}>
+        {value}
+      </span>
+    )}
   </div>
 );
 
@@ -110,14 +126,14 @@ export const StandardReportTemplate: React.FC<TemplateProps> = ({
   formatDateTime,
   getFlag,
 }) => {
-  const branchName = branch?.name || booking?.branch?.name || report?.reportBranch?.name || report?.branchName || 'MedsSeva Pathology Lab';
+  const branchName = branch?.name || booking?.branch?.name || report?.reportBranch?.name || report?.branchName || 'GN Healthcare';
   const branchAddr = [
     branch?.line1 || booking?.branch?.line1,
     branch?.city || booking?.branch?.city,
     branch?.state || booking?.branch?.state,
     branch?.pincode || booking?.branch?.pincode,
-  ].filter(Boolean).join(', ') || booking?.branch?.address || '';
-  const branchPhone = branch?.contactNumber || booking?.branch?.contactNumber || '';
+  ].filter(Boolean).join(', ') || booking?.branch?.address || 'Ranchi Colony, Gali No. 2, Quality Chowk, Ludhiana - 142022';
+  const branchPhone = branch?.contactNumber || booking?.branch?.contactNumber || '+91 8968522455';
   const branchEmail = branch?.email || booking?.branch?.email || '';
 
   const rawPatientName = booking?.patientName || report?.patientName || '';
@@ -132,217 +148,242 @@ export const StandardReportTemplate: React.FC<TemplateProps> = ({
     ? booking.partnerNote.replace('Ref:', '').trim()
     : (doctor?.name || report?.doctorName || 'Self');
 
+  const regCode = booking?.bookingCode || report?.id?.slice(0, 8) || '1042';
+
   return (
-    <div style={{ width: '100%', minHeight: '1120px', backgroundColor: T.white, boxSizing: 'border-box' }}>
-      {/* Header Section */}
+    <div style={{
+      width: '794px',
+      maxWidth: '794px',
+      minHeight: '1123px',
+      backgroundColor: T.white,
+      boxSizing: 'border-box',
+      margin: '0 auto',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+      fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+      position: 'relative',
+    }}>
+      <div>
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
-        padding: '14px 24px 12px',
-        borderBottom: `2.5px solid ${T.teal}`,
+        padding: '16px 28px 12px',
+        borderBottom: `2.5px solid ${T.cyanLine}`,
       }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+        {/* Left: MedsSeva Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div>
             <img
               src="/trusted-partner.jpg"
               alt="MedsSeva"
-              style={{ width: '115px', height: 'auto', display: 'block', marginBottom: '6px' }}
+              style={{ width: '130px', height: 'auto', display: 'block' }}
               crossOrigin="anonymous"
             />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-              <DummyQRCode size={42} />
-              <div style={{ fontSize: '7.5px', color: T.slate500, lineHeight: '1.2', fontWeight: 700 }}>
-                SCAN TO<br />VERIFY
-              </div>
+            <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, marginTop: '2px', letterSpacing: '0.4px' }}>
+              Because Health is Service.
             </div>
           </div>
+        </div>
 
-          <div style={{ paddingTop: '2px' }}>
-            <div style={{ fontSize: '13px', color: T.teal, fontWeight: 900, marginBottom: '2px' }}>
-              {branchName}
-            </div>
-            <div style={{ fontSize: '8.5px', color: T.slate500, fontWeight: 600, marginBottom: '2px' }}>
-              Authorized Franchise Partner | MedsSeva Pathology Lab
-            </div>
-            {branchAddr && (
-              <div style={{ fontSize: '9px', color: T.slate600, lineHeight: '1.4', maxWidth: '320px' }}>
-                {branchAddr}
-              </div>
-            )}
-            <div>
-              <span style={{ fontSize: '9px', color: T.slate600 }}>www.medsseva.com</span>
-              {branchPhone && <span style={{ fontSize: '9px', color: T.slate600, fontWeight: 600 }}> | Ph: {branchPhone}</span>}
-              {branchEmail && <span style={{ fontSize: '9px', color: T.slate600 }}> | {branchEmail}</span>}
-            </div>
+        {/* Right: Branch / Franchise Information */}
+        <div style={{ textAlign: 'left', maxWidth: '440px', paddingLeft: '16px' }}>
+          <div style={{ fontSize: '18px', color: '#006d6f', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>
+            {branchName}
+          </div>
+          <div style={{ fontSize: '8.5px', color: '#006d6f', fontWeight: 700, marginBottom: '3px' }}>
+            Authorized Franchise Partner | MedsSeva Pathology Lab
+          </div>
+          <div style={{ fontSize: '8px', color: T.slate600, lineHeight: '1.4' }}>
+            <span>Ph: {branchPhone}</span> | <span>www.medsseva.com</span> | <span>{branchAddr}</span>
           </div>
         </div>
       </div>
 
-      {/* Patient Details Block (100% Dynamic) */}
+      {/* 2. Patient Information Block (Reference Exact 2-Column Format) */}
       <div style={{
-        margin: '8px 24px 10px',
-        borderTop: `1px solid ${T.teal}`,
-        borderBottom: `1px solid ${T.border}`,
-        paddingTop: '6px',
-        paddingBottom: '8px',
+        margin: '10px 28px 12px',
+        borderTop: `1px solid ${T.cyanLine}`,
+        borderBottom: `1px solid #94a3b8`,
+        paddingTop: '8px',
+        paddingBottom: '10px',
         display: 'grid',
-        gridTemplateColumns: '1.25fr 1fr',
-        gap: '0',
+        gridTemplateColumns: '1.25fr 1fr 56px',
+        gap: '12px',
+        alignItems: 'center',
       }}>
         {/* Left Column */}
-        <div style={{ paddingRight: '16px' }}>
-          <div style={{ fontSize: '14px', fontWeight: 900, color: '#0f172a', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+        <div>
+          <div style={{ fontSize: '15px', fontWeight: 900, color: '#0f172a', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
             {patientDisplayName}
           </div>
-          <table style={{ borderCollapse: 'collapse', fontSize: '9.5px', lineHeight: '1.65', width: '100%' }}>
+          <table style={{ borderCollapse: 'collapse', fontSize: '9.5px', lineHeight: '1.7', width: '100%' }}>
             <tbody>
               <tr>
-                <td style={{ color: T.slate700, width: '80px', padding: '1.5px 0', fontWeight: 500 }}>Age / Sex</td>
-                <td style={{ color: T.slate700, width: '12px', padding: '1.5px 2px' }}>:</td>
-                <td style={{ fontWeight: 600, color: '#0f172a' }}>
+                <td style={{ color: T.slate700, width: '85px', padding: '1px 0', fontWeight: 600 }}>Age / Sex</td>
+                <td style={{ color: T.slate700, width: '12px', padding: '1px 2px' }}>:</td>
+                <td style={{ fontWeight: 700, color: '#0f172a' }}>
                   {booking?.patientAge ? `${booking.patientAge} YRS` : '-'} / {booking?.patientGender === 'Female' ? 'F' : (booking?.patientGender === 'Male' ? 'M' : '-')}
                 </td>
               </tr>
               <tr>
-                <td style={{ color: T.slate700, padding: '1.5px 0', fontWeight: 500 }}>Referred by</td>
-                <td style={{ color: T.slate700, padding: '1.5px 2px' }}>:</td>
-                <td style={{ fontWeight: 600, color: '#0f172a' }}>
+                <td style={{ color: T.slate700, padding: '1px 0', fontWeight: 600 }}>Referred by</td>
+                <td style={{ color: T.slate700, padding: '1px 2px' }}>:</td>
+                <td style={{ fontWeight: 700, color: '#0f172a' }}>
                   {refDoctor}
                 </td>
               </tr>
               <tr>
-                <td style={{ color: T.slate700, padding: '1.5px 0', fontWeight: 500 }}>Reg. no.</td>
-                <td style={{ color: T.slate700, padding: '1.5px 2px' }}>:</td>
+                <td style={{ color: T.slate700, padding: '1px 0', fontWeight: 600 }}>Reg. no.</td>
+                <td style={{ color: T.slate700, padding: '1px 2px' }}>:</td>
                 <td style={{ fontWeight: 900, color: '#0f172a', fontFamily: 'monospace' }}>
-                  {booking?.bookingCode || report?.id?.slice(0, 8) || '-'}
+                  {regCode}
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        {/* Right Column */}
-        <div style={{
-          paddingLeft: '16px',
-          borderLeft: `1px solid #cbd5e1`,
-        }}>
+        {/* Center/Right Column: Barcode & Registration Timestamps */}
+        <div style={{ borderLeft: `1px solid ${T.border}`, paddingLeft: '14px' }}>
           <div style={{ marginBottom: '6px' }}>
-            <DummyBarcode value={booking?.bookingCode || report?.id?.slice(0, 8) || ''} height={20} />
+            <DummyBarcode value={regCode} height={20} showCode={true} />
           </div>
-          <table style={{ borderCollapse: 'collapse', fontSize: '9.5px', lineHeight: '1.65', width: '100%' }}>
+          <table style={{ borderCollapse: 'collapse', fontSize: '9.5px', lineHeight: '1.7', width: '100%' }}>
             <tbody>
               <tr>
-                <td style={{ color: T.slate700, width: '90px', padding: '1.5px 0', fontWeight: 500 }}>Registered on</td>
-                <td style={{ color: T.slate700, width: '12px', padding: '1.5px 2px' }}>:</td>
-                <td style={{ color: '#0f172a', fontWeight: 500 }}>
+                <td style={{ color: T.slate700, width: '90px', padding: '1px 0', fontWeight: 600 }}>Registered on</td>
+                <td style={{ color: T.slate700, width: '12px', padding: '1px 2px' }}>:</td>
+                <td style={{ color: '#0f172a', fontWeight: 600 }}>
                   {formatDateTime(booking?.createdAt || booking?.sampleCollectedAt || report?.createdAt)}
                 </td>
               </tr>
               <tr>
-                <td style={{ color: T.slate700, padding: '1.5px 0', fontWeight: 500 }}>Collected on</td>
-                <td style={{ color: T.slate700, padding: '1.5px 2px' }}>:</td>
-                <td style={{ color: '#0f172a', fontWeight: 500 }}>
+                <td style={{ color: T.slate700, padding: '1px 0', fontWeight: 600 }}>Collected on</td>
+                <td style={{ color: T.slate700, padding: '1px 2px' }}>:</td>
+                <td style={{ color: '#0f172a', fontWeight: 600 }}>
                   {formatDateTime(booking?.sampleCollectedAt || booking?.scheduledDate || report?.createdAt, false)}
                 </td>
               </tr>
               <tr>
-                <td style={{ color: T.slate700, padding: '1.5px 0', fontWeight: 500 }}>Received on</td>
-                <td style={{ color: T.slate700, padding: '1.5px 2px' }}>:</td>
-                <td style={{ color: '#0f172a', fontWeight: 500 }}>
+                <td style={{ color: T.slate700, padding: '1px 0', fontWeight: 600 }}>Received on</td>
+                <td style={{ color: T.slate700, padding: '1px 2px' }}>:</td>
+                <td style={{ color: '#0f172a', fontWeight: 600 }}>
                   {formatDateTime(booking?.sampleReceivedAt || booking?.sampleCollectedAt || report?.createdAt, false)}
                 </td>
               </tr>
               <tr>
-                <td style={{ color: T.slate700, padding: '1.5px 0', fontWeight: 500 }}>Reported on</td>
-                <td style={{ color: T.slate700, padding: '1.5px 2px' }}>:</td>
-                <td style={{ color: '#0f172a', fontWeight: 600 }}>
+                <td style={{ color: T.slate700, padding: '1px 0', fontWeight: 600 }}>Reported on</td>
+                <td style={{ color: T.slate700, padding: '1px 2px' }}>:</td>
+                <td style={{ color: '#0f172a', fontWeight: 700 }}>
                   {formatDateTime(report?.reportedDate || report?.createdAt)}
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
-      </div>
 
-      {/* Center-Aligned "LABORATORY REPORT" Banner */}
-      <div style={{
-        margin: '0 24px',
-        background: T.navy,
-        color: T.white,
-        textAlign: 'center',
-        padding: '6px 12px',
-        borderRadius: '4px 4px 0 0',
-      }}>
-        <div style={{ fontSize: '11px', fontWeight: 900, letterSpacing: '2.5px' }}>
-          LABORATORY REPORT
+        {/* Far Right: QR Code */}
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <DummyQRCode size={48} label="Scan to download" />
         </div>
       </div>
 
-      {/* Test Parameters Tables (100% Dynamic) */}
-      <div style={{ margin: '0 24px' }}>
+      {/* 3. Diagnostic Test Panels (100% Dynamic from Entered Values) */}
+      <div style={{ margin: '0 28px' }}>
         {Object.entries(groupedParams).map(([groupName, params], gi) => (
-          <div key={gi}>
+          <div key={gi} style={{ marginBottom: '14px' }}>
+            {/* Section / Category Header */}
             <div style={{
-              fontSize: '9.5px',
+              textAlign: 'center',
+              fontSize: '11.5px',
               fontWeight: 900,
-              color: T.teal,
-              padding: '6px 12px',
+              color: '#0f172a',
+              letterSpacing: '1px',
+              textTransform: 'uppercase',
+              marginBottom: '4px',
+            }}>
+              {report?.category?.name || report?.testCategory || 'DIAGNOSTIC PATHOLOGY'}
+            </div>
+
+            {/* Test Sub-Header Banner */}
+            <div style={{
+              textAlign: 'center',
+              fontSize: '10px',
+              fontWeight: 900,
+              color: '#0f172a',
               letterSpacing: '0.6px',
               textTransform: 'uppercase',
-              textAlign: 'center',
-              background: T.tealLight,
-              borderLeft: `3px solid ${T.teal}`,
-              borderRight: `3px solid ${T.teal}`,
-              marginTop: gi === 0 ? '0' : '4px',
+              borderTop: '1.5px solid #0f172a',
+              borderBottom: '1.5px solid #0f172a',
+              padding: '4px 0',
+              marginBottom: '2px',
             }}>
               {groupName}
             </div>
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', border: `1px solid ${T.border}`, borderTop: 'none' }}>
+            {/* 4-Column Table matching Reference */}
+            <table style={{ width: '100%', borderCollapse: 'collapse', border: `1px solid #0f172a` }}>
               <thead>
-                <tr style={{ background: T.slate100, borderBottom: `1px solid ${T.border}` }}>
-                  {['TEST', 'VALUE', 'UNIT', 'REFERENCE', 'STATUS'].map((h, i) => (
-                    <th key={h} style={{
-                      padding: '5px 8px',
-                      fontSize: '8.5px',
-                      fontWeight: 900,
-                      textTransform: 'uppercase',
-                      color: T.slate700,
-                      textAlign: i === 0 ? 'left' : 'center',
-                      width: ['38%', '16%', '14%', '20%', '12%'][i],
-                    }}>
-                      {h}
-                    </th>
-                  ))}
+                <tr style={{ borderBottom: `1.5px solid #0f172a`, background: T.white }}>
+                  <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', color: '#0f172a', textAlign: 'left', width: '42%' }}>
+                    TEST
+                  </th>
+                  <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', color: '#0f172a', textAlign: 'left', width: '20%' }}>
+                    VALUE
+                  </th>
+                  <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', color: '#0f172a', textAlign: 'left', width: '16%' }}>
+                    UNIT
+                  </th>
+                  <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', color: '#0f172a', textAlign: 'left', width: '22%' }}>
+                    REFERENCE
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {params.map((p: any, idx: number) => {
-                  const { flag, isAbnormal } = getFlag(p);
-                  const rowBg = isAbnormal ? '#fffaf8' : (idx % 2 === 1 ? T.slate50 : T.white);
+                  const { isAbnormal, flag } = getFlag(p);
+                  const isHigh = flag.includes('HIGH') || flag.includes('↑');
+                  const isLow = flag.includes('LOW') || flag.includes('↓');
+                  const flagLetter = isHigh ? 'H' : isLow ? 'L' : '';
+
                   return (
-                    <tr key={idx} style={{ borderBottom: `1px solid ${T.border}`, backgroundColor: rowBg }}>
-                      <td style={{ padding: '5px 8px', fontSize: '9.5px' }}>
-                        <span style={{ fontWeight: isAbnormal ? 800 : 500, color: isAbnormal ? '#000000' : T.slate800 }}>
+                    <tr key={idx} style={{ borderBottom: idx === params.length - 1 ? 'none' : `1px solid ${T.border}` }}>
+                      {/* TEST NAME */}
+                      <td style={{ padding: '4.5px 8px', fontSize: '9px', verticalAlign: 'middle' }}>
+                        <span style={{ fontWeight: isAbnormal ? 800 : 600, color: '#0f172a', textTransform: 'uppercase' }}>
                           {p.parameterName}
                         </span>
                       </td>
-                      <td style={{ padding: '5px 8px', fontSize: '9.5px', textAlign: 'center' }}>
-                        <span style={{ fontWeight: isAbnormal ? 900 : 600, color: isAbnormal ? '#000000' : T.slate900 }}>
-                          {p.observedValue}
-                        </span>
+
+                      {/* VALUE (With L/H flag prefix matching reference image) */}
+                      <td style={{ padding: '4.5px 8px', fontSize: '9.5px', verticalAlign: 'middle' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {flagLetter && (
+                            <span style={{ fontWeight: 900, color: '#0f172a', width: '12px', fontSize: '9.5px' }}>
+                              {flagLetter}
+                            </span>
+                          )}
+                          <span style={{
+                            fontWeight: isAbnormal ? 900 : 600,
+                            color: isAbnormal ? '#000000' : '#0f172a',
+                            fontFamily: 'monospace',
+                            fontSize: '9.5px',
+                          }}>
+                            {p.observedValue}
+                          </span>
+                        </div>
                       </td>
-                      <td style={{ padding: '5px 8px', fontSize: '9px', textAlign: 'center' }}>
-                        <span style={{ color: T.slate500 }}>{p.unit || '-'}</span>
+
+                      {/* UNIT */}
+                      <td style={{ padding: '4.5px 8px', fontSize: '8.5px', color: T.slate700, verticalAlign: 'middle' }}>
+                        {p.unit || '-'}
                       </td>
-                      <td style={{ padding: '5px 8px', fontSize: '9px', textAlign: 'center' }}>
-                        <span style={{ fontFamily: 'monospace', color: T.slate600 }}>{p.referenceRange || '-'}</span>
-                      </td>
-                      <td style={{ padding: '5px 8px', fontSize: '9px', textAlign: 'center' }}>
-                        <span style={{ fontWeight: 800, color: isAbnormal ? T.criticalRed : T.blue, fontSize: '8.5px' }}>
-                          {flag}
-                        </span>
+
+                      {/* REFERENCE */}
+                      <td style={{ padding: '4.5px 8px', fontSize: '8.5px', color: '#0f172a', fontFamily: 'monospace', fontWeight: 600, verticalAlign: 'middle' }}>
+                        {p.referenceRange || '-'}
                       </td>
                     </tr>
                   );
@@ -353,89 +394,109 @@ export const StandardReportTemplate: React.FC<TemplateProps> = ({
         ))}
       </div>
 
-      {/* Clinical Notes & Remarks Section */}
+      {/* 4. Clinical Notes & Remarks (Dynamic from Report Builder Inputs) */}
       {(report?.doctorInterpretation || report?.clinicalNotes || report?.technicianRemarks || report?.doctorRemarks) && (
-        <div style={{ margin: '8px 24px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+        <div style={{ margin: '8px 28px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
           {report.clinicalNotes && (
-            <div style={{ border: `1px solid ${T.border}`, borderRadius: '4px', padding: '6px 8px', background: T.slate50 }}>
-              <div style={{ fontSize: '7.5px', fontWeight: 900, color: T.teal, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '2px' }}>Clinical Notes</div>
-              <div style={{ fontSize: '8.5px', lineHeight: '1.4', fontStyle: 'italic', color: T.slate600 }}>{report.clinicalNotes}</div>
+            <div style={{ border: `1px solid ${T.border}`, borderRadius: '4px', padding: '6px 10px', background: T.slate50 }}>
+              <div style={{ fontSize: '7.5px', fontWeight: 900, color: '#006d6f', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '2px' }}>Clinical Notes</div>
+              <div style={{ fontSize: '8.5px', lineHeight: '1.4', fontStyle: 'italic', color: T.slate700 }}>{report.clinicalNotes}</div>
             </div>
           )}
           {report.technicianRemarks && (
-            <div style={{ border: `1px solid ${T.border}`, borderRadius: '4px', padding: '6px 8px', background: T.slate50 }}>
-              <div style={{ fontSize: '7.5px', fontWeight: 900, color: T.teal, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '2px' }}>Technician Remarks</div>
-              <div style={{ fontSize: '8.5px', lineHeight: '1.4', color: T.slate600 }}>{report.technicianRemarks}</div>
+            <div style={{ border: `1px solid ${T.border}`, borderRadius: '4px', padding: '6px 10px', background: T.slate50 }}>
+              <div style={{ fontSize: '7.5px', fontWeight: 900, color: '#006d6f', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '2px' }}>Technician Remarks</div>
+              <div style={{ fontSize: '8.5px', lineHeight: '1.4', color: T.slate700 }}>{report.technicianRemarks}</div>
             </div>
           )}
           {report.doctorRemarks && (
-            <div style={{ border: `1px solid ${T.border}`, borderRadius: '4px', padding: '6px 8px', background: T.slate50, gridColumn: report.clinicalNotes && report.technicianRemarks ? '1 / -1' : 'auto' }}>
-              <div style={{ fontSize: '7.5px', fontWeight: 900, color: T.teal, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '2px' }}>Doctor Remarks</div>
-              <div style={{ fontSize: '8.5px', lineHeight: '1.4', color: T.slate700 }}>{report.doctorRemarks}</div>
+            <div style={{ border: `1px solid ${T.border}`, borderRadius: '4px', padding: '6px 10px', background: T.slate50, gridColumn: report.clinicalNotes && report.technicianRemarks ? '1 / -1' : 'auto' }}>
+              <div style={{ fontSize: '7.5px', fontWeight: 900, color: '#006d6f', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '2px' }}>Doctor Remarks</div>
+              <div style={{ fontSize: '8.5px', lineHeight: '1.4', color: T.slate800 }}>{report.doctorRemarks}</div>
             </div>
           )}
         </div>
       )}
+      </div>
 
-      {/* Signatures Footer */}
-      <div style={{ margin: '12px 24px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: '10px' }}>
-        <div>
-          <div style={{ fontSize: '9px', fontWeight: 700, color: T.slate700 }}>Lab Incharge</div>
-          <div style={{ fontSize: '7.5px', color: T.slate500, marginTop: '2px' }}>Verified Quality Checks Passed</div>
-        </div>
+      {/* 5. Signatures Footer (Mr. Rajinder Singh style) */}
+      <div>
+        <div style={{
+          margin: '14px 28px 0',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-end',
+          paddingTop: '8px',
+        }}>
+          {/* Left: Lab Incharge */}
+          <div>
+            <div style={{ fontSize: '9.5px', fontWeight: 800, color: '#0f172a' }}>DMLT, Lab Incharge</div>
+            <div style={{ fontSize: '7.5px', color: T.slate500, marginTop: '2px' }}>Verified Quality Checks Passed</div>
+          </div>
 
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '8px', color: T.slate500 }}>Powered by <strong>MedsSeva Lab Platform</strong></div>
-        </div>
+          {/* Center: Powered by MedsSeva & Page */}
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '8px', color: T.slate600 }}>
+              Powered by <strong style={{ color: '#006d6f' }}>MedsSeva Lab Platform</strong>
+            </div>
+            <div style={{ fontSize: '7.5px', color: T.slate500, marginTop: '2px' }}>
+              Page 1 of 1
+            </div>
+          </div>
 
-        {(doctor?.name || report?.doctorName) && (
-          <div style={{ textAlign: 'right', minWidth: '160px' }}>
+          {/* Right: Pathologist Signature */}
+          <div style={{ textAlign: 'right', minWidth: '170px' }}>
             {doctor?.signatureUrl ? (
               <img
                 src={doctor.signatureUrl}
                 alt="Doctor Signature"
-                style={{ maxHeight: '38px', maxWidth: '140px', objectFit: 'contain', display: 'block', margin: '0 0 2px auto' }}
+                style={{ maxHeight: '42px', maxWidth: '140px', objectFit: 'contain', display: 'block', margin: '0 0 2px auto' }}
                 crossOrigin="anonymous"
               />
             ) : (
               <div style={{
                 display: 'inline-block',
-                border: `1px solid ${T.border}`,
+                border: `1px solid ${T.cyanLine}`,
                 borderRadius: '3px',
                 padding: '2px 6px',
                 fontSize: '7px',
-                color: T.slate600,
+                color: '#006d6f',
                 marginBottom: '4px',
-                background: T.slate50,
-                letterSpacing: '0.8px',
-                fontWeight: 700,
+                background: T.tealLight,
+                letterSpacing: '0.6px',
+                fontWeight: 800,
               }}>
                 DIGITALLY SIGNED ✓
               </div>
             )}
-            <div style={{ fontSize: '11px', fontWeight: 900, color: T.teal }}>{doctor?.name || report?.doctorName}</div>
-            {(doctor?.qualification || report?.doctorQualification) && (
-              <div style={{ fontSize: '7.5px', color: T.slate600, marginTop: '1px' }}>{doctor?.qualification || report?.doctorQualification}</div>
-            )}
+            <div style={{ fontSize: '11px', fontWeight: 900, color: '#0f172a' }}>
+              {doctor?.name || report?.doctorName || 'Dr. ANA GUPTA'}
+            </div>
+            <div style={{ fontSize: '7.5px', color: T.slate600, marginTop: '1px', fontWeight: 600 }}>
+              {doctor?.qualification || report?.doctorQualification || 'MBBS, MD Pathologist'}
+            </div>
             {(doctor?.designation || report?.doctorDesignation) && (
               <div style={{ fontSize: '7.5px', color: T.slate500, fontWeight: 700, marginTop: '1px', textTransform: 'uppercase' }}>
                 {doctor?.designation || report?.doctorDesignation}
               </div>
             )}
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* Bottom Disclaimer */}
-      <div style={{
-        margin: '8px 24px 0',
-        borderTop: `1px solid ${T.border}`,
-        paddingTop: '6px',
-        paddingBottom: '12px',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '7.5px', color: T.slate600 }}>
+        {/* 6. Bottom Banner / Disclaimer */}
+        <div style={{
+          margin: '10px 28px 0',
+          borderTop: `1px solid ${T.cyanLine}`,
+          paddingTop: '6px',
+          paddingBottom: '12px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          fontSize: '7.5px',
+          color: T.slate600,
+        }}>
+          <span><strong>{branchName}</strong> | Because Health is Service.</span>
           <span>Generated On: {generatedOn}</span>
-          <span>© MedsSeva Diagnostics. All rights reserved.</span>
           <span>www.medsseva.com</span>
         </div>
       </div>

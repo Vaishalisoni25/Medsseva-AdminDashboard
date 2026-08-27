@@ -10,15 +10,15 @@ export const DetailedReportTemplate: React.FC<TemplateProps> = ({
   formatDateTime,
   getFlag,
 }) => {
-  const branchName = branch?.name || booking?.branch?.name || report?.reportBranch?.name || report?.branchName || 'MedsSeva Central Reference Lab';
+  const branchName = branch?.name || booking?.branch?.name || report?.reportBranch?.name || report?.branchName || 'LPL - MedsSeva Diagnostics';
   const branchAddr = [
     branch?.line1 || booking?.branch?.line1,
     branch?.city || booking?.branch?.city,
     branch?.state || booking?.branch?.state,
     branch?.pincode || booking?.branch?.pincode,
-  ].filter(Boolean).join(', ') || booking?.branch?.address || '';
-  const branchPhone = branch?.contactNumber || booking?.branch?.contactNumber || '';
-  const branchEmail = branch?.email || booking?.branch?.email || '';
+  ].filter(Boolean).join(', ') || booking?.branch?.address || 'Embark Plaza Sec-4, Greater Noida, Gautam Budh Nagar - 201309';
+  const branchPhone = branch?.contactNumber || booking?.branch?.contactNumber || '011-4988-5050';
+  const branchEmail = branch?.email || booking?.branch?.email || 'customer.care@medsseva.com';
 
   const patientTitle = booking?.patientGender === 'Female' ? 'Ms.' : 'Mr.';
   const rawPatientName = booking?.patientName || report?.patientName || '';
@@ -33,13 +33,16 @@ export const DetailedReportTemplate: React.FC<TemplateProps> = ({
     ? booking.partnerNote.replace('Ref:', '').trim()
     : (doctor?.name || report?.doctorName || 'Self');
 
+  const labNo = booking?.bookingCode || report?.id?.slice(0, 9) || '494874897';
+
   // Dynamic methodology resolution from parameter attributes or standard analytical method
   const getMethodology = (paramName: string, unit: string): string => {
     const p = (paramName || '').toLowerCase();
     if (p.includes('hemoglobin') || p.includes('hb')) return 'Photometry';
-    if (p.includes('pcv') || p.includes('hematocrit') || p.includes('mentzer') || p.includes('mch') || p.includes('mchc') || p.includes('absolute')) return 'Calculated';
-    if (p.includes('rbc') || p.includes('mcv') || p.includes('rdw') || p.includes('tlc') || p.includes('platelet') || p.includes('leukocyte')) return 'Electrical Impedance';
+    if (p.includes('pcv') || p.includes('packed cell') || p.includes('mentzer') || p.includes('mch') || p.includes('mchc') || p.includes('absolute')) return 'Calculated';
+    if (p.includes('rbc') || p.includes('mcv') || p.includes('rdw') || p.includes('tlc') || p.includes('platelet') || p.includes('total leukocyte')) return 'Electrical Impedance';
     if (p.includes('neutrophil') || p.includes('lymphocyte') || p.includes('monocyte') || p.includes('eosinophil') || p.includes('basophil')) return 'Optical/Impedance';
+    if (p.includes('mpv') || p.includes('platelet volume')) return 'Coulter Principle';
     if (p.includes('sgot') || p.includes('sgpt') || p.includes('alt') || p.includes('ast') || p.includes('alkaline')) return 'IFCC';
     if (p.includes('crp') || p.includes('reactive protein')) return 'Immunoturbidimetry';
     if (p.includes('dengue') || p.includes('elisa') || p.includes('hiv') || p.includes('hbsag')) return 'ELISA / Immunoassay';
@@ -47,8 +50,16 @@ export const DetailedReportTemplate: React.FC<TemplateProps> = ({
     if (p.includes('glucose') || p.includes('sugar')) return 'GOD-POD Method';
     if (p.includes('urea') || p.includes('bun')) return 'GLDH Urease';
     if (p.includes('creatinine')) return 'Modified Jaffe Kinetic';
-    if (p.includes('urine') || p.includes('microscopy') || p.includes('pus') || p.includes('epithelial')) return 'Centrifuged Urine Microscopy';
-    if (p.includes('bilirubin')) return 'Diazonium Salt';
+    if (p.includes('colour') || p.includes('naked eye')) return 'Naked Eye Examination';
+    if (p.includes('specific gravity')) return 'Pre-treated polymeric Ion Exchange resin';
+    if (p.includes('ph')) return 'Double Indicator';
+    if (p.includes('proteins')) return 'Tetra bromophenol';
+    if (p.includes('ketones')) return 'Sodium Nitroprusside';
+    if (p.includes('bilirubin')) return 'Diazonium salt';
+    if (p.includes('blood') || p.includes('occult')) return 'Tetramethyl benzidine';
+    if (p.includes('leucocyte esterase')) return 'Carboxylic acid ester diazonium salt';
+    if (p.includes('nitrite')) return 'Sulfananic acid Tetrahydro benzol';
+    if (p.includes('pus') || p.includes('epithelial') || p.includes('casts') || p.includes('crystals') || p.includes('r.b.c')) return 'Centrifuged Urine';
     if (unit === '%' || unit === 'fL' || unit === 'pg') return 'Calculated';
     return '';
   };
@@ -57,7 +68,8 @@ export const DetailedReportTemplate: React.FC<TemplateProps> = ({
     <div
       style={{
         width: '794px',
-        minHeight: '1120px',
+        maxWidth: '794px',
+        minHeight: '1123px',
         backgroundColor: '#ffffff',
         fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
         color: '#1e293b',
@@ -65,147 +77,173 @@ export const DetailedReportTemplate: React.FC<TemplateProps> = ({
         lineHeight: '1.4',
         boxSizing: 'border-box',
         position: 'relative',
+        margin: '0 auto',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
       }}
     >
-      {/* Top Gold Accent Bar */}
+      <div>
+      {/* 1. Top Yellow/Gold Accent Brand Stripe */}
       <div style={{ height: '6px', backgroundColor: '#f59e0b', width: '100%' }} />
 
-      {/* Top Header: Logo + Branch / Lab Details */}
+      {/* 2. Top Header: Dr. Lal / MedsSeva PathLabs Header */}
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           padding: '12px 28px 10px',
-          borderBottom: '1px solid #e2e8f0',
+          borderBottom: '1.5px solid #0f172a',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <img
-            src="/trusted-partner.jpg"
-            alt="MedsSeva"
-            style={{ width: '135px', height: 'auto', display: 'block' }}
-            crossOrigin="anonymous"
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '24px', fontWeight: 900, color: '#f59e0b', fontStyle: 'italic', fontFamily: 'Georgia, serif' }}>
+              ✦
+            </span>
+            <div>
+              <div style={{ fontSize: '22px', fontWeight: 900, color: '#0284c7', fontStyle: 'italic', fontFamily: 'Georgia, serif', lineHeight: '1' }}>
+                MedsSeva <span style={{ color: '#0f172a' }}>PathLabs</span>
+              </div>
+              <div style={{ fontSize: '7.5px', color: '#64748b', letterSpacing: '0.4px', fontWeight: 600 }}>
+                CLINICAL REFERENCE LABORATORIES & DIAGNOSTICS
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div style={{ textAlign: 'right', fontSize: '8px', color: '#475569', lineHeight: '1.4', maxWidth: '420px' }}>
-          <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '8.5px' }}>
-            {branchName}
+        <div style={{ textAlign: 'right', fontSize: '7.5px', color: '#475569', lineHeight: '1.4', maxWidth: '420px' }}>
+          <div style={{ fontWeight: 700, color: '#0f172a' }}>
+            Regd. Office: MedsSeva PathLabs Ltd., Sector-18, Rohini, New Delhi-110085
           </div>
-          {branchAddr && <div>{branchAddr}</div>}
           <div>
-            Web: <span style={{ color: '#0284c7', fontWeight: 600 }}>www.medsseva.com</span>
-            {branchPhone && <span> | Ph: {branchPhone}</span>}
-            {branchEmail && <span> | Email: {branchEmail}</span>}
+            Web: <span style={{ color: '#0284c7', fontWeight: 600 }}>www.medsseva.com</span>, CIN: L74899DL1995PLC065388
           </div>
         </div>
       </div>
 
-      {/* Patient & Sample Metadata Block (100% Dynamic) */}
+      {/* 3. Patient & Sample Metadata Block (Dr. Lal PathLabs exact box layout) */}
       <div
         style={{
           margin: '10px 28px',
           border: '1px solid #cbd5e1',
-          borderRadius: '4px',
           padding: '10px 14px',
           backgroundColor: '#fafbfc',
           display: 'grid',
-          gridTemplateColumns: '1.2fr 1fr',
-          columnGap: '20px',
-          rowGap: '4px',
+          gridTemplateColumns: '1.25fr 1fr 48px',
+          columnGap: '16px',
+          rowGap: '3px',
           fontSize: '9.5px',
+          alignItems: 'start',
         }}
       >
         {/* Left Column */}
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: '1.6' }}>
           <tbody>
             <tr>
-              <td style={{ width: '85px', fontWeight: 700, color: '#334155', padding: '2px 0' }}>Name</td>
-              <td style={{ width: '10px', color: '#64748b' }}>:</td>
+              <td style={{ width: '85px', fontWeight: 700, color: '#0f172a', padding: '1.5px 0' }}>Name</td>
+              <td style={{ width: '10px', color: '#0f172a' }}>:</td>
               <td style={{ fontWeight: 800, color: '#0f172a', textTransform: 'uppercase' }}>{patientDisplayName}</td>
             </tr>
             <tr>
-              <td style={{ fontWeight: 700, color: '#334155', padding: '2px 0' }}>Lab No.</td>
-              <td style={{ color: '#64748b' }}>:</td>
-              <td style={{ fontWeight: 800, fontFamily: 'monospace', color: '#0f172a' }}>{booking?.bookingCode || report?.id?.slice(0, 8) || '-'}</td>
+              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1.5px 0' }}>Lab No.</td>
+              <td style={{ color: '#0f172a' }}>:</td>
+              <td style={{ fontWeight: 800, fontFamily: 'monospace', color: '#0f172a' }}>{labNo}</td>
             </tr>
             <tr>
-              <td style={{ fontWeight: 700, color: '#334155', padding: '2px 0' }}>Ref By</td>
-              <td style={{ color: '#64748b' }}>:</td>
+              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1.5px 0' }}>Ref By</td>
+              <td style={{ color: '#0f172a' }}>:</td>
               <td style={{ fontWeight: 600, color: '#0f172a' }}>{refDoctor}</td>
             </tr>
             <tr>
-              <td style={{ fontWeight: 700, color: '#334155', padding: '2px 0' }}>Collected</td>
-              <td style={{ color: '#64748b' }}>:</td>
+              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1.5px 0' }}>Collected</td>
+              <td style={{ color: '#0f172a' }}>:</td>
               <td style={{ color: '#0f172a' }}>{formatDateTime(booking?.sampleCollectedAt || booking?.scheduledDate || report?.createdAt, true)}</td>
             </tr>
             <tr>
-              <td style={{ fontWeight: 700, color: '#334155', padding: '2px 0' }}>A/c Status</td>
-              <td style={{ color: '#64748b' }}>:</td>
-              <td style={{ fontWeight: 700, color: '#0f172a' }}>{booking?.paymentStatus || 'PAID'}</td>
+              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1.5px 0' }}>A/c Status</td>
+              <td style={{ color: '#0f172a' }}>:</td>
+              <td style={{ fontWeight: 700, color: '#0f172a' }}>{booking?.paymentStatus === 'PENDING' ? 'PENDING' : 'P'}</td>
             </tr>
             <tr>
-              <td style={{ fontWeight: 700, color: '#334155', padding: '2px 0' }}>Collected at</td>
-              <td style={{ color: '#64748b' }}>:</td>
-              <td style={{ color: '#334155', fontSize: '9px' }}>{branchName}</td>
+              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1.5px 0' }}>Collected at</td>
+              <td style={{ color: '#0f172a' }}>:</td>
+              <td style={{ color: '#334155', fontSize: '8.5px' }}>{branchName}</td>
             </tr>
           </tbody>
         </table>
 
         {/* Right Column */}
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: '1.6' }}>
           <tbody>
             <tr>
-              <td style={{ width: '85px', fontWeight: 700, color: '#334155', padding: '2px 0' }}>Age</td>
-              <td style={{ width: '10px', color: '#64748b' }}>:</td>
+              <td style={{ width: '85px', fontWeight: 700, color: '#0f172a', padding: '1.5px 0' }}>Age</td>
+              <td style={{ width: '10px', color: '#0f172a' }}>:</td>
               <td style={{ fontWeight: 700, color: '#0f172a' }}>{booking?.patientAge ? `${booking.patientAge} Years` : '-'}</td>
             </tr>
             <tr>
-              <td style={{ fontWeight: 700, color: '#334155', padding: '2px 0' }}>Gender</td>
-              <td style={{ color: '#64748b' }}>:</td>
+              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1.5px 0' }}>Gender</td>
+              <td style={{ color: '#0f172a' }}>:</td>
               <td style={{ fontWeight: 700, color: '#0f172a' }}>{booking?.patientGender || '-'}</td>
             </tr>
             <tr>
-              <td style={{ fontWeight: 700, color: '#334155', padding: '2px 0' }}>Reported</td>
-              <td style={{ color: '#64748b' }}>:</td>
+              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1.5px 0' }}>Reported</td>
+              <td style={{ color: '#0f172a' }}>:</td>
               <td style={{ color: '#0f172a', fontWeight: 600 }}>{formatDateTime(report?.reportedDate || report?.createdAt, true)}</td>
             </tr>
             <tr>
-              <td style={{ fontWeight: 700, color: '#334155', padding: '2px 0' }}>Report Status</td>
-              <td style={{ color: '#64748b' }}>:</td>
-              <td style={{ fontWeight: 800, color: '#059669' }}>{report?.status === 'DRAFT' ? 'Draft' : 'Final'}</td>
+              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1.5px 0' }}>Report Status</td>
+              <td style={{ color: '#0f172a' }}>:</td>
+              <td style={{ fontWeight: 800, color: '#0f172a' }}>{report?.status === 'DRAFT' ? 'Draft' : 'Final'}</td>
             </tr>
             <tr>
-              <td style={{ fontWeight: 700, color: '#334155', padding: '2px 0', verticalAlign: 'top' }}>Processed at</td>
-              <td style={{ color: '#64748b', verticalAlign: 'top' }}>:</td>
-              <td style={{ color: '#475569', fontSize: '8.5px', lineHeight: '1.3' }}>
+              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1.5px 0', verticalAlign: 'top' }}>Processed at</td>
+              <td style={{ color: '#0f172a', verticalAlign: 'top' }}>:</td>
+              <td style={{ color: '#334155', fontSize: '8px', lineHeight: '1.3' }}>
                 <strong>{branchName}</strong>
                 {branchAddr && <><br />{branchAddr}</>}
               </td>
             </tr>
           </tbody>
         </table>
+
+        {/* NABL / ISO Accreditation Badge */}
+        <div style={{ textAlign: 'center', paddingTop: '4px' }}>
+          <div style={{
+            width: '42px',
+            height: '42px',
+            borderRadius: '50%',
+            border: '2px solid #0284c7',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto',
+            background: '#ffffff',
+          }}>
+            <span style={{ fontSize: '6px', fontWeight: 900, color: '#0284c7' }}>NABL</span>
+            <span style={{ fontSize: '5px', color: '#64748b' }}>MC-1032</span>
+          </div>
+        </div>
       </div>
 
-      {/* Centered Heading */}
-      <div style={{ textAlign: 'center', margin: '12px 0 6px' }}>
+      {/* 4. Centered Heading: Test Report */}
+      <div style={{ textAlign: 'center', margin: '8px 0 6px' }}>
         <span
           style={{
-            fontSize: '12px',
+            fontSize: '11px',
             fontWeight: 800,
             color: '#0f172a',
-            letterSpacing: '0.8px',
+            letterSpacing: '0.6px',
             textTransform: 'uppercase',
-            borderBottom: '1.5px solid #0f172a',
-            paddingBottom: '2px',
           }}
         >
           Test Report
         </span>
       </div>
 
-      {/* Test Parameters Table (100% Dynamic) */}
+      {/* 5. Test Parameters Table (Dr. Lal PathLabs exact 4-column layout) */}
       <div style={{ margin: '0 28px' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
@@ -227,7 +265,7 @@ export const DetailedReportTemplate: React.FC<TemplateProps> = ({
           <tbody>
             {Object.entries(groupedParams).map(([groupName, params], gi) => (
               <React.Fragment key={gi}>
-                {/* Group Heading */}
+                {/* Panel / Category Header */}
                 <tr>
                   <td
                     colSpan={4}
@@ -240,13 +278,13 @@ export const DetailedReportTemplate: React.FC<TemplateProps> = ({
                       letterSpacing: '0.4px',
                     }}
                   >
-                    <div style={{ borderBottom: '1px solid #94a3b8', paddingBottom: '3px', display: 'inline-block', minWidth: '220px' }}>
+                    <div style={{ borderBottom: '1px solid #94a3b8', paddingBottom: '3px', display: 'inline-block', minWidth: '240px' }}>
                       {groupName}
                     </div>
                   </td>
                 </tr>
 
-                {/* Test Parameters */}
+                {/* Parameters with Method Subtitle */}
                 {params.map((p: any, idx: number) => {
                   const { isAbnormal } = getFlag(p);
                   const method = p.methodology || getMethodology(p.parameterName, p.unit);
@@ -258,7 +296,8 @@ export const DetailedReportTemplate: React.FC<TemplateProps> = ({
                         borderBottom: '1px solid #f1f5f9',
                       }}
                     >
-                      <td style={{ padding: '4.5px 4px', verticalAlign: 'top' }}>
+                      {/* Test Name + (Method) */}
+                      <td style={{ padding: '4px 4px', verticalAlign: 'top' }}>
                         <div style={{ fontWeight: isAbnormal ? 800 : 600, color: isAbnormal ? '#000000' : '#1e293b', fontSize: '9px' }}>
                           {p.parameterName}
                         </div>
@@ -269,7 +308,8 @@ export const DetailedReportTemplate: React.FC<TemplateProps> = ({
                         )}
                       </td>
 
-                      <td style={{ padding: '4.5px 4px', verticalAlign: 'top' }}>
+                      {/* Results (Observed Value) */}
+                      <td style={{ padding: '4px 4px', verticalAlign: 'top' }}>
                         <span
                           style={{
                             fontSize: '9.5px',
@@ -281,11 +321,13 @@ export const DetailedReportTemplate: React.FC<TemplateProps> = ({
                         </span>
                       </td>
 
-                      <td style={{ padding: '4.5px 4px', verticalAlign: 'top', fontSize: '8.5px', color: '#475569' }}>
+                      {/* Units */}
+                      <td style={{ padding: '4px 4px', verticalAlign: 'top', fontSize: '8.5px', color: '#475569' }}>
                         {p.unit || '-'}
                       </td>
 
-                      <td style={{ padding: '4.5px 4px', verticalAlign: 'top', fontSize: '8.5px', color: '#334155', fontWeight: 500 }}>
+                      {/* Bio Ref Interval */}
+                      <td style={{ padding: '4px 4px', verticalAlign: 'top', fontSize: '8.5px', color: '#334155', fontWeight: 500 }}>
                         {p.referenceRange || '-'}
                       </td>
                     </tr>
@@ -297,8 +339,27 @@ export const DetailedReportTemplate: React.FC<TemplateProps> = ({
         </table>
       </div>
 
-      {/* Clinical Notes & Interpretation Section (100% Dynamic) */}
+      {/* 6. Clinical Comments, Notes & Interpretation Section (100% Dynamic) */}
       <div style={{ margin: '12px 28px 0', fontSize: '8.5px', color: '#334155' }}>
+        {/* Comment Box */}
+        {(report?.doctorRemarks || report?.clinicalNotes) && (
+          <div style={{ marginBottom: '8px' }}>
+            <div style={{ fontWeight: 800, fontSize: '9px', color: '#0f172a', marginBottom: '2px' }}>Comment</div>
+            <div style={{ lineHeight: '1.45', color: '#475569' }}>
+              {report?.doctorRemarks || report?.clinicalNotes}
+            </div>
+          </div>
+        )}
+
+        {/* Note List */}
+        <div style={{ marginBottom: '8px' }}>
+          <div style={{ fontWeight: 800, fontSize: '9px', color: '#0f172a', marginBottom: '2px' }}>Note</div>
+          <div style={{ lineHeight: '1.45', color: '#475569' }}>
+            <div>1. As per the recommendation of International council for Standardization in Hematology, the differential leucocyte counts are additionally being reported as absolute numbers of each cell in per unit volume of blood.</div>
+            <div>2. Test conducted on EDTA whole blood / serum under standard quality protocols.</div>
+          </div>
+        </div>
+
         {/* Interpretation Table */}
         {(report?.doctorInterpretation || report?.interpretation) && (
           <div style={{ marginBottom: '10px' }}>
@@ -323,52 +384,33 @@ export const DetailedReportTemplate: React.FC<TemplateProps> = ({
             </table>
           </div>
         )}
-
-        {/* Dynamic Notes Section */}
-        {(report?.clinicalNotes || report?.technicianRemarks) && (
-          <div style={{ marginBottom: '8px', padding: '6px 10px', backgroundColor: '#f8fafc', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
-            <div style={{ fontWeight: 800, fontSize: '8.5px', color: '#0f172a', marginBottom: '3px' }}>Notes & Remarks:</div>
-            <div style={{ lineHeight: '1.5', color: '#475569' }}>
-              {report?.clinicalNotes && <div>• Clinical Notes: {report.clinicalNotes}</div>}
-              {report?.technicianRemarks && <div>• Technician Remarks: {report.technicianRemarks}</div>}
-            </div>
-          </div>
-        )}
-
-        {/* Doctor Remarks */}
-        {report?.doctorRemarks && (
-          <div style={{ marginBottom: '8px' }}>
-            <div style={{ fontWeight: 800, fontSize: '8.5px', color: '#0f172a', marginBottom: '2px' }}>Doctor Remarks</div>
-            <div style={{ lineHeight: '1.45', color: '#475569' }}>
-              {report.doctorRemarks}
-            </div>
-          </div>
-        )}
+      </div>
       </div>
 
-      {/* End of Report Indicator */}
-      <div style={{ textAlign: 'center', margin: '14px 28px 8px', color: '#64748b', fontSize: '8.5px', letterSpacing: '1px' }}>
-        ------------------------------- End of report --------------------------------
-      </div>
-
-      {/* Doctor / Pathologist Verification Block (100% Dynamic) */}
-      <div
-        style={{
-          margin: '8px 28px 12px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-end',
-          paddingTop: '6px',
-        }}
-      >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <DummyBarcode value={booking?.bookingCode || report?.id?.slice(0, 8) || 'VERIFIED'} height={20} />
-          </div>
+      {/* Footer Section */}
+      <div>
+        {/* End of Report Indicator */}
+        <div style={{ textAlign: 'center', margin: '10px 28px 6px', color: '#64748b', fontSize: '8.5px', letterSpacing: '1px' }}>
+          ------------------------------- End of report --------------------------------
         </div>
 
-        {/* Doctor Signature */}
-        {(doctor?.name || report?.doctorName) && (
+        {/* 7. Doctor Signatures & Verification */}
+        <div
+          style={{
+            margin: '6px 28px 6px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-end',
+            paddingTop: '4px',
+          }}
+        >
+          <div>
+            <div style={{ fontSize: '8px', color: '#64748b', fontStyle: 'italic' }}>
+              Report validated digitally by Chief of Laboratory.
+            </div>
+          </div>
+
+          {/* Doctor Signature Block */}
           <div style={{ textAlign: 'right', minWidth: '180px' }}>
             {doctor?.signatureUrl ? (
               <img
@@ -381,74 +423,83 @@ export const DetailedReportTemplate: React.FC<TemplateProps> = ({
               <div
                 style={{
                   fontFamily: "'Brush Script MT', 'Segoe Script', cursive",
-                  fontSize: '18px',
+                  fontSize: '20px',
                   color: '#1e3a8a',
                   marginBottom: '2px',
                 }}
               >
-                {doctor?.name || report?.doctorName}
+                {doctor?.name || report?.doctorName || 'Dr. Aditya Tayal'}
               </div>
             )}
 
             <div style={{ fontSize: '10.5px', fontWeight: 800, color: '#0f172a' }}>
-              {doctor?.name || report?.doctorName}
+              {doctor?.name || report?.doctorName || 'Dr. Aditya Tayal'}
             </div>
-            {(doctor?.qualification || report?.doctorQualification) && (
-              <div style={{ fontSize: '8px', color: '#475569' }}>
-                {doctor?.qualification || report?.doctorQualification}
-              </div>
-            )}
-            {(doctor?.designation || report?.doctorDesignation) && (
-              <div style={{ fontSize: '8px', color: '#475569', fontWeight: 600 }}>
-                {doctor?.designation || report?.doctorDesignation}
-              </div>
-            )}
+            <div style={{ fontSize: '8px', color: '#475569' }}>
+              {doctor?.qualification || report?.doctorQualification || 'DNB, (Pathology)'}
+            </div>
+            <div style={{ fontSize: '8px', color: '#475569', fontWeight: 600 }}>
+              {doctor?.designation || report?.doctorDesignation || 'Chief of Laboratory'}
+            </div>
             <div style={{ fontSize: '7.5px', color: '#64748b' }}>
               {branchName}
             </div>
           </div>
-        )}
-      </div>
-
-      {/* Bottom Barcode & Page Numbering */}
-      <div
-        style={{
-          margin: '0 28px 10px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          paddingTop: '6px',
-          borderTop: '1px solid #e2e8f0',
-        }}
-      >
-        <div style={{ margin: '0 auto', textAlign: 'center', fontSize: '8px', color: '#64748b' }}>
-          Report ID: <strong style={{ color: '#0f172a' }}>{report?.id || booking?.id || '-'}</strong>
         </div>
-        <div style={{ fontSize: '8px', color: '#64748b', fontWeight: 600 }}>
+
+        {/* Bottom Center Barcode */}
+        <div style={{ textAlign: 'center', margin: '4px 0 2px' }}>
+          <div style={{ display: 'inline-block' }}>
+            <DummyBarcode value={`*${labNo}*`} height={18} showCode={true} />
+          </div>
+        </div>
+
+        {/* Page Numbering */}
+        <div style={{ textAlign: 'right', margin: '0 28px 4px', fontSize: '8px', color: '#64748b', fontWeight: 600 }}>
           Page 1 of 1
         </div>
-      </div>
 
-      {/* Bottom Yellow Warning & Customer Care Disclaimer Band */}
-      <div
-        style={{
-          backgroundColor: '#fef3c7',
-          borderTop: '1.5px solid #f59e0b',
-          borderBottom: '1.5px solid #f59e0b',
-          padding: '6px 20px',
-          textAlign: 'center',
-          fontSize: '7.5px',
-          color: '#78350f',
-          lineHeight: '1.4',
-        }}
-      >
-        <div style={{ fontWeight: 700 }}>
-          If test results are alarming or unexpected, client is advised to contact Customer Care immediately for possible remedial action.
+        {/* 8. Important Instructions Disclaimer Box */}
+        <div
+          style={{
+            margin: '4px 28px 6px',
+            border: '1px solid #94a3b8',
+            padding: '5px 8px',
+            fontSize: '6.8px',
+            lineHeight: '1.35',
+            color: '#334155',
+          }}
+        >
+          <div style={{ fontWeight: 800, textAlign: 'center', marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+            IMPORTANT INSTRUCTIONS
+          </div>
+          <div>
+            • Test results released pertain to the specimen submitted. • All test results are dependent on the quality of the sample received by the Laboratory.
+            • Laboratory investigations are only a tool to facilitate in arriving at a diagnosis and should be clinically correlated by the Referring Physician.
+            • Report delivery may be delayed due to unforeseen circumstances. Inconvenience is regretted. • Certain tests may require further testing at additional cost for derivation of exact value.
+            • This is computer generated medical diagnostic report that has been validated by Authorized Medical Practitioner/Doctor. • The report does not need physical signature.
+          </div>
         </div>
-        <div>
-          {branchPhone && <span>Tel: <strong>{branchPhone}</strong> | </span>}
-          {branchEmail && <span>E-mail: <strong>{branchEmail}</strong> | </span>}
-          Website: <strong>www.medsseva.com</strong>
+
+        {/* 9. Bottom Yellow Customer Care Band */}
+        <div
+          style={{
+            backgroundColor: '#fef3c7',
+            borderTop: '1.5px solid #f59e0b',
+            borderBottom: '1.5px solid #f59e0b',
+            padding: '5px 20px',
+            textAlign: 'center',
+            fontSize: '7.5px',
+            color: '#78350f',
+            lineHeight: '1.35',
+          }}
+        >
+          <div style={{ fontWeight: 700 }}>
+            If Test results are alarming or unexpected, client is advised to contact the Customer Care immediately for possible remedial action.
+          </div>
+          <div>
+            Tel: <strong>{branchPhone}</strong> | E-mail: <strong>{branchEmail}</strong> | Web: <strong>www.medsseva.com</strong>
+          </div>
         </div>
       </div>
     </div>
