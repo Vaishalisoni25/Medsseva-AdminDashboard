@@ -86,13 +86,13 @@ export const ReportApprovalPage: React.FC = () => {
     return { branch, doctor };
   }, [selectedReport]);
 
-  const generateAndUploadPDF = useCallback(async (reportData: any): Promise<{ pdfUrl: string; pdfPublicId: string } | null> => {
+  const generateAndDownloadPDF = useCallback(async (reportData: any, templateType: 'STANDARD' | 'DETAILED') => {
     const { branch, doctor } = buildBranchAndDoctor();
-    setPortalReport({ ...reportData, status: 'RELEASED', templateType: approvalTemplate });
+    setPortalReport({ ...reportData, status: 'RELEASED', templateType });
     setPortalBranch(branch);
     setPortalDoctor(doctor);
 
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, 600));
 
     try {
       const [html2canvas, jsPDFModule] = await Promise.all([
@@ -115,7 +115,7 @@ export const ReportApprovalPage: React.FC = () => {
         scrollY: 0,
       });
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.85);
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
       const A4_W_PX = 794;
       const A4_H_PX = 1123;
       const SCALE = A4_W_PX / canvas.width;
@@ -129,76 +129,54 @@ export const ReportApprovalPage: React.FC = () => {
         pdf.addImage(imgData, 'JPEG', 0, -(page * pageH), A4_W_PX, contentHeightPx);
       }
 
-      const pdfBlob = pdf.output('blob');
-      const patientName = reportData.booking?.patientName?.replace(/\s+/g, '_') || 'Report';
-      const bookingCode = reportData.booking?.bookingCode || reportData.id.slice(0, 8);
-      const fileName = `MedsSeva_Report_${patientName}_${bookingCode}_${Date.now()}.pdf`;
+      const patientName = reportData.booking?.patientName?.replace(/\s+/g, '_') || reportData.patientName?.replace(/\s+/g, '_') || 'Patient';
+      const bookingCode = reportData.booking?.bookingCode || reportData.bookingCode || reportData.id.slice(0, 8);
+      const fileName = `MedsSeva_Report_${patientName}_${bookingCode}_${templateType.toLowerCase()}.pdf`;
 
-      const formData = new FormData();
-      formData.append('pdf', pdfBlob, fileName);
+      // 1. Direct guaranteed client download
+      pdf.save(fileName);
 
-      const uploadResult = await dispatch(uploadReportPdfThunk({ id: reportData.id, formData })).unwrap();
-      return { pdfUrl: uploadResult.pdfUrl, pdfPublicId: uploadResult.pdfPublicId };
+      // 2. Background async upload to server & update state
+      try {
+        const pdfBlob = pdf.output('blob');
+        const formData = new FormData();
+        formData.append('pdf', pdfBlob, fileName);
+
+        const uploadResult = await dispatch(uploadReportPdfThunk({ id: reportData.id, formData })).unwrap();
+        if (uploadResult?.pdfUrl) {
+          const updated = await dispatch(savePdfUrlThunk({
+            id: reportData.id,
+            pdfUrl: uploadResult.pdfUrl,
+            pdfPublicId: uploadResult.pdfPublicId,
+          })).unwrap();
+          setSelectedReport(updated);
+        }
+      } catch (uploadErr) {
+        console.warn('Background PDF upload skipped:', uploadErr);
+      }
+
+      return true;
     } finally {
       setPortalReport(null);
       setPortalBranch(null);
       setPortalDoctor(undefined);
     }
-  }, [selectedReport, buildBranchAndDoctor, dispatch]);
-
-  const downloadReportPdfBlob = async (url: string, filename: string) => {
-    try {
-      const res = await fetch(url);
-      const blob = await res.blob();
-      const pdfBlob = new Blob([blob], { type: 'application/pdf' });
-      const blobUrl = URL.createObjectURL(pdfBlob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-    } catch {
-      const link = document.createElement('a');
-      link.href = url;
-      link.target = '_blank';
-      link.download = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-  };
+  }, [buildBranchAndDoctor, dispatch]);
 
   const handlePrintPDF = useCallback(async () => {
     if (!selectedReport) return;
-    const patientName = selectedReport.booking?.patientName?.replace(/\s+/g, '_') || selectedReport.patientName?.replace(/\s+/g, '_') || 'Patient';
-    const bookingCode = selectedReport.booking?.bookingCode || selectedReport.bookingCode || selectedReport.id.slice(0, 8);
-    const pdfFileName = `MedsSeva_Report_${patientName}_${bookingCode}_${approvalTemplate.toLowerCase()}.pdf`;
-
     setGeneratingPDF(true);
     try {
-      const result = await generateAndUploadPDF(selectedReport);
-      if (!result) throw new Error('Upload failed');
-
-      const updated = await dispatch(savePdfUrlThunk({
-        id: selectedReport.id,
-        pdfUrl: result.pdfUrl,
-        pdfPublicId: result.pdfPublicId,
-      })).unwrap();
-
-      setSelectedReport(updated);
-      await dispatch(fetchAllReports());
-
-      await downloadReportPdfBlob(result.pdfUrl, pdfFileName);
+      await generateAndDownloadPDF(selectedReport, approvalTemplate);
       toast.success('PDF downloaded', `Report downloaded in ${approvalTemplate === 'DETAILED' ? 'Detailed (Dr. Lal)' : 'Standard'} format.`);
+      await dispatch(fetchAllReports());
     } catch (err) {
       console.error('PDF generation failed:', err);
       toast.error('PDF failed', 'Could not generate the PDF. Please try again.');
     } finally {
       setGeneratingPDF(false);
     }
-  }, [selectedReport, approvalTemplate, generateAndUploadPDF, dispatch]);
+  }, [selectedReport, approvalTemplate, generateAndDownloadPDF, dispatch]);
   const draftReports = reports.filter((r: any) => r.status === 'DRAFT' || r.status === 'UNDER_REVIEW');
   const approvedReports = reports.filter((r: any) => r.status === 'APPROVED' || r.status === 'RELEASED');
 
@@ -214,18 +192,10 @@ const handleFinalize = async () => {
 
       setUploadingPDF(true);
       try {
-        const result = await generateAndUploadPDF(finalized);
-        if (!result) throw new Error('Upload failed');
-        const updated = await dispatch(savePdfUrlThunk({
-          id: finalized.id,
-          pdfUrl: result.pdfUrl,
-          pdfPublicId: result.pdfPublicId,
-        })).unwrap();
-        setSelectedReport(updated);
-        await dispatch(fetchAllReports());
-        toast.success('PDF ready', 'The official report PDF has been uploaded and is ready to send.');
+        await generateAndDownloadPDF(finalized, approvalTemplate);
+        toast.success('PDF ready', 'The official report PDF has been generated and is ready to send.');
       } catch {
-        toast.error('PDF upload failed', 'Report is finalized but PDF upload failed. Try downloading to retry.');
+        toast.error('PDF upload failed', 'Report is finalized. Try clicking Generate & Download to download.');
       } finally {
         setUploadingPDF(false);
       }
@@ -242,13 +212,8 @@ const handleFinalize = async () => {
       let reportToSend = selectedReport;
 
       if (!reportToSend.pdfUrl) {
-        toast.success('Generating PDF', 'No PDF found, generating now before sending...');
         try {
-          const pdfResult = await generateAndUploadPDF(reportToSend);
-          if (pdfResult && pdfResult.pdfUrl) {
-            reportToSend = { ...reportToSend, pdfUrl: pdfResult.pdfUrl, pdfPublicId: pdfResult.pdfPublicId };
-            setSelectedReport(reportToSend);
-          }
+          await generateAndDownloadPDF(reportToSend, approvalTemplate);
         } catch (pdfErr) {
           console.warn('PDF generation deferred:', pdfErr);
         }
