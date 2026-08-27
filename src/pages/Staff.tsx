@@ -62,6 +62,9 @@ const COMMON_DESIGNATIONS = [
 
 export const StaffPage: React.FC = () => {
   const currentUser = useAppSelector(state => state.auth.user);
+  const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'SUPER_ADMIN' || (currentUser as any)?.isSuperAdmin;
+  const userBranchId = (currentUser as any)?.branchId || (currentUser as any)?.adminUser?.branchId || '';
+
   const [staffList, setStaffList] = useState<StaffRecord[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [roles, setRoles] = useState<AdminRole[]>([]);
@@ -132,7 +135,7 @@ export const StaffPage: React.FC = () => {
     setCustomDepartment('');
     setFormDesignation('Lab Technician');
     setCustomDesignation('');
-    const userBranch = (currentUser as any)?.branchId || '';
+    const userBranch = userBranchId || (currentUser as any)?.branchId || (branches[0]?.id || '');
     setFormBranchId(userBranch || '');
     setFormFranchiseId('');
     const defaultRole = (roles || []).find(r => {
@@ -203,6 +206,8 @@ export const StaffPage: React.FC = () => {
       return s.includes('staff') || s.includes('employee') || s.includes('lab') || s.includes('executive') || n.includes('staff') || n.includes('employee') || n.includes('lab') || n.includes('executive');
     })?.id || roles[0]?.id;
 
+    const targetBranchId = formBranchId || userBranchId || undefined;
+
     const payload = {
       name: formName.trim(),
       email: formEmail.trim(),
@@ -211,7 +216,7 @@ export const StaffPage: React.FC = () => {
       userType: 'EMPLOYEE',
       department: finalDepartment || undefined,
       designation: finalDesignation || undefined,
-      branchId: formBranchId || undefined,
+      branchId: targetBranchId,
       franchiseId: formFranchiseId || undefined,
       password: formPassword || 'MedsSeva@123',
     };
@@ -258,9 +263,6 @@ export const StaffPage: React.FC = () => {
       toast.error(e.response?.data?.error || 'Failed to delete staff');
     }
   };
-
-  const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'SUPER_ADMIN' || (currentUser as any)?.isSuperAdmin;
-  const userBranchId = (currentUser as any)?.branchId;
 
   const baseStaffList = useMemo(() => {
     if (!isSuperAdmin && userBranchId) {
