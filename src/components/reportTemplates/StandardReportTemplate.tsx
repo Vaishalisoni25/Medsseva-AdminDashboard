@@ -150,6 +150,12 @@ export const StandardReportTemplate: React.FC<TemplateProps> = ({
 
   const regCode = booking?.bookingCode || report?.id?.slice(0, 8) || '1042';
 
+  const patientMobile = booking?.patientMobile || booking?.user?.mobile || booking?.mobile || report?.booking?.patientMobile || report?.patientMobile || '-';
+  const rawAddress = booking?.address || booking?.patientAddress || booking?.user?.address || report?.booking?.address;
+  const patientAddress = typeof rawAddress === 'string'
+    ? rawAddress
+    : (rawAddress?.line1 ? [rawAddress.line1, rawAddress.city, rawAddress.pincode].filter(Boolean).join(', ') : '-');
+
   return (
     <div style={{
       width: '794px',
@@ -218,13 +224,27 @@ export const StandardReportTemplate: React.FC<TemplateProps> = ({
           <div style={{ fontSize: '15px', fontWeight: 900, color: '#0f172a', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
             {patientDisplayName}
           </div>
-          <table style={{ borderCollapse: 'collapse', fontSize: '9.5px', lineHeight: '1.7', width: '100%' }}>
+          <table style={{ borderCollapse: 'collapse', fontSize: '9.5px', lineHeight: '1.6', width: '100%' }}>
             <tbody>
               <tr>
                 <td style={{ color: T.slate700, width: '85px', padding: '1px 0', fontWeight: 600 }}>Age / Sex</td>
                 <td style={{ color: T.slate700, width: '12px', padding: '1px 2px' }}>:</td>
                 <td style={{ fontWeight: 700, color: '#0f172a' }}>
                   {booking?.patientAge ? `${booking.patientAge} YRS` : '-'} / {booking?.patientGender === 'Female' ? 'F' : (booking?.patientGender === 'Male' ? 'M' : '-')}
+                </td>
+              </tr>
+              <tr>
+                <td style={{ color: T.slate700, padding: '1px 0', fontWeight: 600 }}>Mobile</td>
+                <td style={{ color: T.slate700, padding: '1px 2px' }}>:</td>
+                <td style={{ fontWeight: 700, color: '#0f172a' }}>
+                  {patientMobile}
+                </td>
+              </tr>
+              <tr>
+                <td style={{ color: T.slate700, padding: '1px 0', fontWeight: 600 }}>Address</td>
+                <td style={{ color: T.slate700, padding: '1px 2px' }}>:</td>
+                <td style={{ fontWeight: 600, color: '#0f172a', fontSize: '8.5px', lineHeight: '1.25' }}>
+                  {patientAddress}
                 </td>
               </tr>
               <tr>

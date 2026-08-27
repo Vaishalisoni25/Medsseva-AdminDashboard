@@ -35,6 +35,12 @@ export const DetailedReportTemplate: React.FC<TemplateProps> = ({
 
   const labNo = booking?.bookingCode || report?.id?.slice(0, 9) || '494874897';
 
+  const patientMobile = booking?.patientMobile || booking?.user?.mobile || booking?.mobile || report?.booking?.patientMobile || report?.patientMobile || '-';
+  const rawAddress = booking?.address || booking?.patientAddress || booking?.user?.address || report?.booking?.address;
+  const patientAddress = typeof rawAddress === 'string'
+    ? rawAddress
+    : (rawAddress?.line1 ? [rawAddress.line1, rawAddress.city, rawAddress.pincode].filter(Boolean).join(', ') : '-');
+
   // Dynamic methodology resolution from parameter attributes or standard analytical method
   const getMethodology = (paramName: string, unit: string): string => {
     const p = (paramName || '').toLowerCase();
@@ -102,11 +108,11 @@ export const DetailedReportTemplate: React.FC<TemplateProps> = ({
             <span style={{ fontSize: '24px', fontWeight: 900, color: '#f59e0b', fontStyle: 'italic', fontFamily: 'Georgia, serif' }}>
               ✦
             </span>
-            <div>
-              <div style={{ fontSize: '22px', fontWeight: 900, color: '#0284c7', fontStyle: 'italic', fontFamily: 'Georgia, serif', lineHeight: '1' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div style={{ fontSize: '22px', fontWeight: 900, color: '#0284c7', fontStyle: 'italic', fontFamily: 'Georgia, serif', lineHeight: '1.15', marginBottom: '3px' }}>
                 MedsSeva <span style={{ color: '#0f172a' }}>PathLabs</span>
               </div>
-              <div style={{ fontSize: '7.5px', color: '#64748b', letterSpacing: '0.4px', fontWeight: 600 }}>
+              <div style={{ fontSize: '7.5px', color: '#64748b', letterSpacing: '0.5px', fontWeight: 600, marginTop: '2px' }}>
                 CLINICAL REFERENCE LABORATORIES & DIAGNOSTICS
               </div>
             </div>
@@ -139,68 +145,70 @@ export const DetailedReportTemplate: React.FC<TemplateProps> = ({
         }}
       >
         {/* Left Column */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: '1.6' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: '1.55' }}>
           <tbody>
             <tr>
-              <td style={{ width: '85px', fontWeight: 700, color: '#0f172a', padding: '1.5px 0' }}>Name</td>
-              <td style={{ width: '10px', color: '#0f172a' }}>:</td>
+              <td style={{ width: '75px', fontWeight: 700, color: '#0f172a', padding: '1px 0' }}>Name</td>
+              <td style={{ width: '8px', color: '#0f172a' }}>:</td>
               <td style={{ fontWeight: 800, color: '#0f172a', textTransform: 'uppercase' }}>{patientDisplayName}</td>
             </tr>
             <tr>
-              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1.5px 0' }}>Lab No.</td>
+              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1px 0' }}>Age / Gender</td>
+              <td style={{ color: '#0f172a' }}>:</td>
+              <td style={{ fontWeight: 700, color: '#0f172a' }}>
+                {booking?.patientAge ? `${booking.patientAge} Years` : '-'} / {booking?.patientGender || '-'}
+              </td>
+            </tr>
+            <tr>
+              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1px 0' }}>Mobile</td>
+              <td style={{ color: '#0f172a' }}>:</td>
+              <td style={{ fontWeight: 700, color: '#0f172a' }}>{patientMobile}</td>
+            </tr>
+            <tr>
+              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1px 0' }}>Address</td>
+              <td style={{ color: '#0f172a' }}>:</td>
+              <td style={{ fontWeight: 600, color: '#0f172a', fontSize: '8.5px', lineHeight: '1.2' }}>{patientAddress}</td>
+            </tr>
+            <tr>
+              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1px 0' }}>Lab No.</td>
               <td style={{ color: '#0f172a' }}>:</td>
               <td style={{ fontWeight: 800, fontFamily: 'monospace', color: '#0f172a' }}>{labNo}</td>
             </tr>
             <tr>
-              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1.5px 0' }}>Ref By</td>
+              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1px 0' }}>Ref By</td>
               <td style={{ color: '#0f172a' }}>:</td>
               <td style={{ fontWeight: 600, color: '#0f172a' }}>{refDoctor}</td>
-            </tr>
-            <tr>
-              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1.5px 0' }}>Collected</td>
-              <td style={{ color: '#0f172a' }}>:</td>
-              <td style={{ color: '#0f172a' }}>{formatDateTime(booking?.sampleCollectedAt || booking?.scheduledDate || report?.createdAt, true)}</td>
-            </tr>
-            <tr>
-              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1.5px 0' }}>A/c Status</td>
-              <td style={{ color: '#0f172a' }}>:</td>
-              <td style={{ fontWeight: 700, color: '#0f172a' }}>{booking?.paymentStatus === 'PENDING' ? 'PENDING' : 'P'}</td>
-            </tr>
-            <tr>
-              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1.5px 0' }}>Collected at</td>
-              <td style={{ color: '#0f172a' }}>:</td>
-              <td style={{ color: '#334155', fontSize: '8.5px' }}>{branchName}</td>
             </tr>
           </tbody>
         </table>
 
         {/* Right Column */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: '1.6' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', lineHeight: '1.55' }}>
           <tbody>
             <tr>
-              <td style={{ width: '85px', fontWeight: 700, color: '#0f172a', padding: '1.5px 0' }}>Age</td>
-              <td style={{ width: '10px', color: '#0f172a' }}>:</td>
-              <td style={{ fontWeight: 700, color: '#0f172a' }}>{booking?.patientAge ? `${booking.patientAge} Years` : '-'}</td>
+              <td style={{ width: '80px', fontWeight: 700, color: '#0f172a', padding: '1px 0' }}>Collected</td>
+              <td style={{ width: '8px', color: '#0f172a' }}>:</td>
+              <td style={{ color: '#0f172a' }}>{formatDateTime(booking?.sampleCollectedAt || booking?.scheduledDate || report?.createdAt, true)}</td>
             </tr>
             <tr>
-              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1.5px 0' }}>Gender</td>
-              <td style={{ color: '#0f172a' }}>:</td>
-              <td style={{ fontWeight: 700, color: '#0f172a' }}>{booking?.patientGender || '-'}</td>
-            </tr>
-            <tr>
-              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1.5px 0' }}>Reported</td>
+              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1px 0' }}>Reported</td>
               <td style={{ color: '#0f172a' }}>:</td>
               <td style={{ color: '#0f172a', fontWeight: 600 }}>{formatDateTime(report?.reportedDate || report?.createdAt, true)}</td>
             </tr>
             <tr>
-              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1.5px 0' }}>Report Status</td>
+              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1px 0' }}>Report Status</td>
               <td style={{ color: '#0f172a' }}>:</td>
               <td style={{ fontWeight: 800, color: '#0f172a' }}>{report?.status === 'DRAFT' ? 'Draft' : 'Final'}</td>
             </tr>
             <tr>
-              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1.5px 0', verticalAlign: 'top' }}>Processed at</td>
+              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1px 0' }}>A/c Status</td>
+              <td style={{ color: '#0f172a' }}>:</td>
+              <td style={{ fontWeight: 700, color: '#0f172a' }}>{booking?.paymentStatus === 'PENDING' ? 'PENDING' : 'P'}</td>
+            </tr>
+            <tr>
+              <td style={{ fontWeight: 700, color: '#0f172a', padding: '1px 0', verticalAlign: 'top' }}>Processed at</td>
               <td style={{ color: '#0f172a', verticalAlign: 'top' }}>:</td>
-              <td style={{ color: '#334155', fontSize: '8px', lineHeight: '1.3' }}>
+              <td style={{ color: '#334155', fontSize: '8px', lineHeight: '1.25' }}>
                 <strong>{branchName}</strong>
                 {branchAddr && <><br />{branchAddr}</>}
               </td>
