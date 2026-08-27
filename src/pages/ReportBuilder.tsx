@@ -258,9 +258,13 @@ const emptyVerification = (): VerificationDetails => ({
 
 export const ReportBuilderPage: React.FC = () => {
   const dispatch = useAppDispatch();
+  const currentUser = useAppSelector(s => s.auth.user);
+  const userBranchId = currentUser?.branchId || (currentUser as any)?.adminUser?.branchId;
+  const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'SUPER_ADMIN' || (currentUser as any)?.isSuperAdmin;
+
   const { bookingsForReport = [], bookingsLoading, reports = [] } = useAppSelector(s => s.reports);
-const toast = useToast();
- const [searchQuery, setSearchQuery] = useState('');
+  const toast = useToast();
+  const [searchQuery, setSearchQuery] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const preselectedBookingId = new URLSearchParams(window.location.search).get('bookingId');
 
@@ -302,7 +306,14 @@ const toast = useToast();
 
   useEffect(() => {
     branchService.getAll().then(res => {
-      if (res?.data) setBranches(res.data);
+      if (res?.data && Array.isArray(res.data)) {
+        setBranches(res.data);
+        if (userBranchId) {
+          setVerification(v => ({ ...v, reportBranchId: v.reportBranchId || userBranchId }));
+        } else if (res.data.length > 0) {
+          setVerification(v => ({ ...v, reportBranchId: v.reportBranchId || res.data[0].id }));
+        }
+      }
     }).catch(() => {});
 
     doctorService.getDoctors().then(docs => {
@@ -316,7 +327,7 @@ const toast = useToast();
     packageService.getAllPackages().then(data => {
       if (Array.isArray(data)) setAvailablePackages(data);
     }).catch(() => {});
-  }, []);
+  }, [userBranchId]);
 
   const validateWalkinForm = () => {
     const errors: Record<string, string> = {};
@@ -349,6 +360,11 @@ const toast = useToast();
     }
 
     setCreatingWalkin(true);
+    const effectiveBranchId =
+      verification.reportBranchId ||
+      userBranchId ||
+      (branches.length > 0 ? branches[0].id : undefined);
+
     const payload = {
       patientName: walkinForm.patientName.trim(),
       mobile: walkinForm.mobile.trim().replace(/\D/g, ''),
@@ -358,7 +374,7 @@ const toast = useToast();
       reference: walkinForm.reference.trim() || undefined,
       testIds: selectedTestIds,
       packageIds: selectedPackageIds,
-      branchId: verification.reportBranchId || undefined,
+      branchId: effectiveBranchId,
     };
 
     console.log('[Walk-in Flow] Submitting Walk-in Patient Data:', payload);
@@ -787,15 +803,39 @@ const filteredBookings = useMemo(() => {
             {/* TAB 2: Add New Patient (Walk-in / Direct) Form */}
             {modalTab === 'walkin' && (
               <div className="space-y-4">
-                <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 text-xs flex items-center justify-between">
+                <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 text-xs flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <span className="font-bold text-foreground">Direct / Walk-in Patient Registration</span>
                     <p className="text-muted-foreground text-[11px] mt-0.5">Fill patient details to continue into report generation.</p>
                   </div>
-                  <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold uppercase">
-                    Walk-in Mode
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {selectedBranchDetails && (
+                      <span className="px-2.5 py-1 rounded-lg bg-card border border-primary/30 text-foreground text-[11px] font-semibold flex items-center gap-1.5 shadow-2xs">
+                        <Building2 className="h-3.5 w-3.5 text-primary" />
+                        <span>Branch: <strong className="text-primary">{selectedBranchDetails.name}</strong></span>
+                      </span>
+                    )}
+                    <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold uppercase">
+                      Walk-in Mode
+                    </span>
+                  </div>
                 </div>
+
+                {isSuperAdmin && branches.length > 1 && (
+                  <div className="flex items-center gap-2 bg-muted/40 p-2.5 rounded-xl border border-border">
+                    <Building2 className="h-4 w-4 text-primary shrink-0" />
+                    <label className="text-xs font-bold text-foreground shrink-0">Select Branch:</label>
+                    <select
+                      value={verification.reportBranchId}
+                      onChange={e => setVerification(v => ({ ...v, reportBranchId: e.target.value }))}
+                      className="w-full text-xs border border-input rounded-lg px-2.5 py-1.5 bg-card outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      {branches.map(b => (
+                        <option key={b.id} value={b.id}>{b.name} ({b.city})</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Patient Full Name */}
