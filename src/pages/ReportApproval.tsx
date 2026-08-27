@@ -88,7 +88,21 @@ export const ReportApprovalPage: React.FC = () => {
 
   const generateAndDownloadPDF = useCallback(async (reportData: any, templateType: 'STANDARD' | 'DETAILED') => {
     const { branch, doctor } = buildBranchAndDoctor();
-    setPortalReport({ ...reportData, status: 'RELEASED', templateType });
+    const matchingBooking = bookingsForReport?.find((b: any) => b.id === reportData.bookingId || b.id === reportData.booking?.id);
+    const enrichedBooking = {
+      ...(matchingBooking || {}),
+      ...(reportData.booking || {}),
+      address: reportData.booking?.address || matchingBooking?.address || reportData.booking?.user?.addresses?.[0] || matchingBooking?.user?.addresses?.[0] || null,
+      patientMobile: reportData.booking?.patientMobile || matchingBooking?.patientMobile || reportData.booking?.user?.mobile || matchingBooking?.user?.mobile || '',
+    };
+    const enrichedReport = {
+      ...reportData,
+      booking: enrichedBooking,
+      status: 'RELEASED',
+      templateType,
+    };
+
+    setPortalReport(enrichedReport);
     setPortalBranch(branch);
     setPortalDoctor(doctor);
 
@@ -121,12 +135,11 @@ export const ReportApprovalPage: React.FC = () => {
       const SCALE = A4_W_PX / canvas.width;
       const contentHeightPx = canvas.height * SCALE;
       const totalPages = Math.ceil(contentHeightPx / A4_H_PX);
-      const pageH = totalPages === 1 ? contentHeightPx : A4_H_PX;
-      const pdf = new jsPDFModule({ orientation: 'portrait', unit: 'px', format: [A4_W_PX, pageH] });
+      const pdf = new jsPDFModule({ orientation: 'portrait', unit: 'px', format: [A4_W_PX, A4_H_PX] });
 
       for (let page = 0; page < totalPages; page++) {
-        if (page > 0) pdf.addPage([A4_W_PX, pageH], 'portrait');
-        pdf.addImage(imgData, 'JPEG', 0, -(page * pageH), A4_W_PX, contentHeightPx);
+        if (page > 0) pdf.addPage([A4_W_PX, A4_H_PX], 'portrait');
+        pdf.addImage(imgData, 'JPEG', 0, -(page * A4_H_PX), A4_W_PX, contentHeightPx);
       }
 
       const patientName = reportData.booking?.patientName?.replace(/\s+/g, '_') || reportData.patientName?.replace(/\s+/g, '_') || 'Patient';

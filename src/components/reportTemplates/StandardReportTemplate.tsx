@@ -151,10 +151,19 @@ export const StandardReportTemplate: React.FC<TemplateProps> = ({
   const regCode = booking?.bookingCode || report?.id?.slice(0, 8) || '1042';
 
   const patientMobile = booking?.patientMobile || booking?.user?.mobile || booking?.mobile || report?.booking?.patientMobile || report?.patientMobile || '-';
-  const rawAddress = booking?.address || booking?.patientAddress || booking?.user?.address || report?.booking?.address;
-  const patientAddress = typeof rawAddress === 'string'
-    ? rawAddress
-    : (rawAddress?.line1 ? [rawAddress.line1, rawAddress.city, rawAddress.pincode].filter(Boolean).join(', ') : '-');
+  const rawAddress = booking?.address || booking?.patientAddress || booking?.user?.addresses?.[0] || booking?.user?.address || report?.booking?.address || report?.address;
+  let patientAddress = '-';
+  if (typeof rawAddress === 'string' && rawAddress.trim()) {
+    patientAddress = rawAddress.trim();
+  } else if (rawAddress && typeof rawAddress === 'object') {
+    const parts = [rawAddress.line1, rawAddress.line2, rawAddress.city, rawAddress.state, rawAddress.pincode].filter(Boolean);
+    if (parts.length > 0) patientAddress = parts.join(', ');
+  }
+  if (patientAddress === '-' || !patientAddress) {
+    if (booking?.branch?.city || booking?.branch?.name) {
+      patientAddress = [booking?.branch?.line1, booking?.branch?.city || booking?.branch?.name].filter(Boolean).join(', ');
+    }
+  }
 
   return (
     <div style={{
