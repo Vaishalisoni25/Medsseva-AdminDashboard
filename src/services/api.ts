@@ -32,6 +32,15 @@ export const doctorService = {
   deleteDoctor: (id: string) => api.delete(`/doctors/${id}`).then(r => r.data),
 };
 
+export const staffService = {
+  getStaff: (params?: { branchId?: string; department?: string; designation?: string; search?: string }) =>
+    api.get('/staff', { params }).then(r => r.data),
+  getStaffById: (id: string) => api.get(`/staff/${id}`).then(r => r.data),
+  createStaff: (data: any) => api.post('/staff', data).then(r => r.data),
+  updateStaff: (id: string, data: any) => api.put(`/staff/${id}`, data).then(r => r.data),
+  deleteStaff: (id: string) => api.delete(`/staff/${id}`).then(r => r.data),
+};
+
 export const rbacService = {
 
   getRoles: () => api.get('/roles').then(r => r.data),

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { adminUserService, rbacService } from '@/services/api';
+import { staffService } from '@/services/api';
 import { branchService, Branch } from '@/services/branch.service';
 import { useAppSelector } from '@/redux/hooks';
 import { AdminRole } from '@/types/rbac';
@@ -25,7 +25,11 @@ export interface StaffRecord {
     city: string;
     code?: string;
   };
-  role: AdminRole;
+  role?: {
+    id: string;
+    name: string;
+    slug?: string;
+  };
   user: {
     id: string;
     name: string;
@@ -67,7 +71,6 @@ export const StaffPage: React.FC = () => {
 
   const [staffList, setStaffList] = useState<StaffRecord[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [roles, setRoles] = useState<AdminRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('ALL');
@@ -89,30 +92,20 @@ export const StaffPage: React.FC = () => {
   const [customDesignation, setCustomDesignation] = useState('');
   const [formBranchId, setFormBranchId] = useState('');
   const [formFranchiseId, setFormFranchiseId] = useState('');
-  const [formRoleId, setFormRoleId] = useState('');
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [usersRes, branchRes, rolesRes] = await Promise.allSettled([
-        adminUserService.getAdminUsers(),
+      const [staffRes, branchRes] = await Promise.allSettled([
+        staffService.getStaff(),
         branchService.getAll(),
-        rbacService.getRoles(),
       ]);
 
-      if (usersRes.status === 'fulfilled' && Array.isArray(usersRes.value)) {
-        // Filter out doctors to keep pure staff and employees
-        const employees = usersRes.value.filter((u: any) => {
-          const isDoc = u.userType === 'DOCTOR' || (!!u.registrationNo && !u.department);
-          return !isDoc;
-        });
-        setStaffList(employees);
+      if (staffRes.status === 'fulfilled' && Array.isArray(staffRes.value)) {
+        setStaffList(staffRes.value);
       }
       if (branchRes.status === 'fulfilled' && branchRes.value?.data) {
         setBranches(branchRes.value.data);
-      }
-      if (rolesRes.status === 'fulfilled' && Array.isArray(rolesRes.value)) {
-        setRoles(rolesRes.value.filter((r: AdminRole) => (r.slug || '') !== 'super_admin' && (r.slug || '') !== 'super-admin'));
       }
     } catch (err) {
       console.error('Failed to load staff data:', err);
@@ -138,12 +131,6 @@ export const StaffPage: React.FC = () => {
     const userBranch = userBranchId || (currentUser as any)?.branchId || (branches[0]?.id || '');
     setFormBranchId(userBranch || '');
     setFormFranchiseId('');
-    const defaultRole = (roles || []).find(r => {
-      const s = (r?.slug || '').toLowerCase();
-      const n = (r?.name || '').toLowerCase();
-      return s.includes('staff') || s.includes('employee') || s.includes('lab') || s.includes('executive') || n.includes('staff') || n.includes('employee') || n.includes('lab') || n.includes('executive');
-    }) || roles[0];
-    setFormRoleId(defaultRole?.id || '');
     setModalOpen(true);
   };
 
@@ -174,7 +161,6 @@ export const StaffPage: React.FC = () => {
 
     setFormBranchId(s.branchId || (s as any).branch?.id || '');
     setFormFranchiseId(s.franchiseId || '');
-    setFormRoleId(s.role?.id || roles[0]?.id || '');
     setModalOpen(true);
   };
 
@@ -200,19 +186,12 @@ export const StaffPage: React.FC = () => {
       return;
     }
 
-    const activeRoleId = formRoleId || (roles || []).find(r => {
-      const s = (r?.slug || '').toLowerCase();
-      const n = (r?.name || '').toLowerCase();
-      return s.includes('staff') || s.includes('employee') || s.includes('lab') || s.includes('executive') || n.includes('staff') || n.includes('employee') || n.includes('lab') || n.includes('executive');
-    })?.id || roles[0]?.id;
-
     const targetBranchId = formBranchId || userBranchId || undefined;
 
     const payload = {
       name: formName.trim(),
       email: formEmail.trim(),
       mobile: formMobile.trim() || undefined,
-      roleId: activeRoleId,
       userType: 'EMPLOYEE',
       department: finalDepartment || undefined,
       designation: finalDesignation || undefined,
@@ -221,15 +200,15 @@ export const StaffPage: React.FC = () => {
       password: formPassword || 'MedsSeva@123',
     };
 
-    console.log('[STAFF CREATE] Submitting payload to API:', payload);
+    console.log('[STAFF CREATE] Submitting payload to /api/staff:', payload);
     setSaving(true);
     try {
       if (editing) {
-        const res = await adminUserService.updateAdminUser(editing.id, payload);
+        const res = await staffService.updateStaff(editing.id, payload);
         console.log('[STAFF UPDATE] Success:', res);
         toast.success('Staff details updated');
       } else {
-        const res = await adminUserService.createAdminUser(payload);
+        const res = await staffService.createStaff(payload);
         console.log('[STAFF CREATE] Success:', res);
         toast.success('Staff member registered');
       }
@@ -245,7 +224,7 @@ export const StaffPage: React.FC = () => {
 
   const handleToggleActive = async (s: StaffRecord) => {
     try {
-      await adminUserService.updateAdminUser(s.id, { isActive: !s.isActive });
+      await staffService.updateStaff(s.id, { isActive: !s.isActive });
       toast.success(s.isActive ? 'Staff deactivated' : 'Staff activated');
       loadData();
     } catch {
@@ -256,7 +235,7 @@ export const StaffPage: React.FC = () => {
   const handleDelete = async (s: StaffRecord) => {
     if (!confirm(`Are you sure you want to delete ${s.user.name}?`)) return;
     try {
-      await adminUserService.deleteAdminUser(s.id);
+      await staffService.deleteStaff(s.id);
       toast.success('Staff member deleted');
       loadData();
     } catch (e: any) {
