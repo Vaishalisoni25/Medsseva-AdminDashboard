@@ -1,0 +1,980 @@
+import React, { useState, useEffect } from 'react';
+import { usePartnersQuery } from '@/hooks/useAdminQueries';
+import { testService, commissionService } from '../services/api';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Search, X, CheckCircle2, XCircle, AlertCircle,
+  Microscope, Phone, Mail, MapPin, Star, Clock,
+  ShieldCheck, ShieldX, ShieldAlert, RefreshCw,
+  DollarSign, Activity, TrendingUp, FileText, Building2, Loader2
+} from 'lucide-react';
+import toast from 'react-hot-toast';
+import { cn } from '../utils/cn';
+
+type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
+
+interface Partner {
+  id: string;
+  labName: string;
+  partnerCode?: string;
+  role: string;
+  address?: string;
+  rating: number;
+  totalCollections: number;
+  commissionRate?: number;
+  paymentCycle?: string;
+  approvalStatus: ApprovalStatus;
+  rejectionReason?: string;
+  isAvailable: boolean;
+  createdAt: string;
+  user: {
+    id: string;
+    name: string;
+    email?: string;
+    mobile: string;
+    createdAt: string;
+  };
+}
+
+const STATUS_CONFIG: Record<ApprovalStatus, { bg: string; text: string; border: string; icon: any; label: string }> = {
+  PENDING:   { bg: 'bg-amber-50',  text: 'text-amber-700',  border: 'border-amber-200',  icon: Clock,        label: 'Pending'   },
+  APPROVED:  { bg: 'bg-emerald-50',text: 'text-emerald-700',border: 'border-emerald-200',icon: CheckCircle2, label: 'Approved'  },
+  REJECTED:  { bg: 'bg-rose-50',   text: 'text-rose-700',   border: 'border-rose-200',   icon: XCircle,      label: 'Rejected'  },
+  SUSPENDED: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', icon: ShieldAlert,  label: 'Suspended' },
+};
+
+const REJECTION_REASONS = [
+  'Invalid Documents',
+  'Incorrect Address',
+  'Duplicate Registration',
+  'License Verification Failed',
+  'Incomplete Information',
+  'Outside Service Area',
+];
+
+import { useAppSelector } from '@/redux/hooks';
+
+export const PathologyPartnersPage: React.FC = () => {
+  const currentUser = useAppSelector(state => state.auth.user);
+  const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'SUPER_ADMIN' || (currentUser as any)?.isSuperAdmin;
+  const userBranchId = (currentUser as any)?.branchId;
+
+  const [activeView, setActiveView] = useState<'DIRECTORY' | 'PORTAL'>('DIRECTORY');
+  const [partners, setPartners] = useState<Partner[]>([]);
+
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
+  const [isRejecting, setIsRejecting] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [customReason, setCustomReason] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [partnerRatings, setPartnerRatings] = useState<any>(null);
+  const [ratingsLoading, setRatingsLoading] = useState(false);
+
+  // Partner Portal Specific State
+  const [selectedPartnerId, setSelectedPartnerId] = useState<string>('');
+  const [portalPeriod, setPortalPeriod] = useState<'WEEKLY' | '15_DAYS' | '30_DAYS' | 'ALL'>('ALL');
+  const [portalData, setPortalData] = useState<any>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
+
+  const { data: partnersData, isLoading: partnersQueryLoading } = usePartnersQuery();
+  const isLoading = partnersQueryLoading && partners.length === 0;
+
+  useEffect(() => {
+    if (partnersData) {
+      setPartners(partnersData);
+      if (partnersData.length > 0 && !selectedPartnerId) {
+        setSelectedPartnerId(partnersData[0].id);
+      }
+    }
+  }, [partnersData]);
+
+  const loadPartnerPortal = async (partId?: string, period = portalPeriod) => {
+    const targetId = partId || selectedPartnerId;
+    if (!targetId) return;
+    setPortalLoading(true);
+    try {
+      const res = await commissionService.getPartnerPortalData(period);
+      setPortalData(res);
+    } catch (err) {
+      console.error('Failed to load partner portal data:', err);
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeView === 'PORTAL') {
+      loadPartnerPortal(selectedPartnerId, portalPeriod);
+    }
+  }, [activeView, selectedPartnerId, portalPeriod]);
+
+  const openPortalForPartner = (partner: Partner) => {
+    setSelectedPartnerId(partner.id);
+    setActiveView('PORTAL');
+    loadPartnerPortal(partner.id, portalPeriod);
+  };
+
+  const handleApprove = async (partner: Partner) => {
+    setIsUpdating(true);
+    try {
+      await testService.updatePartnerApproval(partner.id, 'APPROVED');
+      setPartners(prev => prev.map(p => p.id === partner.id ? { ...p, approvalStatus: 'APPROVED' } : p));
+      if (selectedPartner?.id === partner.id) setSelectedPartner({ ...partner, approvalStatus: 'APPROVED' });
+      toast.success(`${partner.user.name} approved successfully.`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Failed to approve partner.');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!selectedPartner) return;
+    const reason = rejectionReason === 'Other' ? customReason : rejectionReason;
+    if (!reason) { toast.error('Please select or enter a rejection reason.'); return; }
+
+    setIsUpdating(true);
+    try {
+      await testService.updatePartnerApproval(selectedPartner.id, 'REJECTED', reason);
+      setPartners(prev => prev.map(p => p.id === selectedPartner.id
+        ? { ...p, approvalStatus: 'REJECTED', rejectionReason: reason } : p));
+      setSelectedPartner({ ...selectedPartner, approvalStatus: 'REJECTED', rejectionReason: reason });
+      setIsRejecting(false);
+      setRejectionReason('');
+      setCustomReason('');
+      toast.success('Partner rejected.');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Failed to reject partner.');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleSuspend = async (partner: Partner) => {
+    setIsUpdating(true);
+    try {
+      await testService.updatePartnerApproval(partner.id, 'SUSPENDED');
+      setPartners(prev => prev.map(p => p.id === partner.id ? { ...p, approvalStatus: 'SUSPENDED' } : p));
+      if (selectedPartner?.id === partner.id) setSelectedPartner({ ...partner, approvalStatus: 'SUSPENDED' });
+      toast.success('Partner suspended.');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Failed to suspend partner.');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const loadPartnerRatings = async (partnerId: string) => {
+    setRatingsLoading(true);
+    setPartnerRatings(null);
+    try {
+      const data = await testService.getPartnerRatings(partnerId);
+      setPartnerRatings(data);
+    } catch {
+      setPartnerRatings(null);
+    } finally {
+      setRatingsLoading(false);
+    }
+  };
+
+  const handleActivate = async (partner: Partner) => {
+    setIsUpdating(true);
+    try {
+      await testService.updatePartnerApproval(partner.id, 'APPROVED');
+      setPartners(prev => prev.map(p => p.id === partner.id ? { ...p, approvalStatus: 'APPROVED' } : p));
+      if (selectedPartner?.id === partner.id) setSelectedPartner({ ...partner, approvalStatus: 'APPROVED' });
+      toast.success('Partner reactivated.');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Failed to activate partner.');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const basePartners = React.useMemo(() => {
+    if (!isSuperAdmin && userBranchId) {
+      return partners.filter((p: any) => p.branchId === userBranchId);
+    }
+    return partners;
+  }, [partners, isSuperAdmin, userBranchId]);
+
+  const filtered = basePartners.filter(p => {
+    const matchesSearch =
+      p.user.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.user.mobile.includes(search) ||
+      p.labName.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === 'ALL' || p.approvalStatus === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const counts = {
+    ALL: basePartners.length,
+    PENDING: basePartners.filter(p => p.approvalStatus === 'PENDING').length,
+    APPROVED: basePartners.filter(p => p.approvalStatus === 'APPROVED').length,
+    REJECTED: basePartners.filter(p => p.approvalStatus === 'REJECTED').length,
+    SUSPENDED: basePartners.filter(p => p.approvalStatus === 'SUSPENDED').length,
+  };
+
+  return (
+    <div className="space-y-6 pb-10">
+      {/* Header & View Switcher */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-border pb-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
+            <Building2 className="w-6 h-6 text-primary" /> Tie-up Pathology Partners & Portal
+          </h1>
+          <p className="text-xs text-muted-foreground">Manage tie-up diagnostic laboratories, sample collections & 30% referral commissions.</p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border">
+            <button
+              onClick={() => setActiveView('DIRECTORY')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeView === 'DIRECTORY' ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Partner Directory & Approvals
+            </button>
+            <button
+              onClick={() => {
+                setActiveView('PORTAL');
+                loadPartnerPortal(selectedPartnerId, portalPeriod);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeView === 'PORTAL' ? 'bg-emerald-600 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <DollarSign className="w-3.5 h-3.5" /> Referral & Commission Portal
+            </button>
+          </div>
+
+          <button
+            onClick={() => window.location.reload()}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border bg-card text-xs font-bold hover:bg-muted transition-colors"
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> Refresh
+          </button>
+        </div>
+      </div>
+
+      {/* VIEW 1: TIE-UP PARTNER REFERRAL & COMMISSION PORTAL */}
+      {activeView === 'PORTAL' ? (
+        <div className="space-y-6">
+          {/* Partner Selector & Controls Bar */}
+          <div className="bg-card border border-border rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Select Partner Lab:</div>
+              <select
+                value={selectedPartnerId}
+                onChange={e => {
+                  setSelectedPartnerId(e.target.value);
+                  loadPartnerPortal(e.target.value, portalPeriod);
+                }}
+                className="bg-background border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground outline-none focus:border-emerald-500"
+              >
+                {partners.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.labName} ({p.partnerCode || 'PART'}) — {p.user?.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border text-xs">
+                {[
+                  { id: 'WEEKLY', label: 'Weekly (7D)' },
+                  { id: '15_DAYS', label: '15 Days' },
+                  { id: '30_DAYS', label: '30 Days' },
+                  { id: 'ALL', label: 'All Time' },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      setPortalPeriod(tab.id as any);
+                      loadPartnerPortal(selectedPartnerId, tab.id as any);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                      portalPeriod === tab.id
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => loadPartnerPortal(selectedPartnerId, portalPeriod)}
+                className="p-2 rounded-xl bg-card border border-border hover:bg-muted text-foreground transition-colors"
+                title="Refresh Portal Data"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${portalLoading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+          </div>
+
+          {/* Partner Overview Banner */}
+          <div className="bg-gradient-to-r from-emerald-900/10 via-card to-card border border-emerald-500/30 rounded-2xl p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <div className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Tie-up Laboratory Network</div>
+              <h2 className="text-xl font-black text-foreground">
+                {portalData?.partner?.labName || partners.find(p => p.id === selectedPartnerId)?.labName || 'Partner Lab'}
+              </h2>
+              <div className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5">
+                <span>Code: <strong className="text-emerald-600 font-mono">{portalData?.partner?.partnerCode || 'PART-201'}</strong></span>
+                <span>•</span>
+                <span>{portalData?.partner?.address || 'Authorized Center'}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 rounded-xl px-4 py-2 text-center">
+                <div className="text-[10px] font-bold uppercase text-emerald-700 dark:text-emerald-300">Commission Rate</div>
+                <div className="text-lg font-black text-emerald-800 dark:text-emerald-200">{portalData?.summary?.commissionRate ?? 30}%</div>
+              </div>
+              <div className="bg-teal-50 dark:bg-teal-950/40 border border-teal-200/80 rounded-xl px-4 py-2 text-center">
+                <div className="text-[10px] font-bold uppercase text-teal-700 dark:text-teal-300">Payment Cycle</div>
+                <div className="text-lg font-black text-teal-800 dark:text-teal-200">{portalData?.summary?.paymentCycle || 'MONTHLY'}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* 4 KPI Metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center justify-between text-muted-foreground mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider">Processed Samples</span>
+                <Activity className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div className="text-2xl font-black text-foreground">{portalData?.summary?.totalReferredSamples ?? 0}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">{portalData?.summary?.totalTestsCount ?? 0} Tests Investigated</div>
+            </div>
+
+            <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center justify-between text-muted-foreground mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider">Billed Turnover</span>
+                <TrendingUp className="w-4 h-4 text-teal-600" />
+              </div>
+              <div className="text-2xl font-black text-foreground">₹{portalData?.summary?.totalBilledAmount?.toLocaleString('en-IN') ?? 0}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Total Lab Collections</div>
+            </div>
+
+            <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center justify-between text-emerald-600 mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider">Calculated Commission</span>
+                <DollarSign className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div className="text-2xl font-black text-emerald-600">₹{portalData?.summary?.totalCommissionEarned?.toLocaleString('en-IN') ?? 0}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Calculated @ {portalData?.summary?.commissionRate ?? 30}%</div>
+            </div>
+
+            <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center justify-between text-muted-foreground mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider">Payout Status</span>
+                <CheckCircle2 className="w-4 h-4 text-amber-500" />
+              </div>
+              <div className="flex items-center justify-between pt-1">
+                <div>
+                  <div className="text-xs text-emerald-600 font-bold">₹{portalData?.summary?.paidCommission?.toLocaleString('en-IN') ?? 0}</div>
+                  <div className="text-[10px] text-muted-foreground font-semibold">Paid</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-amber-600 font-bold">₹{portalData?.summary?.unpaidCommission?.toLocaleString('en-IN') ?? 0}</div>
+                  <div className="text-[10px] text-muted-foreground font-semibold">Unpaid (Pending)</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Samples Table */}
+          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+            <div className="p-4 bg-muted/40 border-b border-border flex items-center justify-between">
+              <h3 className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
+                <FileText className="w-4 h-4 text-emerald-600" /> Tie-up Partner Lab Collections & Reports
+              </h3>
+              <div className="text-xs text-muted-foreground font-mono">
+                {portalData?.referrals?.length ?? 0} Samples
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-muted/60 text-muted-foreground uppercase text-[10px] tracking-wider border-b border-border">
+                  <tr>
+                    <th className="py-3 px-4">Booking Ref</th>
+                    <th className="py-3 px-4">Patient Name</th>
+                    <th className="py-3 px-4">Investigated Tests</th>
+                    <th className="py-3 px-4 text-right">Billed Amount</th>
+                    <th className="py-3 px-4 text-right">Commission ({portalData?.summary?.commissionRate ?? 30}%)</th>
+                    <th className="py-3 px-4 text-center">Payout Status</th>
+                    <th className="py-3 px-4 text-center">Lab Report</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {portalLoading ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-muted-foreground">
+                        <Loader2 className="w-4 h-4 animate-spin inline mr-2 text-emerald-600" /> Loading partner records...
+                      </td>
+                    </tr>
+                  ) : !portalData?.referrals || portalData.referrals.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-10 text-center text-muted-foreground">
+                        No sample records found for this partner in this cycle period.
+                      </td>
+                    </tr>
+                  ) : (
+                    portalData.referrals.map((item: any) => (
+                      <tr key={item.bookingId} className="hover:bg-muted/30 transition-colors">
+                        <td className="py-3.5 px-4 font-mono font-bold text-emerald-700 dark:text-emerald-400">
+                          {item.bookingCode}
+                          <div className="text-[10px] text-muted-foreground font-normal mt-0.5">
+                            {new Date(item.scheduledDate || item.createdAt).toLocaleDateString('en-IN', {
+                              day: '2-digit', month: 'short', year: 'numeric'
+                            })}
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4 font-bold text-foreground">
+                          {item.patientName}
+                          <div className="text-[10px] text-muted-foreground font-normal">
+                            {item.patientAge ? `${item.patientAge} Y` : ''} {item.patientGender ? `• ${item.patientGender}` : ''}
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          <div className="flex flex-wrap gap-1 max-w-xs">
+                            {item.tests?.map((t: any, idx: number) => (
+                              <span key={idx} className="bg-muted border border-border text-foreground px-2 py-0.5 rounded text-[10px]">
+                                {t.name} (₹{t.price})
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right font-bold text-foreground font-mono">
+                          ₹{item.totalPaid?.toLocaleString('en-IN')}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right font-bold text-emerald-600 font-mono">
+                          +₹{item.commissionAmount?.toLocaleString('en-IN')}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-center">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                            item.payoutStatus === 'PAID'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}>
+                            ● {item.payoutStatus}
+                          </span>
+                        </td>
+
+                        <td className="py-3.5 px-4 text-center">
+                          {item.report ? (
+                            <a
+                              href={item.report.verificationUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 text-emerald-700 dark:text-emerald-300 text-xs font-bold hover:bg-emerald-100 transition-colors"
+                            >
+                              <FileText className="w-3.5 h-3.5" /> View Report
+                            </a>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground italic">Processing</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* VIEW 2: PARTNER DIRECTORY & APPROVALS */
+        <>
+          {/* Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {(['PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED'] as ApprovalStatus[]).map(s => {
+              const cfg = STATUS_CONFIG[s];
+              const Icon = cfg.icon;
+              return (
+                <div key={s} className="bg-card border border-border p-4 rounded-xl shadow-sm">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Icon className={cn('h-4 w-4', cfg.text)} />
+                    <span className="text-xs font-bold text-muted-foreground uppercase">{cfg.label}</span>
+                  </div>
+                  {isLoading ? (
+                    <div className="h-7 bg-muted rounded w-10 animate-pulse mt-1" />
+                  ) : (
+                    <div className={cn('text-2xl font-bold', cfg.text)}>{counts[s]}</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search by name, mobile, or lab..."
+                className="w-full pl-9 pr-4 py-2 rounded-md bg-card border border-input text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED'].map(s => (
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s)}
+                  className={cn(
+                    'px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors',
+                    statusFilter === s
+                      ? 'bg-primary text-white border-primary'
+                      : 'bg-card text-muted-foreground border-border hover:border-primary'
+                  )}
+                >
+                  {s === 'ALL' ? `All (${counts.ALL})` : `${STATUS_CONFIG[s as ApprovalStatus].label} (${counts[s as ApprovalStatus]})`}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-muted/50 text-muted-foreground uppercase text-[10px] tracking-wider border-b border-border">
+                  <tr>
+                    <th className="px-6 py-4 font-bold">Partner</th>
+                    <th className="px-6 py-4 font-bold">Lab & Role</th>
+                    <th className="px-6 py-4 font-bold">Contact</th>
+                    <th className="px-6 py-4 font-bold">Rating</th>
+                    <th className="px-6 py-4 font-bold">Status</th>
+                    <th className="px-6 py-4 font-bold text-center">Referral Portal</th>
+                    <th className="px-6 py-4 font-bold text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {isLoading ? (
+                    <>
+                      {[1, 2, 3, 4, 5].map(i => (
+                        <tr key={i} className="animate-pulse border-b border-border">
+                          <td className="px-6 py-4"><div className="h-5 bg-muted rounded w-32" /></td>
+                          <td className="px-6 py-4"><div className="h-5 bg-muted rounded w-24" /></td>
+                          <td className="px-6 py-4"><div className="h-5 bg-muted rounded w-28" /></td>
+                          <td className="px-6 py-4"><div className="h-5 bg-muted rounded w-16" /></td>
+                          <td className="px-6 py-4"><div className="h-5 bg-muted rounded w-20" /></td>
+                          <td className="px-6 py-4"><div className="h-5 bg-muted rounded w-20" /></td>
+                          <td className="px-6 py-4 text-right"><div className="h-5 bg-muted rounded w-16 ml-auto" /></td>
+                        </tr>
+                      ))}
+                    </>
+                  ) : filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">
+                        No partners found.
+                      </td>
+                    </tr>
+                  ) : filtered.map(partner => {
+                    const cfg = STATUS_CONFIG[partner.approvalStatus];
+                    const StatusIcon = cfg.icon;
+                    return (
+                      <tr
+                        key={partner.id}
+                        className="hover:bg-muted/30 transition-colors cursor-pointer"
+                        onClick={() => { setSelectedPartner(partner); loadPartnerRatings(partner.id); }}
+                      >
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm uppercase">
+                              {partner.user.name.charAt(0)}
+                            </div>
+                            <div>
+                              <div className="font-semibold text-foreground">{partner.user.name}</div>
+                              <div className="text-xs text-muted-foreground">{partner.user.mobile}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="font-medium text-foreground">{partner.labName}</div>
+                          <div className="text-xs text-muted-foreground">{partner.role}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Phone className="h-3 w-3" /> {partner.user.mobile}
+                          </div>
+                          {partner.user.email && (
+                            <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                              <Mail className="h-3 w-3" /> {partner.user.email}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-1">
+                            <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
+                            <span className="text-sm font-semibold">{partner.rating.toFixed(1)}</span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">{partner.totalCollections} collections</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={cn(
+                            'inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-bold border rounded-full',
+                            cfg.bg, cfg.text, cfg.border
+                          )}>
+                            <StatusIcon className="h-3 w-3" />
+                            {cfg.label}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-center" onClick={e => e.stopPropagation()}>
+                          <button
+                            onClick={() => openPortalForPartner(partner)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold transition-colors"
+                          >
+                            <DollarSign className="w-3.5 h-3.5" /> Portal ({partner.commissionRate ?? 30}%)
+                          </button>
+                        </td>
+                        <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1.5">
+                            {partner.approvalStatus === 'PENDING' && (
+                              <>
+                                <button
+                                  onClick={() => handleApprove(partner)}
+                                  disabled={isUpdating}
+                                  className="h-7 w-7 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-full flex items-center justify-center border border-emerald-200"
+                                  title="Approve"
+                                >
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => { setSelectedPartner(partner); setIsRejecting(true); }}
+                                  disabled={isUpdating}
+                                  className="h-7 w-7 bg-rose-100 text-rose-700 hover:bg-rose-200 rounded-full flex items-center justify-center border border-rose-200"
+                                  title="Reject"
+                                >
+                                  <XCircle className="h-3.5 w-3.5" />
+                                </button>
+                              </>
+                            )}
+                            {partner.approvalStatus === 'APPROVED' && (
+                              <button
+                                onClick={() => handleSuspend(partner)}
+                                disabled={isUpdating}
+                                className="h-7 w-7 bg-orange-100 text-orange-700 hover:bg-orange-200 rounded-full flex items-center justify-center border border-orange-200"
+                                title="Suspend"
+                              >
+                                <ShieldAlert className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                            {(partner.approvalStatus === 'SUSPENDED' || partner.approvalStatus === 'REJECTED') && (
+                              <button
+                                onClick={() => handleActivate(partner)}
+                                disabled={isUpdating}
+                                className="h-7 w-7 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-full flex items-center justify-center border border-emerald-200"
+                                title="Reactivate"
+                              >
+                                <ShieldCheck className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Detail Drawer */}
+      <AnimatePresence>
+        {selectedPartner && !isRejecting && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 0.5 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black z-40 cursor-pointer"
+              onClick={() => setSelectedPartner(null)}
+            />
+            <motion.div
+              initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-background border-l border-border z-50 shadow-2xl flex flex-col"
+            >
+              <div className="p-6 border-b border-border flex items-center justify-between bg-card">
+                <div>
+                  <div className="text-xs font-bold text-primary tracking-widest uppercase">Partner Details</div>
+                  <h2 className="text-xl font-bold text-foreground">{selectedPartner.user.name}</h2>
+                </div>
+                <button onClick={() => setSelectedPartner(null)} className="p-2 rounded-lg hover:bg-muted">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                {/* Status */}
+                <div className={cn(
+                  'flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-bold',
+                  STATUS_CONFIG[selectedPartner.approvalStatus].bg,
+                  STATUS_CONFIG[selectedPartner.approvalStatus].text,
+                  STATUS_CONFIG[selectedPartner.approvalStatus].border,
+                )}>
+                  {React.createElement(STATUS_CONFIG[selectedPartner.approvalStatus].icon, { className: 'h-4 w-4' })}
+                  {STATUS_CONFIG[selectedPartner.approvalStatus].label}
+                  {selectedPartner.rejectionReason && (
+                    <span className="ml-2 font-normal text-xs">- {selectedPartner.rejectionReason}</span>
+                  )}
+                </div>
+
+               
+                <div className="bg-card border border-border rounded-xl p-4 space-y-2">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Personal Info</h3>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    <span>{selectedPartner.user.mobile}</span>
+                  </div>
+                  {selectedPartner.user.email && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      <span>{selectedPartner.user.email}</span>
+                    </div>
+                  )}
+                  {selectedPartner.address && (
+                    <div className="flex items-start gap-2 text-sm">
+                      <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                      <span>{selectedPartner.address}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Lab */}
+                <div className="bg-card border border-border rounded-xl p-4 space-y-2">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Lab Details</h3>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Microscope className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-semibold">{selectedPartner.labName}</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">Role: {selectedPartner.role}</div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Star className="h-4 w-4 text-amber-400 fill-amber-400" />
+                    <span className="font-bold">{selectedPartner.rating.toFixed(1)}</span>
+                    <span className="text-xs text-muted-foreground">· {selectedPartner.totalCollections} collections</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className={cn(
+                      'text-xs font-bold px-2 py-0.5 rounded-full',
+                      selectedPartner.isAvailable ? 'bg-emerald-100 text-emerald-700' : 'bg-muted text-muted-foreground'
+                    )}>
+                      {selectedPartner.isAvailable ? '● Available' : '○ Unavailable'}
+                    </span>
+                  </div>
+                </div>
+
+               {/* Ratings */}
+                <div className="bg-card border border-border rounded-xl p-4">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Ratings & Reviews</h3>
+                  {ratingsLoading ? (
+                    <div className="flex justify-center py-4">
+                      <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : !partnerRatings || partnerRatings.totalRatings === 0 ? (
+                    <p className="text-sm text-muted-foreground">No ratings yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl font-black text-foreground">{partnerRatings.averageRating.toFixed(1)}</span>
+                        <div>
+                          <div className="flex gap-0.5">
+                            {[1,2,3,4,5].map((i: number) => (
+                              <Star key={i} className={cn('h-4 w-4', i <= Math.round(partnerRatings.averageRating) ? 'text-amber-400 fill-amber-400' : 'text-muted-foreground')} />
+                            ))}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">{partnerRatings.totalRatings} ratings</p>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        {[5,4,3,2,1].map((star: number) => {
+                          const count = partnerRatings.breakdown[star] || 0;
+                          const pct = partnerRatings.totalRatings > 0 ? (count / partnerRatings.totalRatings) * 100 : 0;
+                          return (
+                            <div key={star} className="flex items-center gap-2 text-xs">
+                              <span className="w-3 text-muted-foreground font-bold">{star}</span>
+                              <Star className="h-3 w-3 text-amber-400 fill-amber-400" />
+                              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                                <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
+                              </div>
+                              <span className="w-4 text-right text-muted-foreground">{count}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {partnerRatings.reviews.length > 0 && (
+                        <div className="space-y-3 pt-2 border-t border-border">
+                          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Recent Reviews</p>
+                          {partnerRatings.reviews.slice(0, 5).map((r: any) => (
+                            <div key={r.id} className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-semibold text-foreground">{r.userName}</span>
+                                <div className="flex gap-0.5">
+                                  {[1,2,3,4,5].map((i: number) => (
+                                    <Star key={i} className={cn('h-3 w-3', i <= r.rating ? 'text-amber-400 fill-amber-400' : 'text-muted-foreground')} />
+                                  ))}
+                                </div>
+                              </div>
+                              <p className="text-xs text-muted-foreground">#{r.bookingCode} · {new Date(r.createdAt).toLocaleDateString()}</p>
+                              {r.review && <p className="text-xs text-foreground">{r.review}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="space-y-2">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Actions</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedPartner.approvalStatus === 'PENDING' && (
+                      <>
+                        <button
+                          onClick={() => handleApprove(selectedPartner)}
+                          disabled={isUpdating}
+                          className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1.5"
+                        >
+                          <CheckCircle2 className="h-4 w-4" /> Approve
+                        </button>
+                        <button
+                          onClick={() => setIsRejecting(true)}
+                          disabled={isUpdating}
+                          className="px-4 py-2 bg-rose-600 text-white rounded-lg text-sm font-bold hover:bg-rose-700 disabled:opacity-50 flex items-center gap-1.5"
+                        >
+                          <XCircle className="h-4 w-4" /> Reject
+                        </button>
+                      </>
+                    )}
+                    {selectedPartner.approvalStatus === 'APPROVED' && (
+                      <button
+                        onClick={() => handleSuspend(selectedPartner)}
+                        disabled={isUpdating}
+                        className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-bold hover:bg-orange-600 disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        <ShieldAlert className="h-4 w-4" /> Suspend Partner
+                      </button>
+                    )}
+                    {(selectedPartner.approvalStatus === 'SUSPENDED' || selectedPartner.approvalStatus === 'REJECTED') && (
+                      <button
+                        onClick={() => handleActivate(selectedPartner)}
+                        disabled={isUpdating}
+                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        <ShieldCheck className="h-4 w-4" /> Reactivate
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Rejection Reason Modal */}
+      <AnimatePresence>
+        {isRejecting && selectedPartner && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 0.5 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black z-[60] cursor-pointer"
+              onClick={() => setIsRejecting(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+            >
+              <div className="bg-background border border-border rounded-2xl shadow-2xl w-full max-w-md p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="font-bold text-foreground text-lg">Reject Partner</h3>
+                  <button onClick={() => setIsRejecting(false)} className="p-1.5 hover:bg-muted rounded-lg">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <p className="text-sm text-muted-foreground mb-4">
+                  Select a reason for rejecting <span className="font-bold text-foreground">{selectedPartner.user.name}</span>.
+                  This will be sent to the partner.
+                </p>
+
+                <div className="space-y-2 mb-4">
+                  {REJECTION_REASONS.map(r => (
+                    <button
+                      key={r}
+                      onClick={() => setRejectionReason(r)}
+                      className={cn(
+                        'w-full text-left px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors',
+                        rejectionReason === r
+                          ? 'bg-rose-50 border-rose-300 text-rose-700 font-bold'
+                          : 'bg-card border-border hover:border-rose-200'
+                      )}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setRejectionReason('Other')}
+                    className={cn(
+                      'w-full text-left px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors',
+                      rejectionReason === 'Other'
+                        ? 'bg-rose-50 border-rose-300 text-rose-700 font-bold'
+                        : 'bg-card border-border hover:border-rose-200'
+                    )}
+                  >
+                    Other (custom reason)
+                  </button>
+                </div>
+
+                {rejectionReason === 'Other' && (
+                  <textarea
+                    className="w-full border border-input rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20 mb-4 resize-none"
+                    rows={3}
+                    placeholder="Enter custom rejection reason..."
+                    value={customReason}
+                    onChange={e => setCustomReason(e.target.value)}
+                  />
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setIsRejecting(false)}
+                    className="flex-1 px-4 py-2.5 border border-border rounded-lg text-sm font-bold hover:bg-muted"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleReject}
+                    disabled={isUpdating || !rejectionReason}
+                    className="flex-1 px-4 py-2.5 bg-rose-600 text-white rounded-lg text-sm font-bold hover:bg-rose-700 disabled:opacity-50"
+                  >
+                    {isUpdating ? 'Rejecting...' : 'Confirm Reject'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};

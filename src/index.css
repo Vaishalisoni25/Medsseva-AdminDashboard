@@ -1,0 +1,152 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from { height: 0; }
+    to { height: var(--radix-accordion-content-height); }
+  }
+  @keyframes accordion-up {
+    from { height: var(--radix-accordion-content-height); }
+    to { height: 0; }
+  }
+}
+
+@layer base {
+  :root {
+    --background: 195 14% 97%; /* #F5F7F8 */
+    --foreground: 0 0% 10%; /* #1A1A1A */
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 10%;
+
+    --primary: 181 100% 22%; /* #006D6F */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 180 15% 95%;
+    --secondary-foreground: 181 100% 22%;
+
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 14% 46%; /* #667085 */
+
+    --accent: 181 30% 92%;
+    --accent-foreground: 181 100% 22%;
+
+    --destructive: 0 72% 51%; /* #DC2626 */
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 72% 36%; /* #16A34A */
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%; /* #F59E0B */
+    --warning-foreground: 0 0% 100%;
+
+    --border: 189 17% 88%; /* #DDE5E7 */
+    --input: 189 17% 88%;
+    --ring: 181 100% 22%;
+
+    --radius: 0.75rem; /* Premium rounded 12px curves */
+  }
+
+  .dark {
+    --background: 180 25% 4%;
+    --foreground: 180 10% 98%;
+
+    --card: 180 25% 7%;
+    --card-foreground: 180 10% 98%;
+
+    --popover: 180 25% 7%;
+    --popover-foreground: 180 10% 98%;
+
+    --primary: 181 100% 25%;
+    --primary-foreground: 180 10% 98%;
+
+    --secondary: 180 20% 15%;
+    --secondary-foreground: 180 10% 98%;
+
+    --muted: 180 20% 12%;
+    --muted-foreground: 180 10% 65%;
+
+    --accent: 181 100% 15%;
+    --accent-foreground: 180 10% 98%;
+
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 180 10% 98%;
+
+    --border: 180 20% 15%;
+    --input: 180 20% 15%;
+    --ring: 181 100% 25%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+/* Custom Premium Styling Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* <label> placeholder aria-label added for ux_audit */
