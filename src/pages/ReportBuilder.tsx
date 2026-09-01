@@ -1451,103 +1451,182 @@ const filteredBookings = useMemo(() => {
                   </div>
 
                   <div className="space-y-3 pt-3 border-t border-border">
-                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
-                      <span className="flex items-center gap-1.5"><UserCheck className="h-3 w-3 text-primary" /> Doctor / Verifier Details</span>
-                      {availableDoctors.length > 0 && (
-                        <span className="text-[10px] font-normal text-teal-600 dark:text-teal-400">
-                          {availableDoctors.length} Registered Doctor{availableDoctors.length > 1 ? 's' : ''} available
-                        </span>
-                      )}
-                    </div>
+                    {(() => {
+                      const currentReport = reports.find((r: any) => r.bookingId === selectedBooking?.id) || selectedBooking?.report;
+                      const isReportCreated = Boolean(
+                        currentReport && (
+                          currentReport.id ||
+                          currentReport.status === 'GENERATED' ||
+                          currentReport.status === 'FINAL' ||
+                          currentReport.status === 'VERIFIED' ||
+                          currentReport.status === 'PUBLISHED' ||
+                          currentReport.pdfUrl ||
+                          selectedBooking?.status === 'COMPLETED' ||
+                          selectedBooking?.status === 'REPORT_GENERATED'
+                        )
+                      );
 
-                    {/* Area / Branch Doctor Dropdown */}
-                    <div className="bg-primary/5 border border-primary/20 rounded-xl p-3">
-                      <label className="text-[10px] font-bold text-primary mb-1 block uppercase">
-                        Select Doctor from Registered Area / Partner List
-                      </label>
-                      <select
-                        value={selectedDoctorId}
-                        onChange={e => {
-                          const docId = e.target.value;
-                          setSelectedDoctorId(docId);
-                          const doc = availableDoctors.find(d => d.id === docId);
-                          if (doc) {
-                            setVerification(v => ({
-                              ...v,
-                              doctorName: doc.name,
-                              doctorQualification: doc.qualification || '',
-                              doctorRegNo: doc.registrationNo || '',
-                              doctorDesignation: doc.designation || 'Senior Pathologist',
-                              doctorSignatureUrl: doc.signatureUrl || '',
-                            }));
-                          }
-                        }}
-                        className="w-full text-xs font-semibold bg-background border border-primary/30 rounded-lg px-2.5 py-2 outline-none focus:ring-2 focus:ring-primary/20"
-                      >
-                        <option value="">-- Choose Registered Doctor (Auto-fill) --</option>
-                        {/* Doctors for current branch / area first */}
-                        {availableDoctors.map(d => {
-                          const isMatchBranch = verification.reportBranchId && d.branchId === verification.reportBranchId;
-                          return (
-                            <option key={d.id} value={d.id}>
-                              {d.name} ({d.qualification || 'MBBS'} - Reg: {d.registrationNo}) {isMatchBranch ? '📍 [Nearby / Branch Doctor]' : (d.branch?.name ? `[${d.branch.name}]` : '')}
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </div>
+                      return (
+                        <>
+                          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                            <span className="flex items-center gap-1.5"><UserCheck className="h-3 w-3 text-primary" /> Doctor / Verifier Details</span>
+                            {isReportCreated ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/80 flex items-center gap-1">
+                                🔒 Locked (Report Generated)
+                              </span>
+                            ) : (
+                              availableDoctors.length > 0 && (
+                                <span className="text-[10px] font-normal text-teal-600 dark:text-teal-400">
+                                  {availableDoctors.length} Registered Doctor{availableDoctors.length > 1 ? 's' : ''} available
+                                </span>
+                              )
+                            )}
+                          </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[10px] font-bold text-muted-foreground mb-1 block">Doctor Name</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Dr. Anjali Mehta"
-                          value={verification.doctorName}
-                          onChange={e => setVerification(v => ({ ...v, doctorName: e.target.value }))}
-                          className="w-full text-xs border border-input rounded-lg px-2.5 py-2 outline-none focus:border-primary bg-card"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-bold text-muted-foreground mb-1 block">Qualification</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. MD Pathology"
-                          value={verification.doctorQualification}
-                          onChange={e => setVerification(v => ({ ...v, doctorQualification: e.target.value }))}
-                          className="w-full text-xs border border-input rounded-lg px-2.5 py-2 outline-none focus:border-primary bg-card"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-bold text-muted-foreground mb-1 block">Registration No.</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. MCI-44922"
-                          value={verification.doctorRegNo}
-                          onChange={e => setVerification(v => ({ ...v, doctorRegNo: e.target.value }))}
-                          className="w-full text-xs border border-input rounded-lg px-2.5 py-2 outline-none focus:border-primary bg-card"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-bold text-muted-foreground mb-1 block">Designation</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Senior Pathologist"
-                          value={verification.doctorDesignation}
-                          onChange={e => setVerification(v => ({ ...v, doctorDesignation: e.target.value }))}
-                          className="w-full text-xs border border-input rounded-lg px-2.5 py-2 outline-none focus:border-primary bg-card"
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="text-[10px] font-bold text-muted-foreground mb-1 block">Verification Date & Time</label>
-                        <input
-                          type="datetime-local"
-                          value={verification.doctorVerifiedAt ? toLocalDatetimeValue(verification.doctorVerifiedAt) : ''}
-                          onChange={e => setVerification(v => ({ ...v, doctorVerifiedAt: new Date(e.target.value).toISOString() }))}
-                          className="w-full text-xs border border-input rounded-lg px-2.5 py-2 outline-none focus:border-primary bg-card"
-                        />
-                      </div>
-                    </div>
+                          {/* Area / Branch Doctor Dropdown / Locked State */}
+                          {isReportCreated ? (
+                            <div className="bg-muted/50 border border-border/80 rounded-xl p-3 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <UserCheck className="w-4 h-4 text-emerald-600" />
+                                <div className="text-xs">
+                                  <span className="font-bold text-foreground">
+                                    {verification.doctorName ? `Dr. ${verification.doctorName.replace(/^Dr\.?\s*/i, '')}` : 'Verified Doctor Profile'}
+                                  </span>
+                                  {verification.doctorQualification && (
+                                    <span className="text-muted-foreground ml-1.5">({verification.doctorQualification})</span>
+                                  )}
+                                </div>
+                              </div>
+                              <span className="text-[10px] font-semibold text-muted-foreground bg-card border border-border px-2 py-0.5 rounded-md">
+                                Non-editable (Report Generated)
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="bg-primary/5 border border-primary/20 rounded-xl p-3">
+                              <label className="text-[10px] font-bold text-primary mb-1 block uppercase">
+                                Select Doctor from Registered Area / Partner List
+                              </label>
+                              <select
+                                value={selectedDoctorId}
+                                onChange={e => {
+                                  const docId = e.target.value;
+                                  setSelectedDoctorId(docId);
+                                  const doc = availableDoctors.find(d => d.id === docId);
+                                  if (doc) {
+                                    setVerification(v => ({
+                                      ...v,
+                                      doctorName: doc.name,
+                                      doctorQualification: doc.qualification || '',
+                                      doctorRegNo: doc.registrationNo || '',
+                                      doctorDesignation: doc.designation || 'Senior Pathologist',
+                                      doctorSignatureUrl: doc.signatureUrl || '',
+                                    }));
+                                  }
+                                }}
+                                className="w-full text-xs font-semibold bg-background border border-primary/30 rounded-lg px-2.5 py-2 outline-none focus:ring-2 focus:ring-primary/20"
+                              >
+                                <option value="">-- Choose Registered Doctor (Auto-fill) --</option>
+                                {availableDoctors.map(d => {
+                                  const isMatchBranch = verification.reportBranchId && d.branchId === verification.reportBranchId;
+                                  return (
+                                    <option key={d.id} value={d.id}>
+                                      {d.name} ({d.qualification || 'MBBS'} - Reg: {d.registrationNo}) {isMatchBranch ? '📍 [Nearby / Branch Doctor]' : (d.branch?.name ? `[${d.branch.name}]` : '')}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-[10px] font-bold text-muted-foreground mb-1 block">Doctor Name</label>
+                              <input
+                                type="text"
+                                placeholder="e.g. Dr. Anjali Mehta"
+                                value={verification.doctorName}
+                                disabled={isReportCreated}
+                                readOnly={isReportCreated}
+                                onChange={e => setVerification(v => ({ ...v, doctorName: e.target.value }))}
+                                className={cn(
+                                  "w-full text-xs border rounded-lg px-2.5 py-2 outline-none transition-colors",
+                                  isReportCreated
+                                    ? "bg-muted/70 text-foreground cursor-not-allowed border-dashed border-border font-medium select-none"
+                                    : "border-input focus:border-primary bg-card"
+                                )}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-muted-foreground mb-1 block">Qualification</label>
+                              <input
+                                type="text"
+                                placeholder="e.g. MD Pathology"
+                                value={verification.doctorQualification}
+                                disabled={isReportCreated}
+                                readOnly={isReportCreated}
+                                onChange={e => setVerification(v => ({ ...v, doctorQualification: e.target.value }))}
+                                className={cn(
+                                  "w-full text-xs border rounded-lg px-2.5 py-2 outline-none transition-colors",
+                                  isReportCreated
+                                    ? "bg-muted/70 text-foreground cursor-not-allowed border-dashed border-border font-medium select-none"
+                                    : "border-input focus:border-primary bg-card"
+                                )}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-muted-foreground mb-1 block">Registration No.</label>
+                              <input
+                                type="text"
+                                placeholder="e.g. MCI-44922"
+                                value={verification.doctorRegNo}
+                                disabled={isReportCreated}
+                                readOnly={isReportCreated}
+                                onChange={e => setVerification(v => ({ ...v, doctorRegNo: e.target.value }))}
+                                className={cn(
+                                  "w-full text-xs border rounded-lg px-2.5 py-2 outline-none transition-colors font-mono",
+                                  isReportCreated
+                                    ? "bg-muted/70 text-teal-700 dark:text-teal-300 cursor-not-allowed border-dashed border-border font-bold select-none"
+                                    : "border-input focus:border-primary bg-card"
+                                )}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-muted-foreground mb-1 block">Designation</label>
+                              <input
+                                type="text"
+                                placeholder="e.g. Senior Pathologist"
+                                value={verification.doctorDesignation}
+                                disabled={isReportCreated}
+                                readOnly={isReportCreated}
+                                onChange={e => setVerification(v => ({ ...v, doctorDesignation: e.target.value }))}
+                                className={cn(
+                                  "w-full text-xs border rounded-lg px-2.5 py-2 outline-none transition-colors",
+                                  isReportCreated
+                                    ? "bg-muted/70 text-foreground cursor-not-allowed border-dashed border-border font-medium select-none"
+                                    : "border-input focus:border-primary bg-card"
+                                )}
+                              />
+                            </div>
+                            <div className="md:col-span-2">
+                              <label className="text-[10px] font-bold text-muted-foreground mb-1 block">Verification Date & Time</label>
+                              <input
+                                type="datetime-local"
+                                value={verification.doctorVerifiedAt ? toLocalDatetimeValue(verification.doctorVerifiedAt) : ''}
+                                disabled={isReportCreated}
+                                readOnly={isReportCreated}
+                                onChange={e => setVerification(v => ({ ...v, doctorVerifiedAt: new Date(e.target.value).toISOString() }))}
+                                className={cn(
+                                  "w-full text-xs border rounded-lg px-2.5 py-2 outline-none transition-colors",
+                                  isReportCreated
+                                    ? "bg-muted/70 text-foreground cursor-not-allowed border-dashed border-border font-medium select-none"
+                                    : "border-input focus:border-primary bg-card"
+                                )}
+                              />
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
 

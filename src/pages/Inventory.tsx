@@ -7,6 +7,8 @@ import {
   fetchAnalytics,
   fetchSuppliers,
   createInventoryItem,
+  updateInventoryItem,
+  deleteInventoryItem,
   recordStockIn,
   recordStockOut,
   recordAdjustment,
@@ -26,6 +28,8 @@ import {
   PackageSearch,
   ClipboardList,
   Loader2,
+  Edit2,
+  Trash2,
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { useToast } from '../components/Toast';
@@ -39,6 +43,7 @@ export const InventoryPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'reagents' | 'consumables'>('reagents');
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
   const [isAddItemOpen, setIsAddItemOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<any | null>(null);
 
   const [inventoryItemId, setInventoryItemId] = useState('');
   const [quantity, setQuantity] = useState(1);
@@ -51,6 +56,7 @@ export const InventoryPage: React.FC = () => {
   const [newName, setNewName] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [newItemType, setNewItemType] = useState('REAGENT');
+  const [newCustomItemType, setNewCustomItemType] = useState('');
   const [newUnit, setNewUnit] = useState('');
   const [newMinThreshold, setNewMinThreshold] = useState(0);
   const [newExpiryDate, setNewExpiryDate] = useState('');
@@ -65,7 +71,7 @@ export const InventoryPage: React.FC = () => {
   }, [error]);
 
   const reagents = items.filter(i => i.itemType === 'REAGENT' || i.itemType === 'CHEMICAL' || i.itemType === 'TEST_KIT');
-  const consumables = items.filter(i => i.itemType === 'CONSUMABLE' || i.itemType === 'COLLECTION_KIT');
+  const consumables = items.filter(i => i.itemType === 'CONSUMABLE' || i.itemType === 'COLLECTION_KIT' || i.itemType === 'OTHER' || !['REAGENT', 'CHEMICAL', 'TEST_KIT'].includes(i.itemType));
 
   const lowStockCount = analytics?.lowStock ?? 0;
   const outOfStockCount = analytics?.outOfStock ?? 0;
@@ -99,23 +105,78 @@ export const InventoryPage: React.FC = () => {
     }
   };
 
-  const handleAddItem = async (e: React.FormEvent) => {
+  const openCreateModal = () => {
+    setEditingItem(null);
+    setNewSku('');
+    setNewName('');
+    setNewCategory('');
+    setNewItemType('REAGENT');
+    setNewCustomItemType('');
+    setNewUnit('');
+    setNewMinThreshold(0);
+    setNewExpiryDate('');
+    setNewPurchaseCost('');
+    setIsAddItemOpen(true);
+  };
+
+  const openEditModal = (item: any) => {
+    setEditingItem(item);
+    setNewSku(item.sku || '');
+    setNewName(item.name || '');
+    setNewCategory(item.category || '');
+    const standardTypes = ['REAGENT', 'CONSUMABLE', 'CHEMICAL', 'COLLECTION_KIT', 'TEST_KIT'];
+    if (standardTypes.includes(item.itemType)) {
+      setNewItemType(item.itemType);
+      setNewCustomItemType('');
+    } else {
+      setNewItemType('OTHER');
+      setNewCustomItemType(item.itemType === 'OTHER' ? '' : item.itemType);
+    }
+    setNewUnit(item.unit || '');
+    setNewMinThreshold(item.minThreshold ?? 0);
+    setNewExpiryDate(item.expiryDate ? new Date(item.expiryDate).toISOString().split('T')[0] : '');
+    setNewPurchaseCost(item.purchaseCost !== undefined && item.purchaseCost !== null ? String(item.purchaseCost) : '');
+    setIsAddItemOpen(true);
+  };
+
+  const handleDeleteItem = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete "${name}" from inventory?`)) return;
+    const res = await dispatch(deleteInventoryItem(id));
+    if (res.meta.requestStatus === 'fulfilled') {
+      success('Inventory item deleted successfully.');
+      dispatch(fetchAnalytics());
+    } else {
+      toastError('Failed to delete inventory item.');
+    }
+  };
+
+  const handleSaveItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    const result = await dispatch(createInventoryItem({
-      sku: newSku,
-      name: newName,
-      category: newCategory,
-      itemType: newItemType,
-      unit: newUnit,
-      minThreshold: newMinThreshold,
+    const finalItemType = newItemType === 'OTHER' ? (newCustomItemType.trim() || 'OTHER') : newItemType;
+    const payload = {
+      sku: newSku.trim(),
+      name: newName.trim(),
+      category: newCategory.trim(),
+      itemType: finalItemType,
+      unit: newUnit.trim(),
+      minThreshold: Number(newMinThreshold) || 0,
       expiryDate: newExpiryDate || undefined,
       purchaseCost: newPurchaseCost ? parseFloat(newPurchaseCost) : undefined,
-    }));
+    };
+
+    let result: any;
+    if (editingItem) {
+      result = await dispatch(updateInventoryItem({ id: editingItem.id, data: payload }));
+    } else {
+      result = await dispatch(createInventoryItem(payload));
+    }
 
     if (result.meta.requestStatus === 'fulfilled') {
-      success('Inventory item added successfully.');
+      success(editingItem ? 'Inventory item updated successfully.' : 'Inventory item added successfully.');
       setIsAddItemOpen(false);
+      setEditingItem(null);
       setNewSku(''); setNewName(''); setNewCategory(''); setNewUnit('');
+      setNewCustomItemType('');
       setNewMinThreshold(0); setNewExpiryDate(''); setNewPurchaseCost('');
       dispatch(fetchAnalytics());
     }
@@ -211,7 +272,7 @@ export const InventoryPage: React.FC = () => {
               <table className="w-full text-left border-collapse">
                 <thead className="bg-muted/50 border-b">
                   <tr>
-                    {[1, 2, 3, 4, 5].map(i => (
+                    {[1, 2, 3, 4, 5, 6].map(i => (
                       <th key={i} className="px-6 py-3">
                         <div className="h-2.5 bg-muted rounded w-20" />
                       </th>
@@ -237,6 +298,9 @@ export const InventoryPage: React.FC = () => {
                       <td className="px-6 py-4">
                         <div className="h-5 bg-muted rounded w-20" />
                       </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="h-5 bg-muted rounded w-16 ml-auto" />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -253,6 +317,7 @@ export const InventoryPage: React.FC = () => {
                       <th className="px-6 py-3 text-right">Available Stock</th>
                       <th className="px-6 py-3">Expiry Node</th>
                       <th className="px-6 py-3">Threshold Class</th>
+                      <th className="px-6 py-3 text-right">Actions</th>
                     </tr>
                   ) : (
                     <tr>
@@ -261,69 +326,122 @@ export const InventoryPage: React.FC = () => {
                       <th className="px-6 py-3 text-right">Global Stock</th>
                       <th className="px-6 py-3">Min Threshold</th>
                       <th className="px-6 py-3">Capacity Status</th>
+                      <th className="px-6 py-3 text-right">Actions</th>
                     </tr>
                   )}
                 </thead>
                 <tbody className="divide-y text-xs font-medium">
                   {activeTab === 'reagents' ? (
-                    reagents.map(r => (
-                      <tr key={r.id} className="hover:bg-muted/10">
-                        <td className="px-6 py-4">
-                          <div className="font-black text-slate-800">{r.name}</div>
-                          <div className="text-[9px] font-bold text-slate-400 font-mono mt-0.5">{r.sku} • {r.supplier?.name || r.manufacturer || '-'}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[10px] font-bold">{r.category}</span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <span className="text-sm font-extrabold font-mono text-slate-800">{r.currentStock}</span>
-                          <span className="text-[10px] font-black text-slate-400 ml-1">{r.unit}</span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-1.5 font-bold text-slate-600">
-                            <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                            {r.expiryDate ? new Date(r.expiryDate).toLocaleDateString('en-IN') : '-'}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={cn(
-                            "px-2 py-0.5 rounded text-[9px] font-black uppercase border",
-                            r.stockStatus === 'IN_STOCK' ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                            r.stockStatus === 'EXPIRED' ? "bg-gray-100 text-gray-600 border-gray-300" :
-                            "bg-rose-50 text-rose-700 border-rose-200 animate-pulse"
-                          )}>
-                            {r.stockStatus?.replace('_', ' ')}
-                          </span>
+                    reagents.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-10 text-center text-muted-foreground">
+                          No reagent items found. Click "+ Add Item" to register reagents.
                         </td>
                       </tr>
-                    ))
+                    ) : (
+                      reagents.map(r => (
+                        <tr key={r.id} className="hover:bg-muted/10">
+                          <td className="px-6 py-4">
+                            <div className="font-black text-slate-800">{r.name}</div>
+                            <div className="text-[9px] font-bold text-slate-400 font-mono mt-0.5">{r.sku} • {r.supplier?.name || r.manufacturer || '-'}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[10px] font-bold">{r.category}</span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-sm font-extrabold font-mono text-slate-800">{r.currentStock}</span>
+                            <span className="text-[10px] font-black text-slate-400 ml-1">{r.unit}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-1.5 font-bold text-slate-600">
+                              <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                              {r.expiryDate ? new Date(r.expiryDate).toLocaleDateString('en-IN') : '-'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={cn(
+                              "px-2 py-0.5 rounded text-[9px] font-black uppercase border",
+                              r.stockStatus === 'IN_STOCK' ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                              r.stockStatus === 'EXPIRED' ? "bg-gray-100 text-gray-600 border-gray-300" :
+                              "bg-rose-50 text-rose-700 border-rose-200 animate-pulse"
+                            )}>
+                              {r.stockStatus?.replace('_', ' ')}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => openEditModal(r)}
+                                className="p-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                title="Edit Reagent"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteItem(r.id, r.name)}
+                                className="p-1.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors"
+                                title="Delete Reagent"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )
                   ) : (
-                    consumables.map(c => (
-                      <tr key={c.id} className="hover:bg-muted/10">
-                        <td className="px-6 py-4">
-                          <div className="font-black text-slate-800">{c.name}</div>
-                          <div className="text-[9px] font-bold text-slate-400 font-mono mt-0.5">{c.sku}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-bold">{c.itemType}</span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <span className="text-sm font-extrabold font-mono text-slate-800">{c.currentStock}</span>
-                          <span className="text-[10px] font-black text-slate-400 ml-1">{c.unit}</span>
-                        </td>
-                        <td className="px-6 py-4 font-extrabold text-slate-500">
-                          {c.minThreshold} {c.unit}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={cn(
-                            "px-2 py-0.5 rounded text-[9px] font-black uppercase border",
-                            c.stockStatus === 'IN_STOCK' ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-rose-50 text-rose-700 border-rose-200"
-                          )}>
-                            {c.stockStatus?.replace('_', ' ')}
-                          </span>
+                    consumables.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-10 text-center text-muted-foreground">
+                          No consumable items found. Click "+ Add Item" to register consumables.
                         </td>
                       </tr>
-                    ))
+                    ) : (
+                      consumables.map(c => (
+                        <tr key={c.id} className="hover:bg-muted/10">
+                          <td className="px-6 py-4">
+                            <div className="font-black text-slate-800">{c.name}</div>
+                            <div className="text-[9px] font-bold text-slate-400 font-mono mt-0.5">{c.sku}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-bold">{c.itemType}</span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-sm font-extrabold font-mono text-slate-800">{c.currentStock}</span>
+                            <span className="text-[10px] font-black text-slate-400 ml-1">{c.unit}</span>
+                          </td>
+                          <td className="px-6 py-4 font-extrabold text-slate-500">
+                            {c.minThreshold} {c.unit}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={cn(
+                              "px-2 py-0.5 rounded text-[9px] font-black uppercase border",
+                              c.stockStatus === 'IN_STOCK' ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-rose-50 text-rose-700 border-rose-200"
+                            )}>
+                              {c.stockStatus?.replace('_', ' ')}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => openEditModal(c)}
+                                className="p-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                title="Edit Consumable"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteItem(c.id, c.name)}
+                                className="p-1.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors"
+                                title="Delete Consumable"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )
                   )}
                 </tbody>
               </table>
@@ -386,43 +504,35 @@ export const InventoryPage: React.FC = () => {
                   <label className="text-xs font-black">Operation Type</label>
                   <div className="flex flex-wrap gap-2">
                     {(['STOCK_IN', 'STOCK_OUT', 'ADJUSTMENT', 'DAMAGED', 'EXPIRED'] as const).map(t => (
-                      <button key={t} type="button" onClick={() => setOpType(t)}
-                        className={cn("px-3 py-1.5 rounded text-xs font-black border transition-all",
-                          opType === t ? "bg-[#006D6F] text-white border-[#006D6F]" : "border-border text-muted-foreground hover:text-foreground"
-                        )}>
+                      <button key={t} type="button" onClick={() => setOpType(t)} className={cn("px-3 py-1.5 text-xs font-black rounded-lg border", opType === t ? "bg-[#006D6F] text-white border-transparent" : "bg-card text-slate-600 hover:bg-muted")}>
                         {t.replace('_', ' ')}
                       </button>
                     ))}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-black">Operation Quantity *</label>
-                    <input required type="number" min={1} className="w-full p-2 border text-sm rounded font-mono" value={quantity} onChange={e => setQuantity(parseInt(e.target.value) || 1)} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-black">Reference Number</label>
-                    <input type="text" placeholder="e.g. PO-82739" className="w-full p-2 border text-sm rounded" value={referenceNumber} onChange={e => setReferenceNumber(e.target.value)} />
-                  </div>
-                </div>
-
                 <div className="space-y-1">
-                  <label className="text-xs font-black">Target Inventory SKU *</label>
+                  <label className="text-xs font-black">Select Inventory Target *</label>
                   <select required className="w-full p-2 border text-sm rounded bg-card font-medium" value={inventoryItemId} onChange={e => setInventoryItemId(e.target.value)}>
-                    <option value="">-- Select Laboratory Asset --</option>
-                    <optgroup label="Reagents / Chemicals / Test Kits">
-                      {reagents.map(r => <option key={r.id} value={r.id}>{r.name} ({r.currentStock} {r.unit})</option>)}
-                    </optgroup>
-                    <optgroup label="Consumables / Collection Kits">
-                      {consumables.map(c => <option key={c.id} value={c.id}>{c.name} ({c.currentStock} {c.unit})</option>)}
-                    </optgroup>
+                    <option value="">-- Choose Stock Pool Element --</option>
+                    {items.map(i => <option key={i.id} value={i.id}>{i.name} (Current: {i.currentStock} {i.unit})</option>)}
                   </select>
                 </div>
 
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-black">Delta Quantity *</label>
+                    <input required type="number" min={1} className="w-full p-2 border text-sm rounded font-bold" value={quantity} onChange={e => setQuantity(parseInt(e.target.value) || 1)} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-black">Ref Document / PO #</label>
+                    <input type="text" className="w-full p-2 border text-sm rounded" placeholder="e.g. PO-89232" value={referenceNumber} onChange={e => setReferenceNumber(e.target.value)} />
+                  </div>
+                </div>
+
                 <div className="space-y-1">
-                  <label className="text-xs font-black">Reason</label>
-                  <input type="text" placeholder="Reason for this operation" className="w-full p-2 border text-sm rounded" value={reason} onChange={e => setReason(e.target.value)} />
+                  <label className="text-xs font-black">Reason / Context *</label>
+                  <input required type="text" className="w-full p-2 border text-sm rounded" placeholder="e.g. Routine Daily QC run" value={reason} onChange={e => setReason(e.target.value)} />
                 </div>
 
                 <div className="space-y-1">
@@ -450,12 +560,12 @@ export const InventoryPage: React.FC = () => {
               <div className="bg-[#006D6F] text-white p-5 flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <Boxes className="h-5 w-5 text-teal-100" />
-                  <h3 className="text-base font-black tracking-tight">Add Inventory Item</h3>
+                  <h3 className="text-base font-black tracking-tight">{editingItem ? 'Edit Inventory Item' : 'Add Inventory Item'}</h3>
                 </div>
                 <button onClick={() => setIsAddItemOpen(false)} className="hover:bg-white/10 p-1 rounded text-teal-100"><X className="h-5 w-5" /></button>
               </div>
 
-              <form onSubmit={handleAddItem} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              <form onSubmit={handleSaveItem} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-xs font-black">SKU *</label>
@@ -469,9 +579,24 @@ export const InventoryPage: React.FC = () => {
                       <option value="CHEMICAL">Chemical</option>
                       <option value="COLLECTION_KIT">Collection Kit</option>
                       <option value="TEST_KIT">Test Kit</option>
+                      <option value="OTHER">Others / Miscellaneous</option>
                     </select>
                   </div>
                 </div>
+
+                {newItemType === 'OTHER' && (
+                  <div className="space-y-1 p-3 bg-teal-50/70 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-800 rounded-xl animate-in fade-in slide-in-from-top-1 duration-200">
+                    <label className="text-xs font-black text-teal-800 dark:text-teal-300">Specify Custom Item Type *</label>
+                    <input
+                      required={newItemType === 'OTHER'}
+                      type="text"
+                      className="w-full p-2 border border-teal-300 dark:border-teal-700 text-sm rounded bg-background"
+                      value={newCustomItemType}
+                      onChange={e => setNewCustomItemType(e.target.value)}
+                      placeholder="e.g. Glassware, PPE Kit, Machine Spare, Stationery"
+                    />
+                  </div>
+                )}
 
                 <div className="space-y-1">
                   <label className="text-xs font-black">Item Name *</label>
@@ -508,7 +633,7 @@ export const InventoryPage: React.FC = () => {
                 <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
                   <button type="button" onClick={() => setIsAddItemOpen(false)} className="px-4 py-2 text-xs border font-bold rounded">Cancel</button>
                   <button type="submit" disabled={saving} className="px-6 py-2 text-xs bg-[#006D6F] text-white font-black rounded flex items-center gap-1 shadow hover:bg-[#004B4D] disabled:opacity-50">
-                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Add Item
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} {editingItem ? 'Update Item' : 'Add Item'}
                   </button>
                 </div>
               </form>

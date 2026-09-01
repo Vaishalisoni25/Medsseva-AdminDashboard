@@ -45,6 +45,15 @@ const CATEGORY_MAP: Record<string, { label: string; color: string; border: strin
   MISCELLANEOUS: { label: 'Miscellaneous / Other', color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300', border: 'border-slate-200 dark:border-slate-700' },
 };
 
+const getCategoryMeta = (cat: string) => {
+  if (CATEGORY_MAP[cat]) return CATEGORY_MAP[cat];
+  return {
+    label: cat,
+    color: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300',
+    border: 'border-rose-200 dark:border-rose-800',
+  };
+};
+
 const PAYMENT_METHODS = [
   { id: 'CASH', label: 'Cash' },
   { id: 'UPI', label: 'UPI / QR' },
@@ -79,6 +88,7 @@ export const ExpensesPage: React.FC = () => {
   // Form Fields
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('LAB_REAGENTS');
+  const [customCategory, setCustomCategory] = useState('');
   const [amount, setAmount] = useState('');
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState('CASH');
@@ -129,6 +139,7 @@ export const ExpensesPage: React.FC = () => {
     setEditingExpense(null);
     setTitle('');
     setCategory('LAB_REAGENTS');
+    setCustomCategory('');
     setAmount('');
     setExpenseDate(new Date().toISOString().split('T')[0]);
     setPaymentMethod('CASH');
@@ -141,7 +152,13 @@ export const ExpensesPage: React.FC = () => {
   const openEditModal = (exp: ExpenseItem) => {
     setEditingExpense(exp);
     setTitle(exp.title);
-    setCategory(exp.category);
+    if (CATEGORY_MAP[exp.category] && exp.category !== 'MISCELLANEOUS') {
+      setCategory(exp.category);
+      setCustomCategory('');
+    } else {
+      setCategory('MISCELLANEOUS');
+      setCustomCategory(exp.category === 'MISCELLANEOUS' ? '' : exp.category);
+    }
     setAmount(exp.amount.toString());
     setExpenseDate(new Date(exp.expenseDate).toISOString().split('T')[0]);
     setPaymentMethod(exp.paymentMethod || 'CASH');
@@ -158,11 +175,20 @@ export const ExpensesPage: React.FC = () => {
       return;
     }
 
+    if (category === 'MISCELLANEOUS' && !customCategory.trim()) {
+      toast.error('Please specify the other category name.');
+      return;
+    }
+
     setSaving(true);
     try {
+      const finalCategory = category === 'MISCELLANEOUS'
+        ? (customCategory.trim() || 'MISCELLANEOUS')
+        : category;
+
       const payload = {
         title: title.trim(),
-        category,
+        category: finalCategory,
         amount: parseFloat(amount),
         expenseDate,
         paymentMethod,
@@ -183,7 +209,7 @@ export const ExpensesPage: React.FC = () => {
       loadData();
     } catch (err: any) {
       console.error('Failed to save expense:', err);
-      toast.error(err?.response?.data?.error || 'Failed to save expense.');
+      toast.error(err?.response?.data?.error || 'Failed to save expense record.');
     } finally {
       setSaving(false);
     }
@@ -398,7 +424,7 @@ export const ExpensesPage: React.FC = () => {
                 </tr>
               ) : (
                 expenses.map((exp) => {
-                  const meta = CATEGORY_MAP[exp.category] || CATEGORY_MAP.MISCELLANEOUS;
+                  const meta = getCategoryMeta(exp.category);
                   return (
                     <tr key={exp.id} className="hover:bg-muted/30 transition-colors">
                       <td className="py-3.5 px-4">
@@ -517,6 +543,23 @@ export const ExpensesPage: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {/* Conditional Custom Category Input when Miscellaneous/Other is selected */}
+              {category === 'MISCELLANEOUS' && (
+                <div className="space-y-1.5 p-3 rounded-xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/40 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <label className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5" /> Specify Other Category Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={customCategory}
+                    onChange={(e) => setCustomCategory(e.target.value)}
+                    placeholder="e.g. Lab Sanitization, Bio-Waste Disposal, Software AMC"
+                    required={category === 'MISCELLANEOUS'}
+                    className="w-full px-3.5 py-2 bg-background border border-rose-300 dark:border-rose-700 rounded-xl text-xs font-bold text-foreground outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                  />
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">

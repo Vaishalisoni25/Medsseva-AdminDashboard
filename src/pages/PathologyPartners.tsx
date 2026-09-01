@@ -6,7 +6,8 @@ import {
   Search, X, CheckCircle2, XCircle, AlertCircle,
   Microscope, Phone, Mail, MapPin, Star, Clock,
   ShieldCheck, ShieldX, ShieldAlert, RefreshCw,
-  DollarSign, Activity, TrendingUp, FileText, Building2, Loader2
+  DollarSign, Activity, TrendingUp, FileText, Building2, Loader2,
+  Plus, Edit3, Trash2, Eye, EyeOff, Percent, UserCheck
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn } from '../utils/cn';
@@ -78,6 +79,23 @@ export const PathologyPartnersPage: React.FC = () => {
   const [portalData, setPortalData] = useState<any>(null);
   const [portalLoading, setPortalLoading] = useState(false);
 
+  // Add / Edit Partner Modal State
+  const [partnerModalOpen, setPartnerModalOpen] = useState(false);
+  const [editingPartner, setEditingPartner] = useState<Partner | null>(null);
+  const [formLabName, setFormLabName] = useState('');
+  const [formContactName, setFormContactName] = useState('');
+  const [formEmail, setFormEmail] = useState('');
+  const [formMobile, setFormMobile] = useState('');
+  const [formPassword, setFormPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [formRole, setFormRole] = useState('PARTNER_LAB');
+  const [formPartnerCode, setFormPartnerCode] = useState('');
+  const [formAddress, setFormAddress] = useState('');
+  const [formCommissionRate, setFormCommissionRate] = useState<number>(30);
+  const [formPaymentCycle, setFormPaymentCycle] = useState('MONTHLY');
+  const [formApprovalStatus, setFormApprovalStatus] = useState<ApprovalStatus>('APPROVED');
+  const [savingPartner, setSavingPartner] = useState(false);
+
   const { data: partnersData, isLoading: partnersQueryLoading } = usePartnersQuery();
   const isLoading = partnersQueryLoading && partners.length === 0;
 
@@ -91,16 +109,35 @@ export const PathologyPartnersPage: React.FC = () => {
   }, [partnersData]);
 
   const loadPartnerPortal = async (partId?: string, period = portalPeriod) => {
-    const targetId = partId || selectedPartnerId;
-    if (!targetId) return;
+    const targetId = partId || selectedPartnerId || (partners.length > 0 ? partners[0].id : '');
+    if (!targetId && partners.length === 0) return;
     setPortalLoading(true);
     try {
-      const res = await commissionService.getPartnerPortalData(period);
+      const res = await commissionService.getPartnerPortalData(period, targetId);
       setPortalData(res);
+      if (res?.partner?.id && res.partner.id !== selectedPartnerId) {
+        setSelectedPartnerId(res.partner.id);
+      }
     } catch (err) {
       console.error('Failed to load partner portal data:', err);
+      toast.error('Failed to load partner commission data.');
     } finally {
       setPortalLoading(false);
+    }
+  };
+
+  const handleTogglePayout = async (bookingId: string, partnerId: string, currentStatus: string) => {
+    const nextStatus = currentStatus === 'PAID' ? 'UNPAID' : 'PAID';
+    try {
+      await commissionService.updatePayoutStatus({
+        bookingId,
+        partnerId,
+        status: nextStatus,
+      });
+      toast.success(`Payout marked as ${nextStatus}`);
+      loadPartnerPortal(selectedPartnerId, portalPeriod);
+    } catch (err: any) {
+      toast.error('Failed to update payout status');
     }
   };
 
@@ -114,6 +151,108 @@ export const PathologyPartnersPage: React.FC = () => {
     setSelectedPartnerId(partner.id);
     setActiveView('PORTAL');
     loadPartnerPortal(partner.id, portalPeriod);
+  };
+
+  const openCreatePartner = () => {
+    setEditingPartner(null);
+    setFormLabName('');
+    setFormContactName('');
+    setFormEmail('');
+    setFormMobile('');
+    setFormPassword('');
+    setShowPassword(false);
+    setFormRole('PARTNER_LAB');
+    setFormPartnerCode(`PART-${Math.floor(1000 + Math.random() * 9000)}`);
+    setFormAddress('');
+    setFormCommissionRate(30);
+    setFormPaymentCycle('MONTHLY');
+    setFormApprovalStatus('APPROVED');
+    setPartnerModalOpen(true);
+  };
+
+  const openEditPartner = (p: Partner) => {
+    setEditingPartner(p);
+    setFormLabName(p.labName || '');
+    setFormContactName(p.user?.name || '');
+    setFormEmail(p.user?.email || '');
+    setFormMobile(p.user?.mobile || '');
+    setFormPassword('');
+    setShowPassword(false);
+    setFormRole(p.role || 'PARTNER_LAB');
+    setFormPartnerCode(p.partnerCode || `PART-${p.id.slice(0, 5).toUpperCase()}`);
+    setFormAddress(p.address || '');
+    setFormCommissionRate(p.commissionRate !== undefined && p.commissionRate !== null ? Number(p.commissionRate) : 30);
+    setFormPaymentCycle(p.paymentCycle || 'MONTHLY');
+    setFormApprovalStatus(p.approvalStatus || 'APPROVED');
+    setPartnerModalOpen(true);
+  };
+
+  const handleSavePartner = async () => {
+    if (!formLabName.trim()) {
+      toast.error('Lab / Center Name is required');
+      return;
+    }
+    if (!formContactName.trim()) {
+      toast.error('Contact Person Name is required');
+      return;
+    }
+    const cleanMobile = formMobile.trim().replace(/\D/g, '');
+    if (!cleanMobile || cleanMobile.length !== 10) {
+      toast.error('Enter a valid 10-digit mobile number');
+      return;
+    }
+    if (!editingPartner && !formPassword) {
+      toast.error('Password is required for partner portal login');
+      return;
+    }
+
+    setSavingPartner(true);
+    try {
+      const payload: any = {
+        labName: formLabName.trim(),
+        name: formContactName.trim(),
+        mobile: cleanMobile,
+        email: formEmail.trim() || undefined,
+        role: formRole,
+        partnerCode: formPartnerCode.trim() || undefined,
+        address: formAddress.trim() || undefined,
+        commissionRate: Number(formCommissionRate) || 30,
+        paymentCycle: formPaymentCycle || 'MONTHLY',
+        approvalStatus: formApprovalStatus,
+      };
+      if (formPassword) payload.password = formPassword;
+
+      if (editingPartner) {
+        const updated = await testService.updatePartner(editingPartner.id, payload);
+        setPartners(prev => prev.map(p => p.id === editingPartner.id ? { ...p, ...updated } : p));
+        if (selectedPartner?.id === editingPartner.id) {
+          setSelectedPartner(prev => prev ? { ...prev, ...updated } : null);
+        }
+        toast.success('Partner updated successfully');
+      } else {
+        const created = await testService.createPartner(payload);
+        setPartners(prev => [created, ...prev]);
+        toast.success('Partner added successfully');
+      }
+      setPartnerModalOpen(false);
+    } catch (err: any) {
+      console.error('Save partner error:', err);
+      toast.error(err?.response?.data?.error || 'Failed to save partner');
+    } finally {
+      setSavingPartner(false);
+    }
+  };
+
+  const handleDeletePartner = async (partnerId: string, labName: string) => {
+    if (!window.confirm(`Are you sure you want to delete partner "${labName}"?`)) return;
+    try {
+      await testService.deletePartner(partnerId);
+      setPartners(prev => prev.filter(p => p.id !== partnerId));
+      if (selectedPartner?.id === partnerId) setSelectedPartner(null);
+      toast.success('Partner deleted successfully');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Failed to delete partner');
+    }
   };
 
   const handleApprove = async (partner: Partner) => {
@@ -225,10 +364,10 @@ export const PathologyPartnersPage: React.FC = () => {
           <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
             <Building2 className="w-6 h-6 text-primary" /> Tie-up Pathology Partners & Portal
           </h1>
-          <p className="text-xs text-muted-foreground">Manage tie-up diagnostic laboratories, sample collections & 30% referral commissions.</p>
+          <p className="text-xs text-muted-foreground">Manage tie-up diagnostic laboratories, sample collections & referral commissions.</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border">
             <button
               onClick={() => setActiveView('DIRECTORY')}
@@ -252,8 +391,15 @@ export const PathologyPartnersPage: React.FC = () => {
           </div>
 
           <button
+            onClick={openCreatePartner}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary/90 shadow-sm transition-all"
+          >
+            <Plus className="w-4 h-4" /> Add New Partner
+          </button>
+
+          <button
             onClick={() => window.location.reload()}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border bg-card text-xs font-bold hover:bg-muted transition-colors"
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-card text-xs font-bold hover:bg-muted transition-colors"
           >
             <RefreshCw className="h-3.5 w-3.5" /> Refresh
           </button>
@@ -466,13 +612,17 @@ export const PathologyPartnersPage: React.FC = () => {
                         </td>
 
                         <td className="py-3.5 px-4 text-center">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
-                            item.payoutStatus === 'PAID'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-amber-50 text-amber-700 border border-amber-200'
-                          }`}>
+                          <button
+                            onClick={() => handleTogglePayout(item.bookingId, selectedPartnerId, item.payoutStatus)}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase transition-all hover:opacity-80 active:scale-95 ${
+                              item.payoutStatus === 'PAID'
+                                ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700'
+                                : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700'
+                            }`}
+                            title="Click to toggle payout status (Paid / Unpaid)"
+                          >
                             ● {item.payoutStatus}
-                          </span>
+                          </button>
                         </td>
 
                         <td className="py-3.5 px-4 text-center">
@@ -647,6 +797,14 @@ export const PathologyPartnersPage: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => openEditPartner(partner)}
+                              className="h-7 w-7 bg-muted text-foreground hover:bg-primary/10 hover:text-primary rounded-full flex items-center justify-center border border-border transition-colors"
+                              title="Edit Partner & Commission"
+                            >
+                              <Edit3 className="h-3.5 w-3.5" />
+                            </button>
+
                             {partner.approvalStatus === 'PENDING' && (
                               <>
                                 <button
@@ -687,6 +845,13 @@ export const PathologyPartnersPage: React.FC = () => {
                                 <ShieldCheck className="h-3.5 w-3.5" />
                               </button>
                             )}
+                            <button
+                              onClick={() => handleDeletePartner(partner.id, partner.labName)}
+                              className="h-7 w-7 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-full flex items-center justify-center border border-rose-200 transition-colors"
+                              title="Delete Partner"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -711,115 +876,118 @@ export const PathologyPartnersPage: React.FC = () => {
             <motion.div
               initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-background border-l border-border z-50 shadow-2xl flex flex-col"
+              className="fixed right-0 top-0 bottom-0 w-full max-w-lg bg-card border-l border-border z-50 shadow-2xl overflow-y-auto"
             >
-              <div className="p-6 border-b border-border flex items-center justify-between bg-card">
-                <div>
-                  <div className="text-xs font-bold text-primary tracking-widest uppercase">Partner Details</div>
-                  <h2 className="text-xl font-bold text-foreground">{selectedPartner.user.name}</h2>
-                </div>
-                <button onClick={() => setSelectedPartner(null)} className="p-2 rounded-lg hover:bg-muted">
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-6 space-y-5">
-                {/* Status */}
-                <div className={cn(
-                  'flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-bold',
-                  STATUS_CONFIG[selectedPartner.approvalStatus].bg,
-                  STATUS_CONFIG[selectedPartner.approvalStatus].text,
-                  STATUS_CONFIG[selectedPartner.approvalStatus].border,
-                )}>
-                  {React.createElement(STATUS_CONFIG[selectedPartner.approvalStatus].icon, { className: 'h-4 w-4' })}
-                  {STATUS_CONFIG[selectedPartner.approvalStatus].label}
-                  {selectedPartner.rejectionReason && (
-                    <span className="ml-2 font-normal text-xs">- {selectedPartner.rejectionReason}</span>
-                  )}
-                </div>
-
-               
-                <div className="bg-card border border-border rounded-xl p-4 space-y-2">
-                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Personal Info</h3>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span>{selectedPartner.user.mobile}</span>
-                  </div>
-                  {selectedPartner.user.email && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Mail className="h-4 w-4 text-muted-foreground" />
-                      <span>{selectedPartner.user.email}</span>
-                    </div>
-                  )}
-                  {selectedPartner.address && (
-                    <div className="flex items-start gap-2 text-sm">
-                      <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                      <span>{selectedPartner.address}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Lab */}
-                <div className="bg-card border border-border rounded-xl p-4 space-y-2">
-                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Lab Details</h3>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Microscope className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-semibold">{selectedPartner.labName}</span>
-                  </div>
-                  <div className="text-sm text-muted-foreground">Role: {selectedPartner.role}</div>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Star className="h-4 w-4 text-amber-400 fill-amber-400" />
-                    <span className="font-bold">{selectedPartner.rating.toFixed(1)}</span>
-                    <span className="text-xs text-muted-foreground">· {selectedPartner.totalCollections} collections</span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-1">
+              <div className="p-6 space-y-6">
+                {/* Drawer Header */}
+                <div className="flex items-start justify-between">
+                  <div>
                     <span className={cn(
-                      'text-xs font-bold px-2 py-0.5 rounded-full',
-                      selectedPartner.isAvailable ? 'bg-emerald-100 text-emerald-700' : 'bg-muted text-muted-foreground'
+                      'inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-bold border rounded-full mb-2',
+                      STATUS_CONFIG[selectedPartner.approvalStatus].bg,
+                      STATUS_CONFIG[selectedPartner.approvalStatus].text,
+                      STATUS_CONFIG[selectedPartner.approvalStatus].border
                     )}>
-                      {selectedPartner.isAvailable ? '● Available' : '○ Unavailable'}
+                      {STATUS_CONFIG[selectedPartner.approvalStatus].label}
                     </span>
+                    <h2 className="text-xl font-bold text-foreground">{selectedPartner.labName}</h2>
+                    <p className="text-xs text-muted-foreground">{selectedPartner.role} · Code: {selectedPartner.partnerCode || 'N/A'}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => openEditPartner(selectedPartner)}
+                      className="p-2 hover:bg-primary/10 text-primary rounded-lg border border-border transition-colors flex items-center gap-1 text-xs font-bold"
+                    >
+                      <Edit3 className="h-3.5 w-3.5" /> Edit
+                    </button>
+                    <button onClick={() => setSelectedPartner(null)} className="p-2 hover:bg-muted rounded-lg text-muted-foreground">
+                      <X className="h-5 w-5" />
+                    </button>
                   </div>
                 </div>
 
-               {/* Ratings */}
-                <div className="bg-card border border-border rounded-xl p-4">
-                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Ratings & Reviews</h3>
-                  {ratingsLoading ? (
-                    <div className="flex justify-center py-4">
-                      <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                {/* Referral Portal & Commission Shortcut */}
+                <div className="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border border-emerald-200 dark:border-emerald-800/40 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <div className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">Referral Commission Rate</div>
+                    <div className="text-2xl font-black text-emerald-700 dark:text-emerald-300">{selectedPartner.commissionRate ?? 30}% <span className="text-xs font-normal text-muted-foreground">({selectedPartner.paymentCycle || 'MONTHLY'} cycle)</span></div>
+                  </div>
+                  <button
+                    onClick={() => openPortalForPartner(selectedPartner)}
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm flex items-center gap-1.5 transition-all"
+                  >
+                    <DollarSign className="w-4 h-4" /> Open Portal
+                  </button>
+                </div>
+
+                {/* Contact Info */}
+                <div className="bg-muted/40 p-4 rounded-xl border border-border space-y-3">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Contact & Registration</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-primary" />
+                      <span className="font-semibold">{selectedPartner.user.mobile}</span>
                     </div>
-                  ) : !partnerRatings || partnerRatings.totalRatings === 0 ? (
-                    <p className="text-sm text-muted-foreground">No ratings yet.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3">
-                        <span className="text-3xl font-black text-foreground">{partnerRatings.averageRating.toFixed(1)}</span>
-                        <div>
-                          <div className="flex gap-0.5">
-                            {[1,2,3,4,5].map((i: number) => (
-                              <Star key={i} className={cn('h-4 w-4', i <= Math.round(partnerRatings.averageRating) ? 'text-amber-400 fill-amber-400' : 'text-muted-foreground')} />
-                            ))}
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">{partnerRatings.totalRatings} ratings</p>
-                        </div>
+                    {selectedPartner.user.email && (
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-primary" />
+                        <span>{selectedPartner.user.email}</span>
                       </div>
-                      <div className="space-y-1.5">
-                        {[5,4,3,2,1].map((star: number) => {
-                          const count = partnerRatings.breakdown[star] || 0;
-                          const pct = partnerRatings.totalRatings > 0 ? (count / partnerRatings.totalRatings) * 100 : 0;
+                    )}
+                    {selectedPartner.address && (
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-primary shrink-0" />
+                        <span className="text-muted-foreground">{selectedPartner.address}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground pt-1">
+                      <Clock className="h-3.5 w-3.5" />
+                      <span>Registered on {new Date(selectedPartner.createdAt).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Performance & Ratings */}
+                <div className="bg-muted/40 p-4 rounded-xl border border-border space-y-3">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Performance & Quality</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-card p-3 rounded-lg border border-border text-center">
+                      <div className="text-xl font-bold text-foreground">{selectedPartner.totalCollections}</div>
+                      <div className="text-xs text-muted-foreground">Total Collections</div>
+                    </div>
+                    <div className="bg-card p-3 rounded-lg border border-border text-center">
+                      <div className="text-xl font-bold text-amber-500 flex items-center justify-center gap-1">
+                        <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                        {selectedPartner.rating.toFixed(1)}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Rating Score</div>
+                    </div>
+                  </div>
+
+                  {ratingsLoading ? (
+                    <div className="text-center py-3 text-xs text-muted-foreground">Loading reviews...</div>
+                  ) : partnerRatings && (
+                    <div className="space-y-3 pt-2 border-t border-border">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-semibold text-muted-foreground">Rating Breakdown</span>
+                        <span className="text-muted-foreground">{partnerRatings.stats.total} total reviews</span>
+                      </div>
+                      <div className="space-y-1">
+                        {[5, 4, 3, 2, 1].map(stars => {
+                          const count = partnerRatings.stats.breakdown[stars] || 0;
+                          const pct = partnerRatings.stats.total > 0 ? (count / partnerRatings.stats.total) * 100 : 0;
                           return (
-                            <div key={star} className="flex items-center gap-2 text-xs">
-                              <span className="w-3 text-muted-foreground font-bold">{star}</span>
-                              <Star className="h-3 w-3 text-amber-400 fill-amber-400" />
-                              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                            <div key={stars} className="flex items-center gap-2 text-xs">
+                              <span className="w-3 text-muted-foreground font-mono">{stars}★</span>
+                              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                                 <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
                               </div>
-                              <span className="w-4 text-right text-muted-foreground">{count}</span>
+                              <span className="w-5 text-right text-muted-foreground">{count}</span>
                             </div>
                           );
                         })}
                       </div>
+
                       {partnerRatings.reviews.length > 0 && (
                         <div className="space-y-3 pt-2 border-t border-border">
                           <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Recent Reviews</p>
@@ -842,52 +1010,279 @@ export const PathologyPartnersPage: React.FC = () => {
                     </div>
                   )}
                 </div>
-
-                {/* Actions */}
-                <div className="space-y-2">
-                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Actions</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedPartner.approvalStatus === 'PENDING' && (
-                      <>
-                        <button
-                          onClick={() => handleApprove(selectedPartner)}
-                          disabled={isUpdating}
-                          className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1.5"
-                        >
-                          <CheckCircle2 className="h-4 w-4" /> Approve
-                        </button>
-                        <button
-                          onClick={() => setIsRejecting(true)}
-                          disabled={isUpdating}
-                          className="px-4 py-2 bg-rose-600 text-white rounded-lg text-sm font-bold hover:bg-rose-700 disabled:opacity-50 flex items-center gap-1.5"
-                        >
-                          <XCircle className="h-4 w-4" /> Reject
-                        </button>
-                      </>
-                    )}
-                    {selectedPartner.approvalStatus === 'APPROVED' && (
-                      <button
-                        onClick={() => handleSuspend(selectedPartner)}
-                        disabled={isUpdating}
-                        className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-bold hover:bg-orange-600 disabled:opacity-50 flex items-center gap-1.5"
-                      >
-                        <ShieldAlert className="h-4 w-4" /> Suspend Partner
-                      </button>
-                    )}
-                    {(selectedPartner.approvalStatus === 'SUSPENDED' || selectedPartner.approvalStatus === 'REJECTED') && (
-                      <button
-                        onClick={() => handleActivate(selectedPartner)}
-                        disabled={isUpdating}
-                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1.5"
-                      >
-                        <ShieldCheck className="h-4 w-4" /> Reactivate
-                      </button>
-                    )}
-                  </div>
-                </div>
               </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* Modal for Creating / Editing Partner */}
+      <AnimatePresence>
+        {partnerModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-6 border-b border-border flex-shrink-0 bg-muted/20">
+                <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-primary" />
+                  {editingPartner ? 'Edit Tie-up Partner' : 'Add New Tie-up Partner'}
+                </h2>
+                <button
+                  onClick={() => setPartnerModalOpen(false)}
+                  className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Lab Name */}
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-foreground mb-1.5">
+                      Diagnostic Lab / Center Name <span className="text-destructive">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Apex Pathology & Diagnostic Lab"
+                      value={formLabName}
+                      onChange={e => setFormLabName(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-semibold"
+                    />
+                  </div>
+
+                  {/* Contact Person Name */}
+                  <div>
+                    <label className="block text-xs font-bold text-foreground mb-1.5">
+                      Contact Person / Owner Name <span className="text-destructive">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Dr. Rajesh Verma"
+                      value={formContactName}
+                      onChange={e => setFormContactName(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    />
+                  </div>
+
+                  {/* Partner Category / Role */}
+                  <div>
+                    <label className="block text-xs font-bold text-foreground mb-1.5">
+                      Partner Category / Type
+                    </label>
+                    <select
+                      value={formRole}
+                      onChange={e => setFormRole(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium"
+                    >
+                      <option value="PARTNER_LAB">Diagnostic Partner Lab</option>
+                      <option value="COLLECTION_CENTER">Sample Collection Center</option>
+                      <option value="HOSPITAL_TIEUP">Hospital Pathology Tie-up</option>
+                      <option value="CLINIC">Clinic / Nursing Home</option>
+                    </select>
+                  </div>
+
+                  {/* Mobile Number */}
+                  <div>
+                    <label className="block text-xs font-bold text-foreground mb-1.5">
+                      Mobile Number <span className="text-destructive">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">+91</span>
+                      <input
+                        type="tel"
+                        maxLength={10}
+                        placeholder="9876543210"
+                        value={formMobile}
+                        onChange={e => setFormMobile(e.target.value.replace(/\D/g, ''))}
+                        className="w-full pl-12 pr-3.5 py-2.5 rounded-xl border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-mono font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Email Address */}
+                  <div>
+                    <label className="block text-xs font-bold text-foreground mb-1.5">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="lab@example.com"
+                      value={formEmail}
+                      onChange={e => setFormEmail(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    />
+                  </div>
+
+                  {/* Password */}
+                  <div>
+                    <label className="block text-xs font-bold text-foreground mb-1.5">
+                      {editingPartner ? 'New Password (leave blank to keep current)' : 'Account Password'} {!editingPartner && <span className="text-destructive">*</span>}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder={editingPartner ? '••••••••' : 'Enter strong password'}
+                        value={formPassword}
+                        onChange={e => setFormPassword(e.target.value)}
+                        className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Partner Code */}
+                  <div>
+                    <label className="block text-xs font-bold text-foreground mb-1.5">
+                      Partner Code / Reference ID
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="PART-001"
+                      value={formPartnerCode}
+                      onChange={e => setFormPartnerCode(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-mono"
+                    />
+                  </div>
+
+                  {/* Commission Rate (%) Section */}
+                  <div className="md:col-span-2 p-4 bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black text-emerald-800 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+                        <Percent className="w-3.5 h-3.5" /> Referral Commission Rate & Payout
+                      </label>
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200">
+                        {formCommissionRate}% Payout Rate
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-muted-foreground mb-1">
+                          Commission Rate (%)
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.5"
+                            placeholder="30"
+                            value={formCommissionRate}
+                            onChange={e => setFormCommissionRate(Number(e.target.value))}
+                            className="w-full pl-3.5 pr-8 py-2 rounded-xl border border-emerald-300 dark:border-emerald-700 bg-background text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono font-bold"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">%</span>
+                        </div>
+                        {/* Quick preset buttons */}
+                        <div className="flex items-center gap-1.5 mt-2">
+                          {[15, 20, 25, 30, 40, 50].map(pct => (
+                            <button
+                              key={pct}
+                              type="button"
+                              onClick={() => setFormCommissionRate(pct)}
+                              className={cn(
+                                "px-2 py-0.5 rounded text-[10px] font-bold transition-all",
+                                formCommissionRate === pct
+                                  ? "bg-emerald-600 text-white"
+                                  : "bg-background border border-emerald-200 hover:bg-emerald-100/50 text-emerald-800 dark:text-emerald-300"
+                              )}
+                            >
+                              {pct}%
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-muted-foreground mb-1">
+                          Payment & Payout Cycle
+                        </label>
+                        <select
+                          value={formPaymentCycle}
+                          onChange={e => setFormPaymentCycle(e.target.value)}
+                          className="w-full px-3.5 py-2 rounded-xl border border-emerald-300 dark:border-emerald-700 bg-background text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-semibold"
+                        >
+                          <option value="MONTHLY">Monthly (End of Month)</option>
+                          <option value="15_DAYS">Bi-Weekly (15 Days)</option>
+                          <option value="WEEKLY">Weekly (Every Monday)</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Approval Status */}
+                  <div>
+                    <label className="block text-xs font-bold text-foreground mb-1.5">
+                      Approval Status
+                    </label>
+                    <select
+                      value={formApprovalStatus}
+                      onChange={e => setFormApprovalStatus(e.target.value as any)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-semibold"
+                    >
+                      <option value="APPROVED">Approved & Active</option>
+                      <option value="PENDING">Pending Verification</option>
+                      <option value="SUSPENDED">Suspended</option>
+                    </select>
+                  </div>
+
+                  {/* Complete Address */}
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-foreground mb-1.5">
+                      Complete Address / Center Location
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="Shop/Building No, Landmark, Area, City, Pincode"
+                      value={formAddress}
+                      onChange={e => setFormAddress(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-xl border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="flex items-center justify-end gap-3 p-5 border-t border-border flex-shrink-0 bg-muted/20">
+                <button
+                  type="button"
+                  onClick={() => setPartnerModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl border border-border hover:bg-muted text-foreground text-xs font-bold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSavePartner}
+                  disabled={savingPartner}
+                  className="px-6 py-2.5 rounded-xl bg-primary text-white text-xs font-black hover:bg-primary/90 shadow-sm transition-all flex items-center gap-2 disabled:opacity-60"
+                >
+                  {savingPartner ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Saving Partner...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" /> {editingPartner ? 'Update Partner' : 'Create Partner'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

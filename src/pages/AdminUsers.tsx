@@ -6,7 +6,8 @@ import { AdminRole, Permission } from '@/types/rbac';
 import {
   Plus, Pencil, Trash2, Loader2, X, UserCircle2,
   Mail, ShieldCheck, ToggleLeft, ToggleRight,
-  CheckSquare, Square, Stethoscope, Briefcase, UserCheck, Building2
+  CheckSquare, Square, Stethoscope, Briefcase, UserCheck, Building2,
+  Eye, EyeOff
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import toast from 'react-hot-toast';
@@ -80,6 +81,7 @@ export const AdminUsersPage: React.FC = () => {
   const [formEmail, setFormEmail] = useState('');
   const [formMobile, setFormMobile] = useState('');
   const [formPassword, setFormPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [formRoleId, setFormRoleId] = useState('');
   const [formBranchId, setFormBranchId] = useState('');
   const [formFranchiseId, setFormFranchiseId] = useState('');
@@ -88,6 +90,8 @@ export const AdminUsersPage: React.FC = () => {
   const [formQualification, setFormQualification] = useState('');
   const [formRegistrationNo, setFormRegistrationNo] = useState('');
   const [formSignatureUrl, setFormSignatureUrl] = useState('');
+  const [formCommissionRate, setFormCommissionRate] = useState<number>(30);
+  const [formPaymentCycle, setFormPaymentCycle] = useState<string>('MONTHLY');
 
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
   const [selectedPerms, setSelectedPerms] = useState<Set<string>>(new Set());
@@ -124,6 +128,7 @@ export const AdminUsersPage: React.FC = () => {
     setFormEmail('');
     setFormMobile('');
     setFormPassword('');
+    setShowPassword(false);
     setFormBranchId('');
     setFormFranchiseId('');
     setFormDepartment(defaultType === 'EMPLOYEE' ? 'Pathology Lab' : '');
@@ -131,6 +136,8 @@ export const AdminUsersPage: React.FC = () => {
     setFormQualification(defaultType === 'DOCTOR' ? 'MBBS, MD (Pathology)' : '');
     setFormRegistrationNo('');
     setFormSignatureUrl('');
+    setFormCommissionRate(30);
+    setFormPaymentCycle('MONTHLY');
     setSelectedPerms(new Set());
     setIsCustomRole(false);
     setCustomRoleName('');
@@ -153,14 +160,22 @@ export const AdminUsersPage: React.FC = () => {
     setFormEmail(u.user.email);
     setFormMobile(u.user.mobile || '');
     setFormPassword('');
+    setShowPassword(false);
     setFormRoleId(u.role.id);
     setFormBranchId(u.branchId || (u as any).branch?.id || '');
     setFormFranchiseId(u.franchiseId || '');
-    setFormDepartment(u.department || '');
-    setFormDesignation(u.designation || '');
-    setFormQualification(u.qualification || '');
-    setFormRegistrationNo(u.registrationNo || '');
-    setFormSignatureUrl(u.signatureUrl || '');
+    const docData = (u.user as any)?.doctor || (u as any).doctor;
+    setFormDesignation(u.designation || docData?.designation || '');
+    setFormQualification(u.qualification || docData?.qualification || '');
+    setFormRegistrationNo(u.registrationNo || docData?.registrationNo || '');
+    setFormSignatureUrl(u.signatureUrl || docData?.signatureUrl || '');
+    const initialCommRate = docData?.commissionRate !== undefined && docData?.commissionRate !== null
+      ? Number(docData.commissionRate)
+      : ((u as any).commissionRate !== undefined && (u as any).commissionRate !== null
+          ? Number((u as any).commissionRate)
+          : 30);
+    setFormCommissionRate(initialCommRate);
+    setFormPaymentCycle(docData?.paymentCycle || (u as any).paymentCycle || 'MONTHLY');
 
     const currentRole = roles.find(r => r.id === u.role.id) || u.role;
     const rolePerms = new Set(
@@ -279,6 +294,8 @@ export const AdminUsersPage: React.FC = () => {
         qualification: formQualification || undefined,
         registrationNo: formRegistrationNo || undefined,
         signatureUrl: formSignatureUrl || undefined,
+        commissionRate: formCommissionRate !== undefined ? Number(formCommissionRate) : 30,
+        paymentCycle: formPaymentCycle || 'MONTHLY',
       };
       if (formPassword) payload.password = formPassword;
 
@@ -371,12 +388,6 @@ export const AdminUsersPage: React.FC = () => {
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors shadow-sm"
           >
             <Briefcase className="w-4 h-4" /> Add Employee
-          </button>
-          <button
-            onClick={() => openCreate('STAFF')}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold transition-colors shadow-md shadow-primary/20"
-          >
-            <Plus className="w-4 h-4" /> Create User
           </button>
         </div>
       </div>
@@ -620,13 +631,24 @@ export const AdminUsersPage: React.FC = () => {
                   <label className="text-xs font-semibold text-foreground mb-1 block">
                     {editing ? 'New Password (leave blank to keep)' : 'Password *'}
                   </label>
-                  <input
-                    type="password"
-                    value={formPassword}
-                    onChange={e => setFormPassword(e.target.value)}
-                    placeholder="Min 8 characters"
-                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={formPassword}
+                      onChange={e => setFormPassword(e.target.value)}
+                      placeholder={editing ? 'Leave blank to keep current' : 'Min 8 characters'}
+                      className="w-full h-10 pl-3 pr-10 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors"
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -690,6 +712,33 @@ export const AdminUsersPage: React.FC = () => {
                         className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-500/30"
                       />
                       <p className="text-[10px] text-muted-foreground mt-1">If blank, standard digital signature stamp will be used on reports.</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-foreground mb-1 block">Commission Rate (%) *</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={formCommissionRate}
+                          onChange={e => setFormCommissionRate(Number(e.target.value))}
+                          placeholder="30"
+                          className="w-full h-10 pl-3 pr-8 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-500/30 font-bold"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-teal-700 dark:text-teal-300">%</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-foreground mb-1 block">Payment Cycle</label>
+                      <select
+                        value={formPaymentCycle}
+                        onChange={e => setFormPaymentCycle(e.target.value)}
+                        className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-500/30 font-medium"
+                      >
+                        <option value="MONTHLY">Monthly</option>
+                        <option value="15_DAYS">15 Days (Fortnightly)</option>
+                        <option value="WEEKLY">Weekly (7 Days)</option>
+                      </select>
                     </div>
                   </div>
                 </div>

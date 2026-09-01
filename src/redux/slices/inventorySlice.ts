@@ -128,6 +128,24 @@ export const createInventoryItem = createAsyncThunk('inventory/createItem', asyn
   }
 });
 
+export const updateInventoryItem = createAsyncThunk('inventory/updateItem', async ({ id, data }: { id: string; data: any }, { rejectWithValue }) => {
+  try {
+    const res = await api.put(`/inventory/${id}`, data);
+    return res.data;
+  } catch (e: any) {
+    return rejectWithValue(e.response?.data?.error || 'Failed to update item');
+  }
+});
+
+export const deleteInventoryItem = createAsyncThunk('inventory/deleteItem', async (id: string, { rejectWithValue }) => {
+  try {
+    await api.delete(`/inventory/${id}`);
+    return id;
+  } catch (e: any) {
+    return rejectWithValue(e.response?.data?.error || 'Failed to delete item');
+  }
+});
+
 export const recordStockIn = createAsyncThunk('inventory/stockIn', async (data: any, { rejectWithValue }) => {
   try {
     const res = await api.post('/inventory/stock-in', data);
@@ -181,6 +199,16 @@ const inventorySlice = createSlice({
       .addCase(createInventoryItem.pending, (state) => { state.saving = true; })
       .addCase(createInventoryItem.fulfilled, (state, action) => { state.saving = false; state.items.unshift(action.payload); })
       .addCase(createInventoryItem.rejected, (state, action) => { state.saving = false; state.error = action.payload as string; })
+      .addCase(updateInventoryItem.pending, (state) => { state.saving = true; })
+      .addCase(updateInventoryItem.fulfilled, (state, action) => {
+        state.saving = false;
+        const idx = state.items.findIndex(i => i.id === action.payload.id);
+        if (idx !== -1) state.items[idx] = { ...state.items[idx], ...action.payload };
+      })
+      .addCase(updateInventoryItem.rejected, (state, action) => { state.saving = false; state.error = action.payload as string; })
+      .addCase(deleteInventoryItem.fulfilled, (state, action) => {
+        state.items = state.items.filter(i => i.id !== action.payload);
+      })
       .addCase(recordStockIn.fulfilled, (state, action) => {
         const idx = state.items.findIndex(i => i.id === action.payload.id);
         if (idx !== -1) state.items[idx] = { ...state.items[idx], ...action.payload };

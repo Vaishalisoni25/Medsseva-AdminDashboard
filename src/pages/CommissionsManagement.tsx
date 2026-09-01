@@ -26,10 +26,19 @@ export const CommissionsManagementPage: React.FC = () => {
     setLoading(true);
     try {
       const res = await commissionService.getAdminCommissions(selectedPeriod);
-      setData(res);
+      if (res && typeof res === 'object') {
+        setData({
+          doctors: Array.isArray(res.doctors) ? res.doctors : [],
+          partners: Array.isArray(res.partners) ? res.partners : [],
+          recentCommissions: Array.isArray(res.recentCommissions) ? res.recentCommissions : [],
+        });
+      } else {
+        setData({ doctors: [], partners: [], recentCommissions: [] });
+      }
     } catch (err: any) {
       console.error('Failed to load admin commissions:', err);
       toast.error('Failed to load commissions data.');
+      setData({ doctors: [], partners: [], recentCommissions: [] });
     } finally {
       setLoading(false);
     }
@@ -66,7 +75,7 @@ export const CommissionsManagementPage: React.FC = () => {
     }
   };
 
-  const list = activeTab === 'DOCTORS' ? data.doctors : data.partners;
+  const list = (activeTab === 'DOCTORS' ? data?.doctors : data?.partners) || [];
   const filteredList = list.filter((item: any) => {
     const q = search.toLowerCase();
     return (
@@ -131,7 +140,7 @@ export const CommissionsManagementPage: React.FC = () => {
               activeTab === 'DOCTORS' ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <Stethoscope className="w-4 h-4" /> Doctor Portals ({data.doctors.length})
+            <Stethoscope className="w-4 h-4" /> Doctor Portals ({data?.doctors?.length || 0})
           </button>
           <button
             onClick={() => setActiveTab('PARTNERS')}
@@ -139,7 +148,7 @@ export const CommissionsManagementPage: React.FC = () => {
               activeTab === 'PARTNERS' ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <Building2 className="w-4 h-4" /> Tie-up Partners ({data.partners.length})
+            <Building2 className="w-4 h-4" /> Tie-up Partners ({data?.partners?.length || 0})
           </button>
         </div>
 
@@ -177,81 +186,87 @@ export const CommissionsManagementPage: React.FC = () => {
       </div>
 
       {/* Table */}
-      <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-muted/50 text-muted-foreground uppercase text-[10px] tracking-wider border-b border-border">
-              <tr>
-                <th className="py-3 px-4">Code</th>
-                <th className="py-3 px-4">{activeTab === 'DOCTORS' ? 'Doctor Name' : 'Partner Lab'}</th>
-                <th className="py-3 px-4">Specialization / Role</th>
-                <th className="py-3 px-4 text-center">Commission %</th>
-                <th className="py-3 px-4 text-center">Payment Cycle</th>
-                <th className="py-3 px-4 text-right">Referral Samples</th>
-                <th className="py-3 px-4 text-right">Calculated Commission</th>
-                <th className="py-3 px-4 text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {filteredList.length === 0 ? (
+      {loading ? (
+        <div className="bg-card border border-border rounded-2xl p-12 text-center text-muted-foreground flex items-center justify-center gap-2">
+          <Loader2 className="w-5 h-5 animate-spin text-primary" /> Loading commissions data...
+        </div>
+      ) : (
+        <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-muted/50 text-muted-foreground uppercase text-[10px] tracking-wider border-b border-border">
                 <tr>
-                  <td colSpan={8} className="py-10 text-center text-muted-foreground">
-                    No {activeTab.toLowerCase()} found.
-                  </td>
+                  <th className="py-3 px-4">Code</th>
+                  <th className="py-3 px-4">{activeTab === 'DOCTORS' ? 'Doctor Name' : 'Partner Lab'}</th>
+                  <th className="py-3 px-4">Specialization / Role</th>
+                  <th className="py-3 px-4 text-center">Commission %</th>
+                  <th className="py-3 px-4 text-center">Payment Cycle</th>
+                  <th className="py-3 px-4 text-right">Referral Samples</th>
+                  <th className="py-3 px-4 text-right">Calculated Commission</th>
+                  <th className="py-3 px-4 text-center">Actions</th>
                 </tr>
-              ) : (
-                filteredList.map((item: any) => (
-                  <tr key={item.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="py-3.5 px-4 font-mono font-bold text-primary">
-                      {item.code}
-                    </td>
-
-                    <td className="py-3.5 px-4 font-bold text-foreground">
-                      {item.name}
-                      <div className="text-[10px] text-muted-foreground font-normal">
-                        {item.branchName}
-                      </div>
-                    </td>
-
-                    <td className="py-3.5 px-4 text-muted-foreground">
-                      {item.specialization || item.qualification || '-'}
-                    </td>
-
-                    <td className="py-3.5 px-4 text-center">
-                      <span className="bg-emerald-50 border border-emerald-200 text-emerald-800 font-extrabold px-2 py-0.5 rounded text-[11px]">
-                        {item.commissionRate}%
-                      </span>
-                    </td>
-
-                    <td className="py-3.5 px-4 text-center">
-                      <span className="bg-blue-50 border border-blue-200 text-blue-800 font-bold px-2 py-0.5 rounded text-[10px] uppercase">
-                        {item.paymentCycle}
-                      </span>
-                    </td>
-
-                    <td className="py-3.5 px-4 text-right font-bold text-foreground font-mono">
-                      {item.totalSamples}
-                    </td>
-
-                    <td className="py-3.5 px-4 text-right font-bold text-emerald-600 font-mono">
-                      ₹{item.totalCommission?.toLocaleString('en-IN')}
-                    </td>
-
-                    <td className="py-3.5 px-4 text-center">
-                      <button
-                        onClick={() => handleOpenEdit(item)}
-                        className="px-3 py-1 rounded-lg border border-border hover:bg-muted text-xs font-bold inline-flex items-center gap-1 transition-colors"
-                      >
-                        <Settings className="w-3.5 h-3.5" /> Configure
-                      </button>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filteredList.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-10 text-center text-muted-foreground">
+                      No {activeTab.toLowerCase()} found.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  filteredList.map((item: any) => (
+                    <tr key={item.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="py-3.5 px-4 font-mono font-bold text-primary">
+                        {item.code}
+                      </td>
+
+                      <td className="py-3.5 px-4 font-bold text-foreground">
+                        {item.name}
+                        <div className="text-[10px] text-muted-foreground font-normal">
+                          {item.branchName}
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-muted-foreground">
+                        {item.specialization || item.qualification || '-'}
+                      </td>
+
+                      <td className="py-3.5 px-4 text-center">
+                        <span className="bg-emerald-50 border border-emerald-200 text-emerald-800 font-extrabold px-2 py-0.5 rounded text-[11px]">
+                          {item.commissionRate}%
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-center">
+                        <span className="bg-blue-50 border border-blue-200 text-blue-800 font-bold px-2 py-0.5 rounded text-[10px] uppercase">
+                          {item.paymentCycle}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-right font-bold text-foreground font-mono">
+                        {item.totalSamples}
+                      </td>
+
+                      <td className="py-3.5 px-4 text-right font-bold text-emerald-600 font-mono">
+                        ₹{item.totalCommission?.toLocaleString('en-IN')}
+                      </td>
+
+                      <td className="py-3.5 px-4 text-center">
+                        <button
+                          onClick={() => handleOpenEdit(item)}
+                          className="px-3 py-1 rounded-lg border border-border hover:bg-muted text-xs font-bold inline-flex items-center gap-1 transition-colors"
+                        >
+                          <Settings className="w-3.5 h-3.5" /> Configure
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Edit Commission Modal */}
       <AnimatePresence>

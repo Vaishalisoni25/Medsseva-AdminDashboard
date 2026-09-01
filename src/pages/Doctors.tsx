@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppSelector } from '@/redux/hooks';
-import { doctorService, commissionService } from '@/services/api';
+import { useRolesQuery, useAllPermissionsQuery, useBranchesQuery } from '@/hooks/useAdminQueries';
+import { doctorService, commissionService, adminUserService, rbacService } from '@/services/api';
 import { branchService, Branch } from '@/services/branch.service';
+import { AdminRole, Permission } from '@/types/rbac';
 import {
   Stethoscope, Plus, Pencil, Trash2, Search, X, Loader2,
-  Building2, CheckCircle2, ShieldCheck, Image as ImageIcon,
-  FileSignature, Eye, UserCheck, ToggleLeft, ToggleRight,
-  DollarSign, Activity, TrendingUp, FileText, Settings, RefreshCw
+  Building2, CheckCircle2,
+  FileSignature, Eye, EyeOff, UserCheck,
+  DollarSign, Activity, TrendingUp, FileText, RefreshCw,
+  Briefcase, CheckSquare, Square
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import toast from 'react-hot-toast';
@@ -26,6 +29,12 @@ export interface DoctorRecord {
   commissionRate?: number;
   paymentCycle?: string;
   isActive: boolean;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+    mobile?: string;
+  };
   branch?: {
     id: string;
     name: string;
@@ -48,6 +57,29 @@ const COMMON_SPECIALIZATIONS = [
   'Microbiology & Biochemistry',
 ];
 
+const MODULE_PERMISSIONS: { module: string; label: string; actions: string[] }[] = [
+  { module: 'dashboard', label: 'Dashboard', actions: ['view'] },
+  { module: 'users', label: 'User Management', actions: ['view', 'create', 'edit', 'delete'] },
+  { module: 'doctors', label: 'Doctor Management', actions: ['view', 'create', 'edit', 'delete'] },
+  { module: 'staff', label: 'Employee & Staff', actions: ['view', 'create', 'edit', 'delete'] },
+  { module: 'lab_tests', label: 'Test Catalog', actions: ['view', 'create', 'edit', 'delete'] },
+  { module: 'packages', label: 'Packages', actions: ['view', 'create', 'edit', 'delete'] },
+  { module: 'bookings', label: 'Bookings', actions: ['view', 'create', 'edit', 'delete', 'assign'] },
+  { module: 'samples', label: 'Sample Queue', actions: ['view', 'edit', 'assign'] },
+  { module: 'reports', label: 'Report Approval', actions: ['view', 'approve', 'edit', 'delete'] },
+  { module: 'payments', label: 'Payments', actions: ['view', 'create', 'edit', 'delete'] },
+  { module: 'coupons', label: 'Coupons & Offers', actions: ['view', 'create', 'edit', 'delete'] },
+  { module: 'franchise', label: 'Franchise Tracking', actions: ['view', 'create', 'edit', 'delete'] },
+  { module: 'inventory', label: 'LIMS Inventory', actions: ['view', 'create', 'edit', 'delete'] },
+  { module: 'notifications', label: 'Notifications & SMS', actions: ['view', 'create', 'edit', 'delete'] },
+  { module: 'cms', label: 'CMS Management', actions: ['view', 'create', 'edit', 'delete'] },
+  { module: 'support', label: 'CRM Support', actions: ['view', 'create', 'edit', 'delete'] },
+  { module: 'settings', label: 'Settings', actions: ['view', 'edit'] },
+  { module: 'roles_permissions', label: 'Roles & Permissions', actions: ['view', 'create', 'edit', 'delete'] },
+  { module: 'analytics', label: 'Analytics', actions: ['view', 'export'] },
+  { module: 'audit_logs', label: 'API Monitor Logs', actions: ['view'] },
+];
+
 export const DoctorsPage: React.FC = () => {
   const currentUser = useAppSelector(state => state.auth.user);
   const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'SUPER_ADMIN' || (currentUser as any)?.isSuperAdmin;
@@ -56,6 +88,8 @@ export const DoctorsPage: React.FC = () => {
   const [activeView, setActiveView] = useState<'DIRECTORY' | 'PORTAL'>('DIRECTORY');
   const [doctors, setDoctors] = useState<DoctorRecord[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [roles, setRoles] = useState<AdminRole[]>([]);
+  const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [specFilter, setSpecFilter] = useState('ALL');
@@ -74,18 +108,36 @@ export const DoctorsPage: React.FC = () => {
   const [previewSignature, setPreviewSignature] = useState<DoctorRecord | null>(null);
 
   // Form State
+  const [userType, setUserType] = useState<'STAFF' | 'DOCTOR' | 'EMPLOYEE' | 'ADMIN'>('DOCTOR');
   const [formName, setFormName] = useState('');
-  const [formCode, setFormCode] = useState('');
-  const [formSpecialization, setFormSpecialization] = useState('Pathology');
-  const [customSpec, setCustomSpec] = useState('');
-  const [formRegNo, setFormRegNo] = useState('');
-  const [formQualification, setFormQualification] = useState('');
-  const [formDesignation, setFormDesignation] = useState('Consultant Pathologist');
+  const [formEmail, setFormEmail] = useState('');
+  const [formMobile, setFormMobile] = useState('');
+  const [formPassword, setFormPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [formRoleId, setFormRoleId] = useState('');
   const [formBranchId, setFormBranchId] = useState('');
+  const [formFranchiseId, setFormFranchiseId] = useState('');
+  const [formDepartment, setFormDepartment] = useState('');
+  const [formDesignation, setFormDesignation] = useState('');
+  const [formQualification, setFormQualification] = useState('');
+  const [formRegistrationNo, setFormRegistrationNo] = useState('');
+  const [formSignatureUrl, setFormSignatureUrl] = useState('');
   const [formCommissionRate, setFormCommissionRate] = useState<number>(30);
   const [formPaymentCycle, setFormPaymentCycle] = useState<string>('MONTHLY');
-  const [formPhotoUrl, setFormPhotoUrl] = useState('');
-  const [formSignatureUrl, setFormSignatureUrl] = useState('');
+
+  const [selectedPerms, setSelectedPerms] = useState<Set<string>>(new Set());
+  const [isCustomRole, setIsCustomRole] = useState(false);
+  const [customRoleName, setCustomRoleName] = useState('');
+
+  const { data: rolesData } = useRolesQuery();
+  const { data: permsData } = useAllPermissionsQuery();
+  const { data: branchesData } = useBranchesQuery();
+
+  useEffect(() => {
+    if (rolesData) setRoles(rolesData.filter((r: AdminRole) => r.slug !== 'super_admin'));
+    if (permsData) setAllPermissions(permsData);
+    if (branchesData) setBranches(branchesData);
+  }, [rolesData, permsData, branchesData]);
 
   const loadData = async () => {
     setLoading(true);
@@ -141,60 +193,190 @@ export const DoctorsPage: React.FC = () => {
     loadDoctorPortal(doc.id, portalPeriod);
   };
 
-  const openCreate = () => {
+  const openCreate = (defaultType: 'DOCTOR' | 'EMPLOYEE' | 'STAFF' | 'ADMIN' = 'DOCTOR') => {
     setEditing(null);
+    setUserType(defaultType);
     setFormName('');
-    setFormSpecialization('Pathology');
-    setCustomSpec('');
-    setFormRegNo('');
-    setFormQualification('MBBS, MD (Pathology)');
-    setFormDesignation('Senior Consultant Pathologist');
+    setFormEmail('');
+    setFormMobile('');
+    setFormPassword('');
+    setShowPassword(false);
     setFormBranchId(userBranchId || '');
-    setFormPhotoUrl('');
+    setFormFranchiseId('');
+    setFormDepartment(defaultType === 'EMPLOYEE' ? 'Pathology Lab' : '');
+    setFormDesignation(defaultType === 'DOCTOR' ? 'Consultant Pathologist' : (defaultType === 'EMPLOYEE' ? 'Lab Technician' : ''));
+    setFormQualification(defaultType === 'DOCTOR' ? 'MBBS, MD (Pathology)' : '');
+    setFormRegistrationNo('');
     setFormSignatureUrl('');
+    setFormCommissionRate(30);
+    setFormPaymentCycle('MONTHLY');
+    setSelectedPerms(new Set());
+    setIsCustomRole(false);
+    setCustomRoleName('');
+
+    if (defaultType === 'DOCTOR') {
+      const docRole = roles.find(r => r.name.toLowerCase().includes('pathologist') || r.slug.includes('pathologist'));
+      setFormRoleId(docRole?.id || roles[0]?.id || '');
+    } else {
+      setFormRoleId(roles[0]?.id || '');
+    }
+
     setModalOpen(true);
   };
 
   const openEdit = (d: DoctorRecord) => {
     setEditing(d);
+    setUserType('DOCTOR');
     setFormName(d.name);
-    if (COMMON_SPECIALIZATIONS.includes(d.specialization || '')) {
-      setFormSpecialization(d.specialization || 'Pathology');
-      setCustomSpec('');
-    } else {
-      setFormSpecialization('CUSTOM');
-      setCustomSpec(d.specialization || '');
-    }
-    setFormRegNo(d.registrationNo);
-    setFormQualification(d.qualification);
-    setFormDesignation(d.designation || '');
-    setFormBranchId(d.branchId || '');
-    setFormPhotoUrl(d.photoUrl || '');
+    setFormEmail(d.user?.email || (d as any).email || '');
+    setFormMobile(d.user?.mobile || (d as any).mobile || '');
+    setFormPassword('');
+    setShowPassword(false);
+    setFormRegistrationNo(d.registrationNo || '');
+    setFormQualification(d.qualification || 'MBBS, MD (Pathology)');
+    setFormDesignation(d.designation || 'Consultant Pathologist');
+    setFormBranchId(d.branchId || (d.branch?.id) || '');
     setFormSignatureUrl(d.signatureUrl || '');
+    setFormCommissionRate(d.commissionRate !== undefined && d.commissionRate !== null ? Number(d.commissionRate) : 30);
+    setFormPaymentCycle(d.paymentCycle || 'MONTHLY');
+    setFormFranchiseId('');
+    setFormDepartment('');
+
+    // Prepopulate existing role and permissions
+    const existingRoleId = (d.user as any)?.adminUser?.roleId || (d.user as any)?.adminUser?.role?.id || (d as any).roleId || (d as any).role?.id;
+    const matchedRole = roles.find(r => r.id === existingRoleId) || roles.find(r => r.name.toLowerCase().includes('pathologist') || r.slug.includes('pathologist')) || roles[0];
+    const currentRoleId = matchedRole?.id || existingRoleId || '';
+    setFormRoleId(currentRoleId);
+
+    const activeRole = roles.find(r => r.id === currentRoleId) || (d.user as any)?.adminUser?.role || matchedRole;
+    if (activeRole) {
+      const perms = new Set(
+        ((activeRole as any)?.permissions || []).map((rp: any) => rp.permission?.id || rp.permissionId || rp.id)
+      );
+      setSelectedPerms(perms);
+    } else {
+      setSelectedPerms(new Set());
+    }
+
+    setIsCustomRole(false);
+    setCustomRoleName('');
     setModalOpen(true);
   };
 
+  const handleUserTypeChange = (type: 'STAFF' | 'DOCTOR' | 'EMPLOYEE' | 'ADMIN') => {
+    setUserType(type);
+    if (type === 'DOCTOR') {
+      if (!formDesignation) setFormDesignation('Senior Pathologist');
+      if (!formQualification) setFormQualification('MBBS, MD (Pathology)');
+      const docRole = roles.find(r => r.name.toLowerCase().includes('pathologist') || r.slug.includes('pathologist'));
+      if (docRole) setFormRoleId(docRole.id);
+    } else if (type === 'EMPLOYEE') {
+      if (!formDesignation) setFormDesignation('Lab Technician');
+      if (!formDepartment) setFormDepartment('Biochemistry / Hematology');
+    }
+  };
+
+  const togglePerm = (permId: string) => {
+    setSelectedPerms(prev => {
+      const next = new Set(prev);
+      next.has(permId) ? next.delete(permId) : next.add(permId);
+      return next;
+    });
+  };
+
+  const toggleModuleAll = (moduleKey: string) => {
+    const modDef = MODULE_PERMISSIONS.find(m => m.module === moduleKey);
+    if (!modDef) return;
+    const modulePerms = allPermissions.filter(p =>
+      (p.module === moduleKey || (moduleKey === 'lab_tests' && p.module === 'tests') || (moduleKey === 'audit_logs' && p.module === 'logs')) &&
+      modDef.actions.some(act => act === p.action || (act === 'edit' && p.action === 'update') || (act === 'update' && p.action === 'edit'))
+    );
+    const allSelected = modulePerms.length > 0 && modulePerms.every(p => selectedPerms.has(p.id));
+    setSelectedPerms(prev => {
+      const next = new Set(prev);
+      modulePerms.forEach(p => allSelected ? next.delete(p.id) : next.add(p.id));
+      return next;
+    });
+  };
+
+  const handleRoleChange = (roleId: string) => {
+    if (roleId === 'custom') {
+      setIsCustomRole(true);
+      setFormRoleId('');
+      setSelectedPerms(new Set());
+      return;
+    }
+    setIsCustomRole(false);
+    setFormRoleId(roleId);
+    const role = roles.find(r => r.id === roleId);
+    if (role) {
+      const perms = new Set(
+        ((role as any).permissions || []).map((rp: any) => rp.permission?.id || rp.permissionId || rp.id)
+      );
+      setSelectedPerms(perms);
+    }
+  };
+
   const handleSave = async () => {
-    if (!formName.trim() || !formRegNo.trim() || !formQualification.trim()) {
-      toast.error('Doctor Name, Registration No., and Qualification are required');
+    if (!formName) {
+      toast.error('Doctor Name is required');
+      return;
+    }
+    if (!editing && !formEmail) {
+      toast.error('Email Address is required');
+      return;
+    }
+    if (!editing && !formPassword) {
+      toast.error('Password is required');
+      return;
+    }
+    if (formMobile && !/^[6-9]\d{9}$/.test(formMobile.trim())) {
+      toast.error('Enter a valid 10-digit mobile number');
+      return;
+    }
+    if (userType === 'DOCTOR' && !formRegistrationNo) {
+      toast.error('Doctor Registration Number is required');
+      return;
+    }
+    if (isCustomRole && !customRoleName.trim()) {
+      toast.error('Enter a name for the custom role');
       return;
     }
 
-    const specialization = formSpecialization === 'CUSTOM' ? customSpec.trim() : formSpecialization;
-
-    const payload = {
-      name: formName.trim(),
-      registrationNo: formRegNo.trim(),
-      qualification: formQualification.trim(),
-      specialization: specialization || 'General Medicine',
-      designation: formDesignation.trim() || 'Consultant',
-      branchId: formBranchId || null,
-      photoUrl: formPhotoUrl.trim() || null,
-      signatureUrl: formSignatureUrl.trim() || null,
-    };
-
     setSaving(true);
     try {
+      let roleId = formRoleId;
+      if (isCustomRole) {
+        try {
+          const newRole = await rbacService.createRole({
+            name: customRoleName.trim(),
+            description: `Custom role for ${formName}`,
+            permissionIds: Array.from(selectedPerms),
+          });
+          roleId = newRole.id;
+        } catch (rErr) {
+          console.warn('Custom role create error:', rErr);
+        }
+      }
+
+      const payload: any = {
+        name: formName,
+        email: formEmail.trim() || undefined,
+        mobile: formMobile.trim() || undefined,
+        roleId: roleId || undefined,
+        userType,
+        branchId: formBranchId || undefined,
+        franchiseId: formFranchiseId || undefined,
+        department: formDepartment || undefined,
+        designation: formDesignation || undefined,
+        qualification: formQualification || undefined,
+        registrationNo: formRegistrationNo || undefined,
+        signatureUrl: formSignatureUrl || undefined,
+        commissionRate: Number(formCommissionRate) || 30,
+        paymentCycle: formPaymentCycle || 'MONTHLY',
+      };
+      if (formPassword) payload.password = formPassword;
+
       if (editing) {
         await doctorService.updateDoctor(editing.id, payload);
         toast.success('Doctor updated successfully');
@@ -222,10 +404,11 @@ export const DoctorsPage: React.FC = () => {
   };
 
   const handleDelete = async (d: DoctorRecord) => {
-    if (!confirm(`Are you sure you want to deactivate Dr. ${d.name}?`)) return;
+    if (!confirm(`Are you sure you want to delete Dr. ${d.name}?`)) return;
     try {
       await doctorService.deleteDoctor(d.id);
-      toast.success('Doctor removed');
+      toast.success('Doctor deleted successfully');
+      setDoctors(prev => prev.filter(doc => doc.id !== d.id));
       loadData();
     } catch (e: any) {
       toast.error(e.response?.data?.error || 'Failed to delete doctor');
@@ -248,67 +431,69 @@ export const DoctorsPage: React.FC = () => {
         return (
           d.name.toLowerCase().includes(q) ||
           d.registrationNo.toLowerCase().includes(q) ||
-          d.qualification?.toLowerCase().includes(q) ||
-          d.specialization?.toLowerCase().includes(q) ||
-          d.branch?.name.toLowerCase().includes(q)
+          d.qualification.toLowerCase().includes(q) ||
+          (d.code && d.code.toLowerCase().includes(q))
         );
       }
       return true;
     });
-  }, [baseDoctors, search, specFilter, branchFilter]);
+  }, [baseDoctors, specFilter, branchFilter, search]);
 
   return (
     <div className="space-y-6">
-      {/* Top Header & View Switcher */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
+      {/* Header with Title and Mode Switcher */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-teal-500/10 flex items-center justify-center text-teal-600">
+          <div className="w-10 h-10 rounded-xl bg-teal-50 dark:bg-teal-950/40 border border-teal-500/20 text-teal-600 flex items-center justify-center font-bold shadow-sm">
             <Stethoscope className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-foreground">Doctors Management & Referral Portal</h1>
+            <h1 className="text-xl font-bold text-foreground">Doctor Management & Portal</h1>
             <p className="text-xs text-muted-foreground">Manage doctor profiles, referred samples, test-wise 30% commissions & lab reports</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center bg-card border border-border p-1 rounded-xl shadow-sm">
             <button
-              onClick={() => setActiveView('DIRECTORY')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeView === 'DIRECTORY' ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              onClick={() => {
+                setActiveView('DIRECTORY');
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeView === 'DIRECTORY'
+                  ? 'bg-teal-600 text-white shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              Doctor Directory
+              <UserCheck className="w-3.5 h-3.5" /> Doctor Directory
             </button>
             <button
               onClick={() => {
                 setActiveView('PORTAL');
                 loadDoctorPortal(selectedDoctorId, portalPeriod);
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeView === 'PORTAL' ? 'bg-teal-600 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeView === 'PORTAL'
+                  ? 'bg-teal-600 text-white shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <DollarSign className="w-3.5 h-3.5" /> Referral & Commission Portal
+              <Activity className="w-3.5 h-3.5" /> Doctor Portal View
             </button>
           </div>
 
-          {activeView === 'DIRECTORY' && (
-            <button
-              onClick={openCreate}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold transition-colors shadow-md shadow-teal-600/20"
-            >
-              <Plus className="w-4 h-4" /> Add Doctor
-            </button>
-          )}
+          <button
+            onClick={() => openCreate('DOCTOR')}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold transition-colors shadow-md shadow-teal-600/20"
+          >
+            <Plus className="w-4 h-4" /> Add Doctor
+          </button>
         </div>
       </div>
 
-      {/* VIEW 1: DOCTOR REFERRAL & COMMISSION PORTAL */}
+      {/* VIEW 1: PORTAL VIEW */}
       {activeView === 'PORTAL' ? (
         <div className="space-y-6">
-          {/* Doctor Selector & Controls Bar */}
           <div className="bg-card border border-border rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3">
               <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Select Doctor:</div>
@@ -326,8 +511,15 @@ export const DoctorsPage: React.FC = () => {
                   </option>
                 ))}
               </select>
+              <button
+                type="button"
+                onClick={() => openCreate('DOCTOR')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-900/60 text-teal-700 dark:text-teal-300 hover:bg-teal-100 text-xs font-bold transition-colors"
+                title="Add New Doctor"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add Doctor
+              </button>
             </div>
-
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border text-xs">
                 {[
@@ -352,17 +544,14 @@ export const DoctorsPage: React.FC = () => {
                   </button>
                 ))}
               </div>
-
               <button
                 onClick={() => loadDoctorPortal(selectedDoctorId, portalPeriod)}
                 className="p-2 rounded-xl bg-card border border-border hover:bg-muted text-foreground transition-colors"
-                title="Refresh Portal Data"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${portalLoading ? 'animate-spin' : ''}`} />
               </button>
             </div>
           </div>
-
           {/* Doctor Overview Banner */}
           <div className="bg-gradient-to-r from-teal-900/10 via-card to-card border border-teal-500/30 rounded-2xl p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
@@ -545,38 +734,6 @@ export const DoctorsPage: React.FC = () => {
       ) : (
         /* VIEW 2: DOCTOR DIRECTORY */
         <>
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-teal-50 dark:bg-teal-950/40 text-teal-600 flex items-center justify-center font-bold">
-                <Stethoscope className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Total Registered Doctors</div>
-                <div className="text-lg font-black text-foreground">{doctors.length}</div>
-              </div>
-            </div>
-            <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center font-bold">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Active Clinical Verifiers</div>
-                <div className="text-lg font-black text-foreground">{doctors.filter(d => d.isActive).length}</div>
-              </div>
-            </div>
-            <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 flex items-center justify-center font-bold">
-                <Building2 className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Branches Covered</div>
-                <div className="text-lg font-black text-foreground">{branches.length}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Filter and Search Bar */}
           <div className="flex flex-col md:flex-row items-center justify-between gap-3 bg-card border border-border rounded-xl p-3">
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
               <select
@@ -602,114 +759,112 @@ export const DoctorsPage: React.FC = () => {
               </select>
             </div>
 
-            <div className="w-full md:w-72 relative">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search by Name, Reg No, Specialization..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="w-full text-xs pl-8 pr-3 py-1.5 bg-background border border-border rounded-lg outline-none focus:ring-1 focus:ring-teal-500"
-              />
+            <div className="w-full md:w-64">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search doctors, reg no..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="w-full text-xs pl-8 pr-3 py-1.5 bg-background border border-border rounded-lg outline-none focus:border-teal-500 text-foreground"
+                />
+              </div>
             </div>
           </div>
 
           {/* Doctors Table */}
           {loading ? (
-            <div className="bg-card border border-border rounded-2xl p-12 text-center text-muted-foreground text-sm flex items-center justify-center gap-2">
-              <Loader2 className="w-5 h-5 animate-spin text-teal-600" /> Loading Doctors Directory...
+            <div className="bg-card border border-border rounded-2xl p-12 text-center text-muted-foreground flex items-center justify-center gap-2">
+              <Loader2 className="w-5 h-5 animate-spin text-teal-600" /> Loading doctor directory...
             </div>
           ) : (
-            <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-muted/60 text-muted-foreground uppercase text-[10px] tracking-wider border-b border-border">
                   <tr>
-                    <th className="px-5 py-3.5 text-left">Doctor & Specialization</th>
-                    <th className="px-5 py-3.5 text-left">Registration No.</th>
-                    <th className="px-5 py-3.5 text-left">Qualification & Role</th>
-                    <th className="px-5 py-3.5 text-left">Assigned Branch</th>
-                    <th className="px-5 py-3.5 text-center">Referral Portal</th>
-                    <th className="px-5 py-3.5 text-left">Status</th>
-                    <th className="px-5 py-3.5 text-right">Actions</th>
+                    <th className="py-3 px-5">Doctor Details</th>
+                    <th className="py-3 px-4">Specialization & Role</th>
+                    <th className="py-3 px-4">Branch / Area</th>
+                    <th className="py-3 px-4 text-center">Digital Signature</th>
+                    <th className="py-3 px-4 text-center">Portal & Status</th>
+                    <th className="py-3 px-5 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border/50">
+                <tbody className="divide-y divide-border">
                   {filteredDoctors.map(d => (
                     <tr key={d.id} className="hover:bg-muted/20 transition-colors">
-                      {/* Doctor Profile */}
-                      <td className="px-5 py-3.5">
+                      <td className="py-3.5 px-5">
                         <div className="flex items-center gap-3">
-                          {d.photoUrl ? (
-                            <img
-                              src={d.photoUrl}
-                              alt={d.name}
-                              className="w-10 h-10 rounded-full object-cover border border-teal-200"
-                            />
-                          ) : (
-                            <div className="w-10 h-10 rounded-full bg-teal-100 dark:bg-teal-950 text-teal-700 dark:text-teal-300 flex items-center justify-center font-bold text-xs border border-teal-200">
-                              {d.name.replace(/^Dr\.\s*/i, '').slice(0, 2).toUpperCase()}
-                            </div>
-                          )}
+                          <div className="w-9 h-9 rounded-full bg-teal-50 dark:bg-teal-950/50 border border-teal-500/20 text-teal-700 dark:text-teal-300 font-bold flex items-center justify-center text-xs flex-shrink-0 overflow-hidden">
+                            {d.photoUrl ? (
+                              <img src={d.photoUrl} alt={d.name} className="w-full h-full object-cover" />
+                            ) : (
+                              `Dr.`
+                            )}
+                          </div>
                           <div>
-                            <div className="font-semibold text-foreground">{d.name}</div>
-                            <span className="inline-block mt-0.5 text-[10px] px-2 py-0.5 rounded-full font-bold bg-teal-50 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300 border border-teal-200/60">
-                              {d.specialization || 'Clinical Doctor'}
-                            </span>
+                            <div className="font-bold text-foreground text-sm">Dr. {d.name}</div>
+                            <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                              <span className="font-mono text-teal-600 dark:text-teal-400 font-semibold">{d.registrationNo}</span>
+                              <span>•</span>
+                              <span>{d.qualification}</span>
+                            </div>
                           </div>
                         </div>
                       </td>
 
-                      {/* Reg No */}
-                      <td className="px-5 py-3.5">
-                        <span className="font-mono text-xs font-bold text-teal-800 dark:text-teal-300 bg-muted px-2 py-1 rounded">
-                          {d.registrationNo}
+                      <td className="py-3.5 px-4">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200/60 inline-block mb-0.5">
+                          {d.specialization || 'Pathology'}
                         </span>
+                        <div className="text-[11px] text-muted-foreground">{d.designation || 'Senior Consultant'}</div>
                       </td>
 
-                      {/* Qualification & Designation */}
-                      <td className="px-5 py-3.5 text-xs text-foreground">
-                        <div className="font-medium">{d.qualification}</div>
-                        <div className="text-[11px] text-muted-foreground mt-0.5">{d.designation || 'Consultant'}</div>
+                      <td className="py-3.5 px-4">
+                        <div className="font-semibold text-foreground">{d.branch?.name || 'All Branches'}</div>
+                        <div className="text-[10px] text-muted-foreground">{d.branch?.city || 'Central Lab'}</div>
                       </td>
 
-                      {/* Branch */}
-                      <td className="px-5 py-3.5 text-xs">
-                        {d.branch?.name ? (
-                          <div className="flex items-center gap-1.5 text-foreground font-medium">
-                            <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
-                            <span>{d.branch.name}</span>
-                          </div>
+                      <td className="py-3.5 px-4 text-center">
+                        {d.signatureUrl ? (
+                          <button
+                            onClick={() => setPreviewSignature(d)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/40 border border-teal-200 text-teal-700 dark:text-teal-300 text-[10px] font-bold hover:bg-teal-100 transition-colors"
+                          >
+                            <FileSignature className="w-3.5 h-3.5" /> View Signature
+                          </button>
                         ) : (
-                          <span className="text-muted-foreground text-[11px]">All Branches / Central</span>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-muted text-muted-foreground">
+                            Digital Stamp
+                          </span>
                         )}
                       </td>
 
-                      {/* Referral Portal Link */}
-                      <td className="px-5 py-3.5 text-center">
-                        <button
-                          onClick={() => openPortalForDoctor(d)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 text-xs font-bold transition-colors"
-                        >
-                          <DollarSign className="w-3.5 h-3.5" /> Portal ({d.commissionRate ?? 30}%)
-                        </button>
+                      <td className="py-3.5 px-4 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <button
+                            onClick={() => handleToggleActive(d)}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${
+                              d.isActive
+                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200'
+                                : 'bg-muted text-muted-foreground border border-border'
+                            }`}
+                          >
+                            {d.isActive ? '● Active' : '○ Inactive'}
+                          </button>
+
+                          <button
+                            onClick={() => openPortalForDoctor(d)}
+                            className="text-[10px] font-bold text-teal-600 hover:underline flex items-center gap-1"
+                          >
+                            <Activity className="w-3 h-3" /> View Portal
+                          </button>
+                        </div>
                       </td>
 
-                      {/* Status Toggle */}
-                      <td className="px-5 py-3.5">
-                        <button
-                          onClick={() => handleToggleActive(d)}
-                          className="flex items-center gap-1.5 text-xs font-medium"
-                        >
-                          {d.isActive
-                            ? <><ToggleRight className="w-4 h-4 text-emerald-500" /><span className="text-emerald-600 font-semibold">Active</span></>
-                            : <><ToggleLeft className="w-4 h-4 text-muted-foreground" /><span className="text-muted-foreground">Inactive</span></>
-                          }
-                        </button>
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center justify-end gap-2">
+                      <td className="py-3.5 px-5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => openEdit(d)}
                             className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
@@ -728,14 +883,6 @@ export const DoctorsPage: React.FC = () => {
                       </td>
                     </tr>
                   ))}
-
-                  {filteredDoctors.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="px-5 py-12 text-center text-muted-foreground text-sm">
-                        No doctors found. Click &quot;Add Doctor&quot; to register one.
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
@@ -743,10 +890,10 @@ export const DoctorsPage: React.FC = () => {
         </>
       )}
 
-      {/* Add / Edit Doctor Modal */}
+      {/* Modal for Creating / Editing Doctor (Exact same as Admin Users) */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col">
+          <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between p-6 border-b border-border flex-shrink-0">
               <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
                 <Stethoscope className="w-5 h-5 text-teal-600" />
@@ -758,130 +905,334 @@ export const DoctorsPage: React.FC = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {/* Doctor Name */}
-                <div className="md:col-span-2">
-                  <label className="text-xs font-semibold text-foreground mb-1 block">Doctor Full Name *</label>
+              {/* Doctor Category Indicator */}
+              <div className="p-3 bg-teal-50/70 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-900/60 rounded-xl flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-teal-600/10 text-teal-600 flex items-center justify-center font-bold">
+                    <Stethoscope className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-teal-950 dark:text-teal-200">Doctor / Pathologist Account</div>
+                    <div className="text-[10px] text-teal-700/80 dark:text-teal-400">Adds Doctor profile with Medical Reg No, Signature & Diagnostic Portal Access</div>
+                  </div>
+                </div>
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-300">
+                  Doctor Login Enabled
+                </span>
+              </div>
+
+              {/* Primary User Fields */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                <div>
+                  <label className="text-xs font-semibold text-foreground mb-1 block">Full Name *</label>
                   <input
                     type="text"
                     value={formName}
                     onChange={e => setFormName(e.target.value)}
-                    placeholder="e.g. Dr. Anjali Mehta"
-                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-500/30"
+                    placeholder={userType === 'DOCTOR' ? 'e.g. Dr. Anjali Mehta' : 'e.g. Rahul Sharma'}
+                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
-
-                {/* Specialization */}
                 <div>
-                  <label className="text-xs font-semibold text-foreground mb-1 block">Specialization / Department *</label>
-                  <select
-                    value={formSpecialization}
-                    onChange={e => setFormSpecialization(e.target.value)}
-                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-500/30 font-medium"
-                  >
-                    {COMMON_SPECIALIZATIONS.map(s => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                    <option value="CUSTOM">+ Other Specialization</option>
-                  </select>
+                  <label className="text-xs font-semibold text-foreground mb-1 block">Email Address *</label>
+                  <input
+                    type="email"
+                    value={formEmail}
+                    onChange={e => setFormEmail(e.target.value)}
+                    placeholder="e.g. doctor@medsseva.com"
+                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                  />
                 </div>
-
-                {/* Custom Specialization Input if selected */}
-                {formSpecialization === 'CUSTOM' && (
-                  <div>
-                    <label className="text-xs font-semibold text-foreground mb-1 block">Enter Specialization *</label>
-                    <input
-                      type="text"
-                      value={customSpec}
-                      onChange={e => setCustomSpec(e.target.value)}
-                      placeholder="e.g. Oncologist, ENT Specialist"
-                      className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-500/30"
-                    />
-                  </div>
-                )}
-
-                {/* Registration Number */}
                 <div>
-                  <label className="text-xs font-semibold text-foreground mb-1 block">Medical Registration No. *</label>
+                  <label className="text-xs font-semibold text-foreground mb-1 block">Mobile Number</label>
                   <input
-                    type="text"
-                    value={formRegNo}
-                    onChange={e => setFormRegNo(e.target.value)}
-                    placeholder="e.g. MCI-44922 / MMC-12345"
-                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-500/30 font-mono"
+                    type="tel"
+                    value={formMobile}
+                    onChange={e => setFormMobile(e.target.value)}
+                    placeholder="e.g. 9876543210"
+                    maxLength={10}
+                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
-
-                {/* Qualification */}
                 <div>
-                  <label className="text-xs font-semibold text-foreground mb-1 block">Qualification & Degrees *</label>
-                  <input
-                    type="text"
-                    value={formQualification}
-                    onChange={e => setFormQualification(e.target.value)}
-                    placeholder="e.g. MBBS, MD (Pathology), DNB"
-                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-500/30"
-                  />
-                </div>
-
-                {/* Designation */}
-                <div>
-                  <label className="text-xs font-semibold text-foreground mb-1 block">Designation / Role Title</label>
-                  <input
-                    type="text"
-                    value={formDesignation}
-                    onChange={e => setFormDesignation(e.target.value)}
-                    placeholder="e.g. Senior Pathologist / Chief Verifier"
-                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-500/30"
-                  />
-                </div>
-
-                {/* Assign Branch */}
-                <div className="md:col-span-2">
-                  <label className="text-xs font-semibold text-foreground mb-1 block">Assign to Branch / Partner Lab</label>
-                  <select
-                    value={formBranchId}
-                    onChange={e => setFormBranchId(e.target.value)}
-                    disabled={!isSuperAdmin && !!userBranchId}
-                    className={`w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-500/30 ${!isSuperAdmin && !!userBranchId ? 'opacity-80 cursor-not-allowed bg-muted' : ''}`}
-                  >
-                    {isSuperAdmin && <option value="">All Branches / Central Lab</option>}
-                    {branches
-                      .filter(b => isSuperAdmin || !userBranchId || b.id === userBranchId)
-                      .map(b => (
-                        <option key={b.id} value={b.id}>{b.name} ({b.city})</option>
-                      ))}
-                  </select>
-                </div>
-
-                {/* Doctor Photo URL */}
-                <div className="md:col-span-2">
-                  <label className="text-xs font-semibold text-foreground mb-1 block">Doctor Photo / Avatar URL (Optional)</label>
-                  <input
-                    type="text"
-                    value={formPhotoUrl}
-                    onChange={e => setFormPhotoUrl(e.target.value)}
-                    placeholder="https://res.cloudinary.com/.../doctor-photo.jpg"
-                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-500/30"
-                  />
-                </div>
-
-                {/* Signature Photo / URL */}
-                <div className="md:col-span-2">
                   <label className="text-xs font-semibold text-foreground mb-1 block">
-                    Doctor Signature Image URL (For Report PDF Signing)
+                    {editing ? 'New Password (leave blank to keep)' : 'Password *'}
                   </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={formPassword}
+                      onChange={e => setFormPassword(e.target.value)}
+                      placeholder={editing ? 'Leave blank to keep current' : 'Min 8 characters'}
+                      className="w-full h-10 pl-3 pr-10 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors"
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Conditional Doctor-Specific Fields */}
+              {userType === 'DOCTOR' && (
+                <div className="bg-teal-50/60 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-900/60 rounded-xl p-4 space-y-3">
+                  <div className="text-xs font-bold text-teal-800 dark:text-teal-300 flex items-center gap-1.5 uppercase">
+                    <Stethoscope className="w-4 h-4" /> Doctor & Clinical Verification Details
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-foreground mb-1 block">Medical Registration No. *</label>
+                      <input
+                        type="text"
+                        value={formRegistrationNo}
+                        onChange={e => setFormRegistrationNo(e.target.value)}
+                        placeholder="e.g. MCI-44922 / MMC-12345"
+                        className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-500/30"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-foreground mb-1 block">Qualification</label>
+                      <input
+                        type="text"
+                        value={formQualification}
+                        onChange={e => setFormQualification(e.target.value)}
+                        placeholder="e.g. MBBS, MD (Pathology)"
+                        className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-500/30"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-foreground mb-1 block">Designation</label>
+                      <input
+                        type="text"
+                        value={formDesignation}
+                        onChange={e => setFormDesignation(e.target.value)}
+                        placeholder="e.g. Senior Consultant Pathologist"
+                        className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-500/30"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-foreground mb-1 block">Assign Branch / Area</label>
+                      <select
+                        value={formBranchId}
+                        onChange={e => setFormBranchId(e.target.value)}
+                        className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-500/30"
+                      >
+                        <option value="">All Branches / Central</option>
+                        {branches.map(b => (
+                          <option key={b.id} value={b.id}>{b.name} ({b.city})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="text-xs font-semibold text-foreground mb-1 block">Doctor Signature Image URL (Optional)</label>
+                      <input
+                        type="text"
+                        value={formSignatureUrl}
+                        onChange={e => setFormSignatureUrl(e.target.value)}
+                        placeholder="e.g. https://res.cloudinary.com/.../signature.png"
+                        className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-500/30"
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-1">If blank, standard digital signature stamp will be used on reports.</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-foreground mb-1 block">Commission Rate (%) *</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={formCommissionRate}
+                          onChange={e => setFormCommissionRate(Number(e.target.value))}
+                          placeholder="30"
+                          className="w-full h-10 pl-3 pr-8 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-500/30 font-bold"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-teal-700 dark:text-teal-300">%</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-foreground mb-1 block">Payment Cycle</label>
+                      <select
+                        value={formPaymentCycle}
+                        onChange={e => setFormPaymentCycle(e.target.value)}
+                        className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-500/30 font-medium"
+                      >
+                        <option value="MONTHLY">Monthly</option>
+                        <option value="15_DAYS">15 Days (Fortnightly)</option>
+                        <option value="WEEKLY">Weekly (7 Days)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Conditional Employee-Specific Fields */}
+              {userType === 'EMPLOYEE' && (
+                <div className="bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/60 rounded-xl p-4 space-y-3">
+                  <div className="text-xs font-bold text-indigo-800 dark:text-indigo-300 flex items-center gap-1.5 uppercase">
+                    <Briefcase className="w-4 h-4" /> Employee Department & Branch
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-foreground mb-1 block">Designation</label>
+                      <input
+                        type="text"
+                        value={formDesignation}
+                        onChange={e => setFormDesignation(e.target.value)}
+                        placeholder="e.g. Lab Technician / Phlebotomist"
+                        className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/30"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-foreground mb-1 block">Department</label>
+                      <input
+                        type="text"
+                        value={formDepartment}
+                        onChange={e => setFormDepartment(e.target.value)}
+                        placeholder="e.g. Biochemistry / Hematology"
+                        className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/30"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="text-xs font-semibold text-foreground mb-1 block">Assign Branch / Area</label>
+                      <select
+                        value={formBranchId}
+                        onChange={e => setFormBranchId(e.target.value)}
+                        className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/30"
+                      >
+                        <option value="">Select Branch</option>
+                        {branches.map(b => (
+                          <option key={b.id} value={b.id}>{b.name} ({b.city})</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Role & Franchise Section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-border">
+                <div>
+                  <label className="text-xs font-semibold text-foreground mb-1 block">Access Role *</label>
+                  <select
+                    value={isCustomRole ? 'custom' : formRoleId}
+                    onChange={e => handleRoleChange(e.target.value)}
+                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                  >
+                    <option value="">Select a role</option>
+                    {roles.map(r => (
+                      <option key={r.id} value={r.id}>{r.name}</option>
+                    ))}
+                    <option value="custom">+ Create Custom Role</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-foreground mb-1 block">Franchise ID (optional)</label>
                   <input
                     type="text"
-                    value={formSignatureUrl}
-                    onChange={e => setFormSignatureUrl(e.target.value)}
-                    placeholder="https://res.cloudinary.com/.../signature.png"
-                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-teal-500/30"
+                    value={formFranchiseId}
+                    onChange={e => setFormFranchiseId(e.target.value)}
+                    placeholder="e.g. MUM-CENT-01"
+                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
                   />
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    Upload transparent PNG or JPG signature image. If left blank, a secure digital signature stamp will be applied.
-                  </p>
                 </div>
+              </div>
+
+              {isCustomRole && (
+                <div>
+                  <label className="text-xs font-semibold text-foreground mb-1 block">Custom Role Name *</label>
+                  <input
+                    type="text"
+                    value={customRoleName}
+                    onChange={e => setCustomRoleName(e.target.value)}
+                    placeholder="e.g. Pathologist Verifier"
+                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+              )}
+
+              {/* Permissions Matrix */}
+              <div className="pt-2 border-t border-border">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-xs font-semibold text-foreground">Permissions Matrix</label>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPerms(new Set(allPermissions.map(p => p.id)))}
+                      className="text-xs text-primary hover:underline font-medium"
+                    >
+                      Select All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPerms(new Set())}
+                      className="text-xs text-muted-foreground hover:underline"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2 border border-border rounded-xl overflow-hidden max-h-60 overflow-y-auto">
+                  {MODULE_PERMISSIONS.map(mod => {
+                    const modulePerms = allPermissions.filter(p =>
+                      (p.module === mod.module || (mod.module === 'lab_tests' && p.module === 'tests') || (mod.module === 'audit_logs' && p.module === 'logs')) &&
+                      mod.actions.some(act => act === p.action || (act === 'edit' && p.action === 'update') || (act === 'update' && p.action === 'edit'))
+                    );
+                    const allSelected = modulePerms.length > 0 && modulePerms.every(p => selectedPerms.has(p.id));
+                    return (
+                      <div key={mod.module} className="border-b border-border/50 last:border-0">
+                        <div className="flex items-center justify-between px-4 py-2 bg-muted/30">
+                          <span className="text-xs font-semibold text-foreground">{mod.label}</span>
+                          <button
+                            type="button"
+                            onClick={() => toggleModuleAll(mod.module)}
+                            className="text-[10px] text-primary hover:underline"
+                          >
+                            {allSelected ? 'Deselect all' : 'Select all'}
+                          </button>
+                        </div>
+                        <div className="px-4 py-1.5 flex flex-wrap gap-2.5">
+                          {mod.actions.map(action => {
+                            const perm = allPermissions.find(p =>
+                              (p.module === mod.module || (mod.module === 'lab_tests' && p.module === 'tests') || (mod.module === 'audit_logs' && p.module === 'logs')) &&
+                              (p.action === action || (action === 'edit' && p.action === 'update') || (action === 'update' && p.action === 'edit'))
+                            );
+                            if (!perm) return null;
+                            const checked = selectedPerms.has(perm.id);
+                            return (
+                              <label
+                                key={action}
+                                className={cn(
+                                  "flex items-center gap-1.5 text-xs cursor-pointer select-none px-2 py-1 rounded-lg transition-colors",
+                                  checked ? "text-primary bg-primary/10 font-medium" : "text-muted-foreground hover:bg-muted"
+                                )}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => togglePerm(perm.id)}
+                                  className="hidden"
+                                />
+                                {checked
+                                  ? <CheckSquare className="w-3.5 h-3.5 flex-shrink-0" />
+                                  : <Square className="w-3.5 h-3.5 flex-shrink-0" />
+                                }
+                                {action}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1.5">{selectedPerms.size} permissions selected</p>
               </div>
             </div>
 
@@ -895,10 +1246,10 @@ export const DoctorsPage: React.FC = () => {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex items-center gap-2 px-5 py-2 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 disabled:opacity-60 transition-colors shadow-md shadow-teal-600/20"
+                className="flex items-center gap-2 px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-60 transition-colors shadow-md shadow-primary/20"
               >
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                {editing ? 'Save Changes' : 'Save Doctor'}
+                {editing ? 'Save Changes' : (userType === 'DOCTOR' ? 'Save Doctor' : 'Create User')}
               </button>
             </div>
           </div>

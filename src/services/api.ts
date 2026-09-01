@@ -23,10 +23,10 @@ export const commissionService = {
     api.patch(`/commissions/admin/config/${entityType}/${id}`, data).then(r => r.data),
   updatePayoutStatus: (data: any) =>
     api.patch('/commissions/admin/payout-status', data).then(r => r.data),
-  getDoctorPortalData: (period?: string) =>
-    api.get('/commissions/doctor/portal-data', { params: { period } }).then(r => r.data),
-  getPartnerPortalData: (period?: string) =>
-    api.get('/commissions/partner/portal-data', { params: { period } }).then(r => r.data),
+  getDoctorPortalData: (period?: string, doctorId?: string) =>
+    api.get('/commissions/doctor/portal-data', { params: { period, doctorId } }).then(r => r.data),
+  getPartnerPortalData: (period?: string, partnerId?: string) =>
+    api.get('/commissions/partner/portal-data', { params: { period, partnerId } }).then(r => r.data),
 };
 
 export const supportConfigService = {
@@ -241,7 +241,19 @@ rejectLabBooking: async (id: string, reason: string) => {
     const response = await api.get(url);
     return response.data;
   },
-updatePartnerApproval: async (id: string, approvalStatus: string, rejectionReason?: string) => {
+  createPartner: async (data: any) => {
+    const response = await api.post('/auth/partners', data);
+    return response.data;
+  },
+  updatePartner: async (id: string, data: any) => {
+    const response = await api.put(`/auth/partners/${id}`, data);
+    return response.data;
+  },
+  deletePartner: async (id: string) => {
+    const response = await api.delete(`/auth/partners/${id}`);
+    return response.data;
+  },
+  updatePartnerApproval: async (id: string, approvalStatus: string, rejectionReason?: string) => {
     const response = await api.patch(`/auth/partners/${id}/approval`, { approvalStatus, rejectionReason });
     return response.data;
   },
