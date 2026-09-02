@@ -23,10 +23,16 @@ import {
   RotateCcw,
   AlertTriangle,
   CheckCircle2,
+  Printer,
+  Sparkles,
+  Eye,
 } from 'lucide-react';
 import { financeService, API_URL } from '../services/api';
 import { cn } from '../utils/cn';
 import { useToast } from '../components/Toast';
+import { customFormatService } from '../services/customFormat.service';
+import { CustomInvoiceTemplate } from '../types/customFormat';
+import { LiveInvoicePreview } from '../components/customFormats/LiveInvoicePreview';
 
 export const PaymentsPage: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -34,18 +40,31 @@ export const PaymentsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'ledger' | 'settlements' | 'refunds'>('ledger');
   const { success, error: toastError } = useToast();
 
-const [refundModal, setRefundModal] = useState<{ open: boolean; paymentId: string; maxAmount: number; bookingCode: string } | null>(null);
+  const [customInvoiceTemplates, setCustomInvoiceTemplates] = useState<CustomInvoiceTemplate[]>([]);
+  const [invoicePreviewModal, setInvoicePreviewModal] = useState<{
+    open: boolean;
+    payment: any;
+    selectedTemplateId: string;
+  } | null>(null);
+
+  const [refundModal, setRefundModal] = useState<{ open: boolean; paymentId: string; maxAmount: number; bookingCode: string } | null>(null);
   const [refundForm, setRefundForm] = useState<{ refundType: 'FULL' | 'PARTIAL'; amount: string; reason: string }>({
     refundType: 'FULL',
     amount: '',
     reason: '',
   });
   const [refundSubmitting, setRefundSubmitting] = useState(false);
-const [refundSuccess, setRefundSuccess] = useState<{ razorpayRefundId: string; amount: number; status: string; remainingRefundable: number } | null>(null);
+  const [refundSuccess, setRefundSuccess] = useState<{ razorpayRefundId: string; amount: number; status: string; remainingRefundable: number } | null>(null);
   const [expandedPayment, setExpandedPayment] = useState<string | null>(null);
 
-const [settlementSubmitting, setSettlementSubmitting] = useState<string | null>(null);
+  const [settlementSubmitting, setSettlementSubmitting] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState<string | null>(null);
+
+  useEffect(() => {
+    customFormatService.getInvoiceTemplates()
+      .then(tpls => setCustomInvoiceTemplates(tpls))
+      .catch(err => console.error('Failed to load custom invoice templates:', err));
+  }, []);
 
   const handleRegenerateInvoice = async (bookingId: string) => {
     setRegenerating(bookingId);
@@ -147,87 +166,89 @@ if (executeRefundThunk.fulfilled.match(result)) {
 
   return (
     <div className="space-y-6 pb-10">
-      <div className="flex justify-between items-start">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Financial Ledger & Settlements</h1>
-          <p className="text-sm text-muted-foreground">Enterprise payment management, franchise commissions, and audit gateway.</p>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">Financial Ledger & Settlements</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">Enterprise payment management, franchise commissions, and audit gateway.</p>
         </div>
       </div>
-<div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
         {loading && !summary ? (
           <>
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className="bg-card border border-border p-5 rounded-2xl shadow-sm flex items-center gap-4 animate-pulse">
-                <div className="h-12 w-12 bg-muted rounded-xl shrink-0" />
+              <div key={i} className="bg-card border border-border p-4 sm:p-5 rounded-2xl shadow-sm flex items-center gap-4 animate-pulse">
+                <div className="h-10 sm:h-12 w-10 sm:w-12 bg-muted rounded-xl shrink-0" />
                 <div className="space-y-2">
                   <div className="h-2.5 bg-muted rounded w-28" />
-                  <div className="h-7 bg-muted rounded w-20" />
+                  <div className="h-6 sm:h-7 bg-muted rounded w-20" />
                 </div>
               </div>
             ))}
           </>
         ) : (
           <>
-            <div className="bg-card border border-border p-5 rounded-2xl shadow-sm flex items-center gap-4">
-              <div className="h-12 w-12 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl flex items-center justify-center">
-                <ArrowUpRight className="h-6 w-6" />
+            <div className="bg-card border border-border p-4 sm:p-5 rounded-2xl shadow-sm flex items-center gap-3 sm:gap-4">
+              <div className="h-10 sm:h-12 w-10 sm:w-12 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl flex items-center justify-center shrink-0">
+                <ArrowUpRight className="h-5 sm:h-6 w-5 sm:w-6" />
               </div>
-              <div>
-                <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Total Invoiced Assets</div>
-                <div className="text-2xl font-black text-foreground mt-0.5">₹{(summary?.totalCollected || 0).toLocaleString('en-IN')}</div>
-              </div>
-            </div>
-
-            <div className="bg-card border border-border p-5 rounded-2xl shadow-sm flex items-center gap-4">
-              <div className="h-12 w-12 bg-blue-50 border border-blue-200 text-blue-700 rounded-xl flex items-center justify-center">
-                <Clock className="h-6 w-6" />
-              </div>
-              <div>
-                <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Pending Payments</div>
-                <div className="text-2xl font-black text-foreground mt-0.5">₹{(summary?.totalPending || 0).toLocaleString('en-IN')}</div>
+              <div className="min-w-0">
+                <div className="text-[11px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider truncate">Total Invoiced Assets</div>
+                <div className="text-xl sm:text-2xl font-black text-foreground mt-0.5">₹{(summary?.totalCaptured || 0).toLocaleString('en-IN')}</div>
               </div>
             </div>
 
-            <div className="bg-card border border-border p-5 rounded-2xl shadow-sm flex items-center gap-4">
-              <div className="h-12 w-12 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl flex items-center justify-center">
-                <Clock className="h-6 w-6" />
+            <div className="bg-card border border-border p-4 sm:p-5 rounded-2xl shadow-sm flex items-center gap-3 sm:gap-4">
+              <div className="h-10 sm:h-12 w-10 sm:w-12 bg-blue-50 border border-blue-200 text-blue-700 rounded-xl flex items-center justify-center shrink-0">
+                <Clock className="h-5 sm:h-6 w-5 sm:w-6" />
               </div>
-              <div>
-                <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Pending Commission Liabilities</div>
-                <div className="text-2xl font-black text-foreground mt-0.5">₹{(summary?.pendingSettlements || 0).toLocaleString('en-IN')}</div>
+              <div className="min-w-0">
+                <div className="text-[11px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider truncate">Pending Payments</div>
+                <div className="text-xl sm:text-2xl font-black text-foreground mt-0.5">₹{(summary?.totalPending || 0).toLocaleString('en-IN')}</div>
               </div>
             </div>
 
-            <div className="bg-card border border-border p-5 rounded-2xl shadow-sm flex items-center gap-4">
-              <div className="h-12 w-12 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl flex items-center justify-center">
-                <RefreshCcw className="h-6 w-6" />
+            <div className="bg-card border border-border p-4 sm:p-5 rounded-2xl shadow-sm flex items-center gap-3 sm:gap-4">
+              <div className="h-10 sm:h-12 w-10 sm:w-12 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl flex items-center justify-center shrink-0">
+                <Clock className="h-5 sm:h-6 w-5 sm:w-6" />
               </div>
-              <div>
-                <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Processed Reversals</div>
-                <div className="text-2xl font-black text-foreground mt-0.5">₹{(summary?.totalRefunded || 0).toLocaleString('en-IN')}</div>
+              <div className="min-w-0">
+                <div className="text-[11px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider truncate">Pending Commission</div>
+                <div className="text-xl sm:text-2xl font-black text-foreground mt-0.5">₹{(summary?.pendingSettlements || 0).toLocaleString('en-IN')}</div>
+              </div>
+            </div>
+
+            <div className="bg-card border border-border p-4 sm:p-5 rounded-2xl shadow-sm flex items-center gap-3 sm:gap-4">
+              <div className="h-10 sm:h-12 w-10 sm:w-12 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl flex items-center justify-center shrink-0">
+                <RefreshCcw className="h-5 sm:h-6 w-5 sm:w-6" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[11px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider truncate">Processed Reversals</div>
+                <div className="text-xl sm:text-2xl font-black text-foreground mt-0.5">₹{(summary?.totalRefunded || 0).toLocaleString('en-IN')}</div>
               </div>
             </div>
           </>
         )}
       </div>
-      <div className="flex gap-1.5 border-b border-border">
+
+      <div className="flex flex-wrap gap-1 border-b border-border">
         <button
           onClick={() => setActiveTab('ledger')}
-          className={cn("px-5 py-3 text-xs font-black border-b-2 transition-all flex items-center gap-1.5",
+          className={cn("px-4 sm:px-5 py-2.5 sm:py-3 text-xs font-black border-b-2 transition-all flex items-center gap-1.5",
             activeTab === 'ledger' ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}
         >
           <Receipt className="h-3.5 w-3.5" /> Cash & Online Ledger
         </button>
         <button
           onClick={() => setActiveTab('settlements')}
-          className={cn("px-5 py-3 text-xs font-black border-b-2 transition-all flex items-center gap-1.5",
+          className={cn("px-4 sm:px-5 py-2.5 sm:py-3 text-xs font-black border-b-2 transition-all flex items-center gap-1.5",
             activeTab === 'settlements' ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}
         >
           <Briefcase className="h-3.5 w-3.5" /> Partner Settlements
         </button>
         <button
           onClick={() => setActiveTab('refunds')}
-          className={cn("px-5 py-3 text-xs font-black border-b-2 transition-all flex items-center gap-1.5",
+          className={cn("px-4 sm:px-5 py-2.5 sm:py-3 text-xs font-black border-b-2 transition-all flex items-center gap-1.5",
             activeTab === 'refunds' ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}
         >
           <RefreshCcw className="h-3.5 w-3.5" /> Reversal Logs
@@ -235,9 +256,9 @@ if (executeRefundThunk.fulfilled.match(result)) {
       </div>
 
       <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
-    {loading && (
+        {loading && (
           <div className="overflow-x-auto animate-pulse">
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-left text-sm min-w-[850px]">
               <thead className="bg-muted/50 border-b border-border">
                 <tr>
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => (
@@ -268,7 +289,7 @@ if (executeRefundThunk.fulfilled.match(result)) {
 
         {!loading && activeTab === 'ledger' && (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-left text-sm min-w-[850px]">
               <thead className="bg-muted/50 border-b border-border text-muted-foreground font-bold text-[10px] uppercase">
                 <tr>
                   <th className="px-6 py-4">Invoice #</th>
@@ -319,6 +340,20 @@ if (executeRefundThunk.fulfilled.match(result)) {
                         </td>
                         <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => {
+                                const defTpl = customInvoiceTemplates.find(t => t.isDefault) || customInvoiceTemplates[0];
+                                setInvoicePreviewModal({
+                                  open: true,
+                                  payment: tx,
+                                  selectedTemplateId: defTpl?.id || '',
+                                });
+                              }}
+                              className="text-teal-700 dark:text-teal-400 hover:text-teal-800 text-[11px] font-bold flex items-center gap-1 hover:underline bg-teal-50 dark:bg-teal-950/30 px-2 py-0.5 rounded border border-teal-200 dark:border-teal-900"
+                            >
+                              <Sparkles className="h-3 w-3 text-teal-600" /> Invoice Preview
+                            </button>
+
                             {(tx.booking?.id || tx.bookingId) && tx.status === 'CAPTURED' ? (
                               <a 
                                 href={`${API_URL}/payments/invoice/${tx.booking?.id || tx.bookingId}/pdf`} 
@@ -326,7 +361,7 @@ if (executeRefundThunk.fulfilled.match(result)) {
                                 rel="noopener noreferrer"
                                 className="text-primary hover:text-primary/80 text-[11px] font-bold flex items-center gap-1 hover:underline"
                               >
-                                <FileText className="h-3 w-3" /> Invoice
+                                <FileText className="h-3 w-3" /> PDF
                               </a>
                             ) : tx.invoiceUrl ? (
                               <a 
@@ -335,7 +370,7 @@ if (executeRefundThunk.fulfilled.match(result)) {
                                 rel="noopener noreferrer"
                                 className="text-primary hover:text-primary/80 text-[11px] font-bold flex items-center gap-1 hover:underline"
                               >
-                                <FileText className="h-3 w-3" /> Invoice
+                                <FileText className="h-3 w-3" /> PDF
                               </a>
                             ) : null}
                             {(tx.booking?.id || tx.bookingId) ? (
@@ -393,7 +428,7 @@ if (executeRefundThunk.fulfilled.match(result)) {
 
         {!loading && activeTab === 'settlements' && (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-left text-sm min-w-[850px]">
               <thead className="bg-muted/50 border-b border-border text-muted-foreground font-bold text-[10px] uppercase">
                 <tr>
                   <th className="px-6 py-4">Settlement Ref</th>
@@ -611,6 +646,81 @@ if (executeRefundThunk.fulfilled.match(result)) {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Custom Invoice Preview Modal */}
+      {invoicePreviewModal?.open && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center p-2 sm:p-6 overflow-y-auto">
+          <div className="w-full max-w-5xl flex flex-col sm:flex-row sm:items-center justify-between mb-3 text-white gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap min-w-0">
+              <span className="font-bold text-xs sm:text-sm truncate">
+                Invoice: {invoicePreviewModal.payment?.booking?.bookingCode || invoicePreviewModal.payment?.id}
+              </span>
+              {customInvoiceTemplates.length > 0 && (
+                <select
+                  value={invoicePreviewModal.selectedTemplateId}
+                  onChange={(e) => setInvoicePreviewModal({
+                    ...invoicePreviewModal,
+                    selectedTemplateId: e.target.value,
+                  })}
+                  className="px-2 py-1 text-[11px] sm:text-xs font-bold bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none"
+                >
+                  {customInvoiceTemplates.map(t => (
+                    <option key={t.id} value={t.id} className="text-slate-900 bg-white">
+                      {t.name} ({t.type}){t.isDefault ? ' ★ Default' : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+              <button
+                onClick={() => window.print()}
+                className="px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white text-xs font-bold flex items-center gap-1.5"
+              >
+                <Printer className="w-3.5 h-3.5" /> Print
+              </button>
+              <button
+                onClick={() => setInvoicePreviewModal(null)}
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto overflow-y-auto max-h-[85vh] pb-12 w-full flex justify-center custom-scrollbar">
+            <LiveInvoicePreview
+              template={customInvoiceTemplates.find(t => t.id === invoicePreviewModal.selectedTemplateId) || {}}
+              scale={typeof window !== 'undefined' && window.innerWidth < 640 ? 0.45 : 0.88}
+              invoiceData={{
+                invoiceNumber: invoicePreviewModal.payment?.invoiceNumber || `INV-${invoicePreviewModal.payment?.id?.slice(0, 8)}`,
+                receiptNumber: invoicePreviewModal.payment?.receiptNumber || `REC-${invoicePreviewModal.payment?.id?.slice(0, 8)}`,
+                date: invoicePreviewModal.payment?.paidAt ? new Date(invoicePreviewModal.payment.paidAt).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN'),
+                status: invoicePreviewModal.payment?.status || 'CAPTURED',
+                paymentMethod: invoicePreviewModal.payment?.method || invoicePreviewModal.payment?.gateway || 'Online (Razorpay)',
+                transactionId: invoicePreviewModal.payment?.gatewayPaymentId || invoicePreviewModal.payment?.id,
+                bookingCode: invoicePreviewModal.payment?.booking?.bookingCode || 'MEDS-BOOKING',
+                patientName: invoicePreviewModal.payment?.booking?.patientName || invoicePreviewModal.payment?.user?.name || 'Patient',
+                patientId: invoicePreviewModal.payment?.booking?.uhid || invoicePreviewModal.payment?.user?.uhid || 'UHID-2026',
+                patientAge: invoicePreviewModal.payment?.booking?.patientAge || 35,
+                patientGender: invoicePreviewModal.payment?.booking?.patientGender || 'Male',
+                patientMobile: invoicePreviewModal.payment?.booking?.patientMobile || invoicePreviewModal.payment?.user?.mobile || '',
+                patientAddress: invoicePreviewModal.payment?.booking?.address || '',
+                items: invoicePreviewModal.payment?.booking?.tests?.map((t: any, idx: number) => ({
+                  id: String(idx + 1),
+                  name: t.test?.name || t.name || 'Diagnostic Investigation',
+                  code: t.test?.code || '',
+                  rate: t.test?.price || t.price || (invoicePreviewModal.payment?.amount / (invoicePreviewModal.payment?.booking?.tests?.length || 1)),
+                  quantity: 1,
+                  discount: 0,
+                  taxRate: 5,
+                  total: t.test?.discountedPrice || t.discountedPrice || t.test?.price || t.price || invoicePreviewModal.payment?.amount,
+                })),
+              }}
+            />
           </div>
         </div>
       )}

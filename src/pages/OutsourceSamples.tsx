@@ -4,10 +4,14 @@ import {
   Building2, CheckCircle2, Clock, FileText, AlertCircle,
   ExternalLink, Trash2, Edit2, X, Check, ArrowRight,
   ShieldCheck, UploadCloud, ChevronRight, User, FlaskConical,
-  CreditCard, Loader2, Link2, MapPin, Phone, Mail
+  CreditCard, Loader2, Link2, MapPin, Phone, Mail,
+  Printer, Download, Upload, Sparkles
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { outsourceService } from '../services/api';
+import { customFormatService } from '../services/customFormat.service';
+import { CustomReportTemplate } from '../types/customFormat';
+import { LiveReportPreview, SampleTestData } from '../components/customFormats/LiveReportPreview';
 
 interface ReferenceLab {
   id: string;
@@ -35,7 +39,7 @@ interface OutsourceSample {
   referenceLabId: string;
   dispatchDate: string;
   expectedReportDate?: string | null;
-  status: 'PENDING' | 'DISPATCHED' | 'RECEIVED_BY_LAB' | 'REPORT_RECEIVED' | 'COMPLETED' | 'CANCELLED';
+  status: string;
   courierTrackingNo?: string | null;
   courierPartner?: string | null;
   outsourceCost: number;
@@ -45,7 +49,7 @@ interface OutsourceSample {
   reportReceivedAt?: string | null;
   completedAt?: string | null;
   createdAt: string;
-  referenceLab?: ReferenceLab | null;
+  referenceLab?: ReferenceLab;
 }
 
 interface OutsourceSummary {
@@ -59,24 +63,23 @@ interface OutsourceSummary {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; border: string; icon: any }> = {
-  PENDING: { label: 'Pending Dispatch', bg: 'bg-amber-50 dark:bg-amber-950/40', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-800', icon: Clock },
-  DISPATCHED: { label: 'In Transit / Dispatched', bg: 'bg-blue-50 dark:bg-blue-950/40', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-200 dark:border-blue-800', icon: Truck },
-  RECEIVED_BY_LAB: { label: 'Received by Ref Lab', bg: 'bg-purple-50 dark:bg-purple-950/40', text: 'text-purple-700 dark:text-purple-300', border: 'border-purple-200 dark:border-purple-800', icon: FlaskConical },
-  REPORT_RECEIVED: { label: 'Report Received', bg: 'bg-teal-50 dark:bg-teal-950/40', text: 'text-teal-700 dark:text-teal-300', border: 'border-teal-200 dark:border-teal-800', icon: FileText },
-  COMPLETED: { label: 'Completed', bg: 'bg-emerald-50 dark:bg-emerald-950/40', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-200 dark:border-emerald-800', icon: CheckCircle2 },
-  CANCELLED: { label: 'Cancelled', bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-600 dark:text-slate-400', border: 'border-slate-200 dark:border-slate-700', icon: AlertCircle },
+  PENDING: { label: 'Pending Dispatch', bg: 'bg-amber-50 dark:bg-amber-950/30', text: 'text-amber-700 dark:text-amber-400', border: 'border-amber-200 dark:border-amber-800', icon: Clock },
+  DISPATCHED: { label: 'Dispatched to Lab', bg: 'bg-blue-50 dark:bg-blue-950/30', text: 'text-blue-700 dark:text-blue-400', border: 'border-blue-200 dark:border-blue-800', icon: Truck },
+  RECEIVED_BY_LAB: { label: 'Received by Lab', bg: 'bg-purple-50 dark:bg-purple-950/30', text: 'text-purple-700 dark:text-purple-400', border: 'border-purple-200 dark:border-purple-800', icon: FlaskConical },
+  REPORT_RECEIVED: { label: 'Report Received', bg: 'bg-teal-50 dark:bg-teal-950/30', text: 'text-teal-700 dark:text-teal-400', border: 'border-teal-200 dark:border-teal-800', icon: FileText },
+  COMPLETED: { label: 'Completed', bg: 'bg-emerald-50 dark:bg-emerald-950/30', text: 'text-emerald-700 dark:text-emerald-400', border: 'border-emerald-200 dark:border-emerald-800', icon: CheckCircle2 },
+  CANCELLED: { label: 'Cancelled', bg: 'bg-rose-50 dark:bg-rose-950/30', text: 'text-rose-700 dark:text-rose-400', border: 'border-rose-200 dark:border-rose-800', icon: AlertCircle },
 };
 
 const SAMPLE_VIAL_TYPES = [
-  'Blood (EDTA Tube)',
-  'Blood (Serum / Plain)',
-  'Blood (Sodium Fluoride / Glucose)',
-  'Blood (Sodium Citrate / Coagulation)',
-  'Urine (Sterile Container)',
-  'Biopsy / Histopathology (Formalin)',
-  'Stool (Sterile Container)',
-  'Swab / Culture (Viral Transport Medium)',
-  'CSF / Body Fluid',
+  'EDTA Whole Blood (Purple Top)',
+  'Serum / SST (Yellow / Red Top)',
+  'Fluoride Plasma (Grey Top)',
+  'Sodium Citrate (Blue Top)',
+  'Sterile Urine Container',
+  'Biopsy / Formalin Container',
+  'Stool Container',
+  'Swab / Viral Transport Media (VTM)',
 ];
 
 export const OutsourceSamplesPage: React.FC = () => {
@@ -129,6 +132,12 @@ export const OutsourceSamplesPage: React.FC = () => {
   const [newResultNotes, setNewResultNotes] = useState('');
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
+  // Report PDF Preview State
+  const [previewReportSample, setPreviewReportSample] = useState<OutsourceSample | null>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [customReportTemplates, setCustomReportTemplates] = useState<CustomReportTemplate[]>([]);
+  const [selectedCustomTemplateId, setSelectedCustomTemplateId] = useState<string>('');
+
   // Lab Modal State
   const [labModalOpen, setLabModalOpen] = useState(false);
   const [editingLab, setEditingLab] = useState<ReferenceLab | null>(null);
@@ -144,7 +153,7 @@ export const OutsourceSamplesPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [samplesRes, summaryRes, labsRes] = await Promise.all([
+      const [samplesRes, summaryRes, labsRes, templatesRes] = await Promise.all([
         outsourceService.getOutsourcedSamples({
           search: search || undefined,
           status: selectedStatus !== 'ALL' ? selectedStatus : undefined,
@@ -152,6 +161,7 @@ export const OutsourceSamplesPage: React.FC = () => {
         }),
         outsourceService.getOutsourceSummary(),
         outsourceService.getLabs(),
+        customFormatService.getReportTemplates().catch(() => []),
       ]);
 
       if (samplesRes?.samples) setSamples(samplesRes.samples);
@@ -159,6 +169,13 @@ export const OutsourceSamplesPage: React.FC = () => {
       if (labsRes) {
         setLabs(labsRes);
         if (labsRes.length > 0 && !formLabId) setFormLabId(labsRes[0].id);
+      }
+      if (templatesRes && templatesRes.length > 0) {
+        setCustomReportTemplates(templatesRes);
+        if (!selectedCustomTemplateId) {
+          const def = templatesRes.find((t: any) => t.isDefault) || templatesRes[0];
+          if (def) setSelectedCustomTemplateId(def.id);
+        }
       }
     } catch (err) {
       console.error('Failed to load outsource data:', err);
@@ -336,6 +353,176 @@ export const OutsourceSamplesPage: React.FC = () => {
     } finally {
       setSavingLab(false);
     }
+  };
+
+  const handleDownloadOutsourcePdf = async (sample: OutsourceSample) => {
+    setDownloadingPdf(true);
+    try {
+      const [html2canvas, jsPDFModule] = await Promise.all([
+        import('html2canvas').then(m => m.default),
+        import('jspdf').then(m => m.default),
+      ]);
+
+      const el = document.getElementById('pdf-outsource-export-document') || document.getElementById('outsource-report-sheet');
+      if (!el) throw new Error('Outsource report document not found.');
+
+      const pageElements = Array.from(el.querySelectorAll('.a4-page-sheet'));
+      const targets = pageElements.length > 0 ? pageElements : [el];
+
+      const pdf = new jsPDFModule({ orientation: 'portrait', unit: 'px', format: [794, 1123] });
+
+      for (let i = 0; i < targets.length; i++) {
+        const pageEl = targets[i] as HTMLElement;
+        const canvas = await html2canvas(pageEl, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+          windowWidth: 794,
+          windowHeight: 1123,
+          scrollX: 0,
+          scrollY: 0,
+          onclone: (clonedDoc) => {
+            const styleTags = clonedDoc.querySelectorAll('style');
+            styleTags.forEach((s: any) => {
+              if (s.textContent && (s.textContent.includes('oklch') || s.textContent.includes('color-mix') || s.textContent.includes('lab('))) {
+                s.textContent = s.textContent
+                  .replace(/oklch\([^)]+\)/gi, '#006d6f')
+                  .replace(/color-mix\([^)]+\)/gi, '#006d6f')
+                  .replace(/lab\([^)]+\)/gi, '#006d6f');
+              }
+            });
+
+            const overrideStyle = clonedDoc.createElement('style');
+            overrideStyle.innerHTML = `
+              *, *::before, *::after {
+                --primary: #006d6f !important;
+                --secondary: #0a7c7c !important;
+                --background: #ffffff !important;
+                --foreground: #0f172a !important;
+                --muted: #f1f5f9 !important;
+                --muted-foreground: #64748b !important;
+                --border: #e2e8f0 !important;
+                --card: #ffffff !important;
+                --card-foreground: #0f172a !important;
+                letter-spacing: normal !important;
+                word-spacing: normal !important;
+                font-kerning: normal !important;
+                transform: none !important;
+                zoom: 1 !important;
+                -webkit-font-smoothing: antialiased !important;
+                text-rendering: geometricPrecision !important;
+              }
+              .a4-page-sheet {
+                width: 794px !important;
+                min-height: 1123px !important;
+                transform: none !important;
+                margin: 0 !important;
+                box-sizing: border-box !important;
+              }
+            `;
+            clonedDoc.head.appendChild(overrideStyle);
+
+            const allElements = clonedDoc.querySelectorAll('*');
+            allElements.forEach((node: any) => {
+              if (node && node.style) {
+                if (node.style.transform) node.style.transform = 'none';
+                if (node.style.zoom) node.style.zoom = '1';
+                ['color', 'backgroundColor', 'borderColor', 'outlineColor', 'fill', 'stroke', 'boxShadow', 'textDecorationColor'].forEach((prop: string) => {
+                  const val = node.style[prop];
+                  if (typeof val === 'string' && (val.includes('oklch') || val.includes('color-mix') || val.includes('lab'))) {
+                    node.style[prop] = prop === 'backgroundColor' ? '#ffffff' : prop === 'color' ? '#0f172a' : '#cbd5e1';
+                  }
+                });
+              }
+            });
+          },
+        });
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        if (i > 0) pdf.addPage([794, 1123], 'portrait');
+        pdf.addImage(imgData, 'JPEG', 0, 0, 794, 1123);
+      }
+
+      const pName = sample.patientName?.replace(/\s+/g, '_') || 'Patient';
+      pdf.save(`MedsSeva_Outsource_Report_${pName}_${sample.sampleBarcode}.pdf`);
+      toast.success('Outsource report PDF downloaded successfully.');
+    } catch (err: any) {
+      console.error('Outsource PDF error:', err);
+      toast.error('Failed to generate PDF.');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  const getOutsourceReportData = (sample: OutsourceSample) => {
+    const activeTemplate = customReportTemplates.find(t => t.id === selectedCustomTemplateId) || customReportTemplates[0] || {};
+    
+    // Merge template with reference lab information
+    const mergedTemplate: Partial<CustomReportTemplate> = {
+      ...activeTemplate,
+      labDetails: {
+        name: sample.referenceLab?.name || activeTemplate.labDetails?.name || 'Medsseva Diagnostics & Research Center',
+        tagline: activeTemplate.labDetails?.tagline || 'External Reference Laboratory Diagnostic Network',
+        address: sample.referenceLab?.address ? `${sample.referenceLab.address}, ${sample.referenceLab.city}` : activeTemplate.labDetails?.address || 'Plot 44, Industrial Area, Noida, Uttar Pradesh',
+        phone: sample.referenceLab?.phone || activeTemplate.labDetails?.phone || '+91 8448009366',
+        email: sample.referenceLab?.email || activeTemplate.labDetails?.email || 'reports@medsseva.com',
+        branch: sample.referenceLab?.name ? `External Ref Lab: ${sample.referenceLab.name}` : activeTemplate.labDetails?.branch || 'Central Reference Lab',
+        regNo: sample.referenceLab?.code ? `Lab Code: ${sample.referenceLab.code}` : activeTemplate.labDetails?.regNo || 'REG-MED-2026',
+        logoUrl: activeTemplate.labDetails?.logoUrl || '',
+        gstPan: activeTemplate.labDetails?.gstPan || '',
+      },
+    };
+
+    const patientData = {
+      patientName: sample.patientName,
+      patientAge: sample.patientAge || '30',
+      patientGender: sample.patientGender || 'Male',
+      patientMobile: sample.patientMobile || '',
+      patientAddress: sample.referenceLab?.city || 'N/A',
+      sampleId: sample.sampleBarcode,
+      bookingCode: sample.bookingId?.slice(0, 8) || sample.sampleBarcode,
+      collectionDate: new Date(sample.dispatchDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+      reportDate: sample.expectedReportDate
+        ? new Date(sample.expectedReportDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+        : new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+      refDoctor: sample.referenceLab?.name || 'External Reference Lab',
+    };
+
+    const tests: SampleTestData[] = sample.testNames.split(',').map((tName, idx) => {
+      const cleanName = tName.trim();
+      const isHemat = sample.sampleType?.toLowerCase().includes('blood') || cleanName.toLowerCase().includes('cbc');
+      const isUrine = sample.sampleType?.toLowerCase().includes('urine') || cleanName.toLowerCase().includes('urine');
+      const isBio = cleanName.toLowerCase().includes('sugar') || cleanName.toLowerCase().includes('lipid') || cleanName.toLowerCase().includes('lft') || cleanName.toLowerCase().includes('kft');
+
+      let category = 'CLINICAL PATHOLOGY & SPECIAL INVESTIGATIONS';
+      if (isHemat) category = 'DEPARTMENT OF HAEMATOLOGY';
+      else if (isUrine) category = 'CLINICAL PATHOLOGY & URINALYSIS';
+      else if (isBio) category = 'CLINICAL BIOCHEMISTRY & IMMUNOASSAY';
+
+      return {
+        testName: cleanName,
+        testCode: `${sample.sampleBarcode}-${idx + 1}`,
+        category,
+        parameters: [
+          {
+            name: `${cleanName} (Quantitative Assay / Investigation)`,
+            value: sample.status === 'REPORT_RECEIVED' || sample.status === 'COMPLETED' ? 'Documented & Certified' : 'Under Processing',
+            unit: 'Ref Lab Standard',
+            referenceRange: 'Accredited Lab Standard Interval',
+            isAbnormal: false,
+            flag: 'NORMAL' as const,
+          },
+        ],
+        remarks: sample.resultNotes || 'Sample accessioned and processed at accredited external reference laboratory.',
+        interpretation: sample.resultNotes
+          ? `External Reference Laboratory Clinical Findings / Impression:\n${sample.resultNotes}`
+          : 'Clinical correlation recommended. Outsource report certified under Medsseva Diagnostic Network protocol.',
+      };
+    });
+
+    return { mergedTemplate, patientData, tests };
   };
 
   return (
@@ -569,21 +756,17 @@ export const OutsourceSamplesPage: React.FC = () => {
                           </td>
 
                           <td className="py-3.5 px-4">
-                            {s.reportFileUrl ? (
-                              <a
-                                href={s.reportFileUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/40 border border-teal-200 text-teal-700 dark:text-teal-300 font-bold hover:bg-teal-100 transition-colors"
-                              >
-                                <FileText className="w-3.5 h-3.5" /> View Report PDF
-                              </a>
-                            ) : s.courierTrackingNo ? (
-                              <div className="text-[10px] font-mono text-muted-foreground">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewReportSample(s)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/40 border border-teal-200 text-teal-700 dark:text-teal-300 font-bold hover:bg-teal-100 transition-colors text-xs cursor-pointer shadow-sm"
+                            >
+                              <FileText className="w-3.5 h-3.5 text-teal-600" /> View Report PDF
+                            </button>
+                            {s.courierTrackingNo && !s.reportFileUrl && (
+                              <div className="text-[10px] font-mono text-muted-foreground mt-1">
                                 {s.courierPartner}: <strong className="text-foreground">{s.courierTrackingNo}</strong>
                               </div>
-                            ) : (
-                              <span className="text-[10px] text-muted-foreground italic">No dispatch tracking</span>
                             )}
                           </td>
 
@@ -898,21 +1081,54 @@ export const OutsourceSamplesPage: React.FC = () => {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">External Lab Report PDF URL</label>
-                <div className="relative">
-                  <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <input
-                    type="url"
-                    value={newReportUrl}
-                    onChange={(e) => {
-                      setNewReportUrl(e.target.value);
-                      if (e.target.value && newStatus === 'PENDING') {
-                        setNewStatus('REPORT_RECEIVED');
-                      }
-                    }}
-                    placeholder="https://res.cloudinary.com/.../report.pdf"
-                    className="w-full pl-9 pr-3.5 py-2 bg-background border border-input rounded-xl text-xs font-mono text-foreground outline-none focus:border-teal-500"
-                  />
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">External Lab Report PDF (Upload File or Enter URL)</label>
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <input
+                      type="text"
+                      value={newReportUrl?.startsWith('data:') ? 'Attached Local PDF / Image File' : newReportUrl}
+                      onChange={(e) => {
+                        setNewReportUrl(e.target.value);
+                        if (e.target.value && newStatus === 'PENDING') {
+                          setNewStatus('REPORT_RECEIVED');
+                        }
+                      }}
+                      placeholder="https://res.cloudinary.com/.../report.pdf"
+                      className="w-full pl-9 pr-3.5 py-2 bg-background border border-input rounded-xl text-xs font-mono text-foreground outline-none focus:border-teal-500"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted hover:bg-muted/80 text-foreground text-xs font-bold border border-border transition-colors">
+                      <Upload className="w-3.5 h-3.5 text-teal-600" /> Choose PDF / Image File
+                      <input
+                        type="file"
+                        accept="application/pdf,image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              if (reader.result) {
+                                setNewReportUrl(reader.result as string);
+                                if (newStatus === 'PENDING' || newStatus === 'DISPATCHED') {
+                                  setNewStatus('REPORT_RECEIVED');
+                                }
+                                toast.success('Report file attached successfully.');
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                    {newReportUrl && (
+                      <span className="text-[11px] text-teal-600 font-bold flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> File Ready
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1069,6 +1285,122 @@ export const OutsourceSamplesPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* OUTSOURCE REPORT PREVIEW / PDF MODAL */}
+      {previewReportSample && (() => {
+        const { mergedTemplate, patientData, tests } = getOutsourceReportData(previewReportSample);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/75 backdrop-blur-sm overflow-y-auto">
+            <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-5xl max-h-[96vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 my-auto">
+              {/* Modal Header Toolbar */}
+              <div className="flex flex-wrap items-center justify-between px-5 py-3.5 border-b border-border bg-slate-900 text-white shrink-0 gap-3">
+                <div className="flex items-center gap-3">
+                  <FileText className="w-5 h-5 text-teal-400 shrink-0" />
+                  <div>
+                    <h2 className="text-sm font-bold text-white flex items-center gap-2 flex-wrap">
+                      Outsource Diagnostic Report Viewer
+                      <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-teal-500/20 text-teal-300 font-bold border border-teal-500/30">
+                        {previewReportSample.sampleBarcode}
+                      </span>
+                    </h2>
+                    <p className="text-[11px] text-slate-300">
+                      Patient: <strong>{previewReportSample.patientName}</strong> • Lab: <strong>{previewReportSample.referenceLab?.name || 'Reference Laboratory'}</strong>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center flex-wrap gap-2">
+                  {/* Template Switcher */}
+                  {customReportTemplates.length > 0 && (
+                    <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-lg">
+                      <Sparkles className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                      <select
+                        value={selectedCustomTemplateId}
+                        onChange={(e) => setSelectedCustomTemplateId(e.target.value)}
+                        className="bg-transparent text-xs font-bold text-teal-300 outline-none cursor-pointer max-w-[210px] truncate"
+                      >
+                        {customReportTemplates.map(t => (
+                          <option key={t.id} value={t.id} className="text-slate-900 bg-white">
+                            {t.name} ({t.type}){t.isDefault ? ' ★' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <button
+                    disabled={downloadingPdf}
+                    onClick={() => handleDownloadOutsourcePdf(previewReportSample)}
+                    className="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    {downloadingPdf ? 'Generating...' : 'Download PDF'}
+                  </button>
+
+                  {previewReportSample.reportFileUrl && (
+                    <a
+                      href={previewReportSample.reportFileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" /> Attached PDF
+                    </a>
+                  )}
+
+                  <button
+                    onClick={() => window.print()}
+                    className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
+                  >
+                    <Printer className="w-3.5 h-3.5" /> Print
+                  </button>
+
+                  <button
+                    onClick={() => setPreviewReportSample(null)}
+                    className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body / Scrollable A4 Custom Format Report Sheet */}
+              <div className="overflow-x-auto overflow-y-auto p-2 sm:p-6 bg-slate-950/60 flex justify-center items-start max-h-[85vh] custom-scrollbar">
+                <div id="outsource-report-sheet" className="shadow-2xl rounded-xl bg-white border border-slate-200">
+                  <LiveReportPreview
+                    template={mergedTemplate}
+                    patientData={patientData}
+                    tests={tests}
+                    scale={typeof window !== 'undefined' && window.innerWidth < 640 ? 0.45 : 0.82}
+                  />
+                </div>
+              </div>
+
+              {/* Dedicated Unscaled Offscreen Container for PDF Export */}
+              <div
+                style={{
+                  position: 'fixed',
+                  left: '-99999px',
+                  top: 0,
+                  width: '794px',
+                  pointerEvents: 'none',
+                  zIndex: -9999,
+                  opacity: 0,
+                }}
+              >
+                <div id="pdf-outsource-export-document">
+                  <LiveReportPreview
+                    template={mergedTemplate}
+                    patientData={patientData}
+                    tests={tests}
+                    scale={1}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

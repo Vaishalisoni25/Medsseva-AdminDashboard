@@ -59,45 +59,45 @@ export const PartnerPortalDashboardPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500/20">
       {/* Top Navbar */}
-      <header className="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40 px-6 py-4 flex items-center justify-between shadow-lg">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold shadow-inner">
-            <FlaskConical className="w-5 h-5" />
+      <header className="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40 px-4 sm:px-6 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-3 shadow-lg">
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold shadow-inner shrink-0">
+            <FlaskConical className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
           <div>
-            <div className="font-extrabold text-white text-base tracking-tight flex items-center gap-2">
-              MedsSeva <span className="text-emerald-400 text-xs px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 font-bold">Tie-up Partner Portal</span>
+            <div className="font-extrabold text-white text-sm sm:text-base tracking-tight flex items-center gap-2">
+              MedsSeva <span className="text-emerald-400 text-[10px] sm:text-xs px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 font-bold">Tie-up Partner</span>
             </div>
-            <div className="text-xs text-slate-400 font-medium">
+            <div className="text-[11px] sm:text-xs text-slate-400 font-medium">
               {data?.partner?.labName || 'Partner Center'} • <span className="font-mono text-emerald-300">{data?.partner?.partnerCode || 'PART-201'}</span>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => fetchPartnerData(period)}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors"
+            className="p-1.5 sm:p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors"
             title="Refresh Data"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <button
             onClick={handleLogout}
-            className="px-3.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 hover:text-rose-300 text-xs font-bold flex items-center gap-1.5 transition-colors"
+            className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 hover:text-rose-300 text-xs font-bold flex items-center gap-1.5 transition-colors"
           >
-            <LogOut className="w-3.5 h-3.5" /> Sign Out
+            <LogOut className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Sign Out</span>
           </button>
         </div>
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
         {/* Welcome & Badges Bar */}
-        <div className="bg-gradient-to-r from-emerald-950/80 via-slate-900/90 to-slate-900/80 border border-emerald-500/30 rounded-2xl p-6 shadow-xl relative overflow-hidden flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="bg-gradient-to-r from-emerald-950/80 via-slate-900/90 to-slate-900/80 border border-emerald-500/30 rounded-2xl p-4 sm:p-6 shadow-xl relative overflow-hidden flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="space-y-1 z-10">
-            <div className="text-xs font-bold uppercase tracking-wider text-emerald-400">Tie-up Diagnostic Partner</div>
-            <h1 className="text-2xl font-black text-white">{data?.partner?.labName || 'Diagnostic Partner Lab'}</h1>
+            <div className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-emerald-400">Tie-up Diagnostic Partner</div>
+            <h1 className="text-xl sm:text-2xl font-black text-white">{data?.partner?.labName || 'Diagnostic Partner Lab'}</h1>
             <div className="text-xs text-slate-400 font-medium flex flex-wrap items-center gap-2 pt-1">
               <span>{data?.partner?.address || 'Authorized Pathology Center'}</span>
               <span>•</span>
@@ -105,32 +105,32 @@ export const PartnerPortalDashboardPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 z-10">
-            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-2 text-center">
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 z-10">
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-3 sm:px-4 py-2 text-center flex-1 sm:flex-none">
               <div className="text-[10px] font-bold uppercase text-emerald-400">Commission Rate</div>
-              <div className="text-lg font-black text-white">{data?.summary?.commissionRate ?? 30}%</div>
+              <div className="text-base sm:text-lg font-black text-white">{data?.summary?.commissionRate ?? 30}%</div>
             </div>
-            <div className="bg-teal-500/10 border border-teal-500/30 rounded-xl px-4 py-2 text-center">
+            <div className="bg-teal-500/10 border border-teal-500/30 rounded-xl px-3 sm:px-4 py-2 text-center flex-1 sm:flex-none">
               <div className="text-[10px] font-bold uppercase text-teal-400">Payment Cycle</div>
-              <div className="text-lg font-black text-white">{data?.summary?.paymentCycle || 'MONTHLY'}</div>
+              <div className="text-base sm:text-lg font-black text-white">{data?.summary?.paymentCycle || 'MONTHLY'}</div>
             </div>
           </div>
         </div>
 
         {/* Period Selector & KPI Metrics */}
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 p-1 rounded-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+            <div className="flex flex-wrap items-center gap-1 bg-slate-900 border border-slate-800 p-1 rounded-xl w-full sm:w-auto">
               {[
-                { id: 'WEEKLY', label: 'Weekly (7 Days)' },
-                { id: '15_DAYS', label: '15 Days (Fortnightly)' },
-                { id: '30_DAYS', label: '30 Days (Monthly)' },
+                { id: 'WEEKLY', label: '7 Days' },
+                { id: '15_DAYS', label: '15 Days' },
+                { id: '30_DAYS', label: '30 Days' },
                 { id: 'ALL', label: 'All Time' },
               ].map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => setPeriod(tab.id as any)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex-1 sm:flex-none text-center ${
                     period === tab.id
                       ? 'bg-emerald-600 text-white shadow-md'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'

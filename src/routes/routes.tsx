@@ -38,6 +38,11 @@ import { CommissionsManagementPage } from '@/pages/CommissionsManagement';
 import ExpensesPage from '@/pages/Expenses';
 import OutsourceSamplesPage from '@/pages/OutsourceSamples';
 import GoogleReviewBuilderPage from '@/pages/GoogleReviewBuilder';
+import { CustomFormatPage } from '@/pages/CustomFormat';
+import { CustomReportTemplatesPage } from '@/pages/CustomReportTemplates';
+import { CustomInvoiceTemplatesPage } from '@/pages/CustomInvoiceTemplates';
+import { ReportTemplateBuilder } from '@/components/customFormats/ReportTemplateBuilder';
+import { InvoiceTemplateBuilder } from '@/components/customFormats/InvoiceTemplateBuilder';
 
 export const router = createBrowserRouter([
   {
@@ -46,6 +51,10 @@ export const router = createBrowserRouter([
   },
   {
     path: '/verify-bill/:bookingId',
+    element: <VerifyBillPage />,
+  },
+  {
+    path: '/verify-invoice/:bookingId',
     element: <VerifyBillPage />,
   },
   {
@@ -167,6 +176,63 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission="reports.approve">
             <ReportApprovalPage />
+          </ProtectedRoute>
+        ),
+      },
+      // Custom Format Studio (Reports & Invoices)
+      {
+        path: 'custom-formats',
+        element: (
+          <ProtectedRoute permission="reports.view">
+            <CustomFormatPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'custom-formats/reports',
+        element: (
+          <ProtectedRoute permission="reports.view">
+            <CustomReportTemplatesPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'custom-formats/reports/new',
+        element: (
+          <ProtectedRoute permission="reports.create">
+            <ReportTemplateBuilder />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'custom-formats/reports/:id/edit',
+        element: (
+          <ProtectedRoute permission="reports.create">
+            <ReportTemplateBuilder />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'custom-formats/invoices',
+        element: (
+          <ProtectedRoute permission="payments.view">
+            <CustomInvoiceTemplatesPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'custom-formats/invoices/new',
+        element: (
+          <ProtectedRoute permission="payments.create">
+            <InvoiceTemplateBuilder />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'custom-formats/invoices/:id/edit',
+        element: (
+          <ProtectedRoute permission="payments.create">
+            <InvoiceTemplateBuilder />
           </ProtectedRoute>
         ),
       },

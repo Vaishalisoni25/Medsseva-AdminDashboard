@@ -323,23 +323,23 @@ export const DashboardPage: React.FC = () => {
     };
 
     return (
-      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 mb-8">
+      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-bold text-primary select-none mb-2.5">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-bold text-primary select-none mb-2 sm:mb-2.5">
             <Sparkles className="w-3.5 h-3.5" />
             <span>Live Operations Sync Active</span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground tracking-tight">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground tracking-tight">
             Welcome back, {user?.name?.split(' ')[0] || 'Administrator'}
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">
+          <p className="text-muted-foreground text-xs sm:text-sm mt-1">
             {roleLabels[user?.role || 'super_admin'] || 'Healthcare Management Console'}, Ready for clinical workflow.
           </p>
         </div>
 
         {/* Time Range Filter Bar (Matching Analytics Page) */}
-        <div className="flex flex-wrap items-center gap-2 self-start xl:self-auto">
-          <div className="flex items-center bg-muted/60 p-1 rounded-xl border border-border/80 shadow-sm flex-wrap gap-1">
+        <div className="flex flex-wrap items-center gap-2 self-start xl:self-auto w-full xl:w-auto">
+          <div className="flex items-center bg-muted/60 p-1 rounded-xl border border-border/80 shadow-sm flex-wrap gap-1 w-full sm:w-auto">
             {PRESETS.map((p) => {
               const active = preset === p.value;
               return (
@@ -347,10 +347,10 @@ export const DashboardPage: React.FC = () => {
                   key={p.value}
                   onClick={() => setPreset(p.value)}
                   className={cn(
-                    'px-3 py-1.5 text-xs font-semibold rounded-lg transition-all',
+                    'px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex-1 sm:flex-none text-center',
                     active
-                      ? 'bg-card text-foreground font-bold shadow-sm border border-border'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-card/50'
+                      ? 'bg-card text-foreground font-bold shadow-sm border border-border/50'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
                   )}
                 >
                   {p.label}
@@ -361,10 +361,11 @@ export const DashboardPage: React.FC = () => {
 
           <button
             onClick={handleRefresh}
-            title="Refresh Live Data"
-            className="p-2.5 rounded-xl border border-border bg-card hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-all shadow-sm flex items-center justify-center"
+            disabled={isRefreshing}
+            className="p-2 rounded-xl bg-card border border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all shadow-sm disabled:opacity-50 shrink-0"
+            title="Refresh dashboard"
           >
-            <RefreshCw className={cn("w-4 h-4 text-primary", isRefreshing && "animate-spin")} />
+            <RefreshCw className={cn('w-4 h-4', isRefreshing && 'animate-spin text-primary')} />
           </button>
         </div>
       </div>
@@ -464,17 +465,17 @@ export const DashboardPage: React.FC = () => {
       {renderStatsWidgets()}
 
       {/* Graphical Data Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
         
         {/* Recharts Spline Overlay - Bookings & Revenue */}
         <motion.div 
           initial={{ opacity: 0, scale: 0.98 }} 
           animate={{ opacity: 1, scale: 1 }}
-          className="lg:col-span-2 bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-col h-[400px]"
+          className="lg:col-span-2 bg-card border border-border rounded-2xl p-4 sm:p-6 shadow-sm flex flex-col h-[340px] sm:h-[400px] min-w-0"
         >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 sm:mb-6">
             <div>
-              <h3 className="text-base font-bold text-foreground">Diagnostics Volume Tracker</h3>
+              <h3 className="text-sm sm:text-base font-bold text-foreground">Diagnostics Volume Tracker</h3>
               <p className="text-xs text-muted-foreground mt-0.5">Interactive test metrics & revenue analytics</p>
             </div>
             
@@ -484,7 +485,7 @@ export const DashboardPage: React.FC = () => {
               <select 
                 value={chartView}
                 onChange={e => setChartView(e.target.value as ChartView)}
-                className="bg-muted/70 border border-border/60 rounded-xl text-xs font-semibold text-foreground px-3 py-1.5 outline-none focus:ring-2 focus:ring-primary/30"
+                className="bg-muted/70 border border-border/60 rounded-xl text-xs font-semibold text-foreground px-2.5 sm:px-3 py-1.5 outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
               >
                 <option value="daily">Daily / Today (Hours)</option>
                 <option value="weekly">Weekly View (Days)</option>
@@ -518,7 +519,10 @@ export const DashboardPage: React.FC = () => {
                 <Tooltip 
                   contentStyle={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }} 
                   labelStyle={{ fontWeight: 600, color: '#1A1A1A' }}
-                  formatter={(value: any) => [`₹${Number(value).toLocaleString()}`, 'Revenue']}
+                  formatter={(value: any, name: any) => [
+                    name === 'revenue' ? `₹${Number(value).toLocaleString()}` : `${value} Bookings`,
+                    name === 'revenue' ? 'Revenue' : 'Bookings'
+                  ]}
                 />
                 <Area 
                   type="monotone" 
@@ -527,7 +531,6 @@ export const DashboardPage: React.FC = () => {
                   strokeWidth={2.5}
                   fillOpacity={1} 
                   fill="url(#colorRev)" 
-                  name="Revenue (₹)"
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -538,27 +541,31 @@ export const DashboardPage: React.FC = () => {
         <motion.div 
           initial={{ opacity: 0, scale: 0.98 }} 
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.1 }}
-          className="bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-col h-[400px]"
+          transition={{ delay: 0.05 }}
+          className="bg-card border border-border rounded-2xl p-4 sm:p-6 shadow-sm flex flex-col h-[340px] sm:h-[400px] min-w-0"
         >
-          <div className="mb-6">
-            <h3 className="text-base font-bold text-foreground">Category Distribution</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Top performing clinical segments</p>
+          <div className="mb-4 sm:mb-6">
+            <h3 className="text-sm sm:text-base font-bold text-foreground">Test Department Split</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Distribution by medical category</p>
           </div>
 
           <div className="flex-1 min-h-0">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={categoryDistribution} layout="vertical" barSize={24}>
+              <BarChart data={categoryDistribution} layout="vertical" margin={{ left: 10, right: 10 }}>
                 <XAxis type="number" hide />
                 <YAxis 
                   dataKey="name" 
                   type="category" 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{ fontSize: 12, fill: '#1A1A1A', fontWeight: 600 }}
-                  width={80}
+                  tick={{ fontSize: 11, fill: '#667085', fontWeight: 500 }} 
+                  width={75}
                 />
-                <Tooltip cursor={{ fill: 'transparent' }} />
+                <Tooltip 
+                  cursor={{ fill: 'rgba(0,0,0,0.02)' }}
+                  contentStyle={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: '12px' }} 
+                  formatter={(value: any) => [`${value} Tests`, 'Volume']}
+                />
                 <Bar dataKey="count" radius={[0, 6, 6, 0]}>
                   {categoryDistribution.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
@@ -567,36 +574,24 @@ export const DashboardPage: React.FC = () => {
               </BarChart>
             </ResponsiveContainer>
           </div>
-
-          <div className="border-t border-border/50 pt-4 mt-4 space-y-2.5 text-xs font-medium">
-            {categoryDistribution.map((c, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c.color }} />
-                  <span>{c.name} Tests</span>
-                </div>
-                <span className="text-foreground font-bold">{c.count} units</span>
-              </div>
-            ))}
-          </div>
         </motion.div>
 
       </div>
 
-      {/* Operations Workflow Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Operations Split: Recent Bookings & Alerts Feed */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         
-        {/* Recent Bookings Table (Filtered & Live) */}
-        <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-base font-bold text-foreground">Recent Booking Ingress</h3>
+        {/* Recent Bookings Ingress Table */}
+        <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-4 sm:p-6 shadow-sm min-w-0">
+          <div className="flex items-center justify-between mb-4 sm:mb-6">
+            <h3 className="text-sm sm:text-base font-bold text-foreground">Recent Booking Ingress</h3>
             <span className="text-xs text-muted-foreground">
               Showing {Math.min(filteredBookings.length, 5)} of {filteredBookings.length} cases
             </span>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm font-medium select-none">
+          <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+            <table className="w-full text-left text-sm font-medium select-none min-w-[500px]">
               <thead>
                 <tr className="border-b border-border text-muted-foreground text-xs font-bold uppercase tracking-wider">
                   <th className="pb-3 font-bold">Patient</th>

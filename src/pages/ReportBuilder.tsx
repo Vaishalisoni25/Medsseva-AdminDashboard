@@ -33,6 +33,8 @@ import { cn } from '../utils/cn';
 import { branchService, Branch } from '../services/branch.service';
 import { doctorService, testService, packageService } from '../services/api';
 import { useToast } from '../components/Toast';
+import { customFormatService } from '../services/customFormat.service';
+import { CustomReportTemplate } from '../types/customFormat';
 
 type Flag = 'NORMAL' | 'HIGH' | 'LOW' | 'CRITICAL_HIGH' | 'CRITICAL_LOW' | 'PENDING';
 type ResultType = 'NUMERIC' | 'TEXT' | 'POS_NEG' | 'YES_NO';
@@ -284,6 +286,8 @@ export const ReportBuilderPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [reportTemplate, setReportTemplate] = useState<'STANDARD' | 'DETAILED'>('STANDARD');
+  const [customReportTemplates, setCustomReportTemplates] = useState<CustomReportTemplate[]>([]);
+  const [selectedCustomTemplateId, setSelectedCustomTemplateId] = useState<string>('');
   const [modalTab, setModalTab] = useState<'existing' | 'walkin'>('existing');
   const [walkinForm, setWalkinForm] = useState({
     patientName: '',
@@ -318,7 +322,15 @@ export const ReportBuilderPage: React.FC = () => {
     }).catch(() => {});
 
     doctorService.getDoctors().then(docs => {
-      if (Array.isArray(docs)) setAvailableDoctors(docs);
+      if (docs?.data && Array.isArray(docs.data)) {
+        setAvailableDoctors(docs.data);
+      }
+    }).catch(() => {});
+
+    customFormatService.getReportTemplates().then(templates => {
+      setCustomReportTemplates(templates);
+      const def = templates.find(t => t.isDefault && t.type === 'STANDARD') || templates[0];
+      if (def) setSelectedCustomTemplateId(def.id);
     }).catch(() => {});
 
     testService.getAllTests().then(data => {
@@ -681,21 +693,21 @@ const filteredBookings = useMemo(() => {
 
   return (
     <div className="space-y-6 pb-10">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Report Builder</h1>
           <p className="text-sm text-muted-foreground">Select a booking or register a walk-in patient, enter test values, and save as draft.</p>
         </div>
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <button
             onClick={() => { setModalTab('walkin'); setShowModal(true); }}
-            className="px-3.5 py-2 bg-card border border-primary/30 text-primary hover:bg-primary/5 text-sm font-bold rounded-lg flex items-center gap-1.5 shadow-xs transition-colors"
+            className="flex-1 sm:flex-initial px-3.5 py-2 bg-card border border-primary/30 text-primary hover:bg-primary/5 text-xs sm:text-sm font-bold rounded-lg flex items-center justify-center gap-1.5 shadow-xs transition-colors"
           >
             <UserPlus className="h-4 w-4" /> Add New Patient
           </button>
           <button
             onClick={() => { setModalTab('existing'); setShowModal(true); }}
-            className="px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg flex items-center gap-2 shadow-sm hover:bg-primary/90 transition-colors"
+            className="flex-1 sm:flex-initial px-4 py-2 bg-primary text-white text-xs sm:text-sm font-bold rounded-lg flex items-center justify-center gap-2 shadow-sm hover:bg-primary/90 transition-colors"
           >
             <FileText className="h-4 w-4" /> Create Report
           </button>
@@ -705,7 +717,7 @@ const filteredBookings = useMemo(() => {
       {showModal && (
         <>
           <div className="fixed inset-0 bg-black/50 z-50 backdrop-blur-xs" onClick={() => setShowModal(false)} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl bg-background border border-border rounded-2xl z-[60] shadow-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[95vw] sm:max-w-2xl bg-background border border-border rounded-2xl z-[60] shadow-2xl p-4 sm:p-6 space-y-4 sm:space-y-5 max-h-[92vh] overflow-y-auto">
             
             {/* Header & Tabs */}
             <div className="flex items-center justify-between pb-3 border-b border-border">
@@ -1141,17 +1153,16 @@ const filteredBookings = useMemo(() => {
           <AnimatePresence mode="wait">
             {selectedBooking ? (
               <motion.div key={selectedBooking.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
-
                 <div className="bg-card border border-border p-4 rounded-xl shadow-sm">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div><div className="text-xs text-muted-foreground">Patient</div><div className="font-bold">{selectedBooking.patientName}</div></div>
-                    <div><div className="text-xs text-muted-foreground">Booking Code</div><div className="font-mono font-bold">{selectedBooking.bookingCode}</div></div>
-                    <div><div className="text-xs text-muted-foreground">Mobile</div><div className="font-bold">{selectedBooking.patientMobile || selectedBooking.user?.mobile}</div></div>
-                    <div><div className="text-xs text-muted-foreground">Collection</div><div className="font-bold">{selectedBooking.collectionMode}</div></div>
-                    <div><div className="text-xs text-muted-foreground">Gender</div><div className="font-bold">{selectedBooking.patientGender || '-'}</div></div>
-                    <div><div className="text-xs text-muted-foreground">Age</div><div className="font-bold">{selectedBooking.patientAge ? `${selectedBooking.patientAge} yrs` : '-'}</div></div>
-                  <div><div className="text-xs text-muted-foreground">Branch</div><div className="font-bold">{selectedBooking.collectionMode === 'HOME' ? (selectedBooking.sampleDelivery?.branch?.name || 'Not Assigned') : (selectedBooking.branch?.name || 'Not Assigned')}</div></div>
-                    <div><div className="text-xs text-muted-foreground">Scheduled</div><div className="font-bold">{new Date(selectedBooking.scheduledDate).toLocaleDateString('en-IN')}</div></div>
+                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 text-xs sm:text-sm">
+                    <div><div className="text-[10px] sm:text-xs text-muted-foreground">Patient</div><div className="font-bold truncate">{selectedBooking.patientName}</div></div>
+                    <div><div className="text-[10px] sm:text-xs text-muted-foreground">Booking Code</div><div className="font-mono font-bold truncate">{selectedBooking.bookingCode}</div></div>
+                    <div><div className="text-[10px] sm:text-xs text-muted-foreground">Mobile</div><div className="font-bold truncate">{selectedBooking.patientMobile || selectedBooking.user?.mobile}</div></div>
+                    <div><div className="text-[10px] sm:text-xs text-muted-foreground">Collection</div><div className="font-bold">{selectedBooking.collectionMode}</div></div>
+                    <div><div className="text-[10px] sm:text-xs text-muted-foreground">Gender</div><div className="font-bold">{selectedBooking.patientGender || '-'}</div></div>
+                    <div><div className="text-[10px] sm:text-xs text-muted-foreground">Age</div><div className="font-bold">{selectedBooking.patientAge ? `${selectedBooking.patientAge} yrs` : '-'}</div></div>
+                    <div><div className="text-[10px] sm:text-xs text-muted-foreground">Branch</div><div className="font-bold truncate">{selectedBooking.collectionMode === 'HOME' ? (selectedBooking.sampleDelivery?.branch?.name || 'Not Assigned') : (selectedBooking.branch?.name || 'Not Assigned')}</div></div>
+                    <div><div className="text-[10px] sm:text-xs text-muted-foreground">Scheduled</div><div className="font-bold">{new Date(selectedBooking.scheduledDate).toLocaleDateString('en-IN')}</div></div>
                   </div>
                 </div>
 
@@ -1168,7 +1179,7 @@ const filteredBookings = useMemo(() => {
 
                 {testGroups.map((group, groupIdx) => (
                   <div key={group.testId} className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
-                    <div className="bg-muted/50 px-5 py-3.5 border-b border-border flex items-center justify-between">
+                    <div className="bg-muted/50 px-4 sm:px-5 py-3.5 border-b border-border flex items-center justify-between">
                       <div className="font-bold text-sm text-foreground">{group.testName}</div>
                       <button onClick={() => addParameter(groupIdx)} className="text-xs font-bold text-primary flex items-center gap-1 hover:bg-primary/10 px-2 py-1 rounded">
                         <Plus className="h-3.5 w-3.5" /> Add Parameter
@@ -1181,24 +1192,55 @@ const filteredBookings = useMemo(() => {
                         const isEditing = isEditingThis(groupIdx, paramIdx);
                         return (
                           <div key={param.parameterId} className={cn("transition-all", isEditing ? "bg-primary/5 border-l-2 border-primary" : "hover:bg-muted/10")}>
-                            <div className="px-5 py-3 flex items-center gap-3">
-                              <div className="flex flex-col gap-0.5">
-                                <button onClick={() => moveParameter(groupIdx, paramIdx, -1)} disabled={paramIdx === 0} className="text-muted-foreground hover:text-foreground disabled:opacity-30"><ChevronUp className="h-3 w-3" /></button>
-                                <button onClick={() => moveParameter(groupIdx, paramIdx, 1)} disabled={paramIdx === group.parameters.length - 1} className="text-muted-foreground hover:text-foreground disabled:opacity-30"><ChevronDown className="h-3 w-3" /></button>
+                            <div className="px-3 sm:px-5 py-3 flex flex-col md:flex-row md:items-center gap-3">
+                              {/* Reorder and Title on Mobile */}
+                              <div className="flex items-center justify-between md:justify-start gap-2">
+                                <div className="flex items-center gap-1.5">
+                                  <div className="flex flex-row md:flex-col gap-0.5">
+                                    <button onClick={() => moveParameter(groupIdx, paramIdx, -1)} disabled={paramIdx === 0} className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"><ChevronUp className="h-3.5 w-3.5" /></button>
+                                    <button onClick={() => moveParameter(groupIdx, paramIdx, 1)} disabled={paramIdx === group.parameters.length - 1} className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30"><ChevronDown className="h-3.5 w-3.5" /></button>
+                                  </div>
+
+                                  <div className="md:hidden flex-1">
+                                    {isEditing ? (
+                                      <input value={param.parameterName} onChange={e => updateParam(groupIdx, paramIdx, { parameterName: e.target.value })} className="text-sm font-semibold border border-border rounded px-2 py-1 bg-background outline-none focus:border-primary w-full max-w-[180px]" placeholder="Param name" />
+                                    ) : (
+                                      <div className="font-semibold text-xs sm:text-sm text-foreground truncate max-w-[180px]">
+                                        {param.parameterName || <span className="text-muted-foreground italic">Unnamed</span>}
+                                        <span className="ml-1 text-[10px] text-muted-foreground font-normal">({param.unit || '-'})</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Mobile Quick Action Buttons & Flag */}
+                                <div className="flex items-center gap-1.5 md:hidden">
+                                  <span className={cn("text-[9px] font-black px-1.5 py-0.5 rounded border uppercase", flagCfg.className)}>{flagCfg.label}</span>
+                                  <button onClick={() => setEditingParam(isEditing ? null : { groupIdx, paramIdx })} className={cn("p-1 rounded text-xs font-bold", isEditing ? "bg-primary text-white" : "hover:bg-muted text-muted-foreground hover:text-foreground")}>
+                                    <Edit3 className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button onClick={() => deleteParameter(groupIdx, paramIdx)} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
                               </div>
 
-                              <div className="flex-1 grid grid-cols-12 gap-3 items-center text-sm">
-                                <div className="col-span-3">
+                              {/* Parameter Input Columns (Responsive) */}
+                              <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-2.5 sm:gap-3 items-center text-sm">
+                                {/* Desktop Parameter Name */}
+                                <div className="hidden md:block md:col-span-3">
                                   {isEditing ? (
                                     <input value={param.parameterName} onChange={e => updateParam(groupIdx, paramIdx, { parameterName: e.target.value })} className="w-full text-sm font-semibold border border-border rounded px-2 py-1 bg-background outline-none focus:border-primary" placeholder="Parameter name" />
                                   ) : (
-                                    <div className="font-semibold text-foreground">{param.parameterName || <span className="text-muted-foreground italic">Unnamed</span>}
+                                    <div className="font-semibold text-foreground truncate">{param.parameterName || <span className="text-muted-foreground italic">Unnamed</span>}
                                       <span className="ml-1.5 text-[10px] text-muted-foreground font-normal">{param.unit}</span>
                                     </div>
                                   )}
                                 </div>
 
-                                <div className="col-span-2">
+                                {/* Bio Ref Range */}
+                                <div className="md:col-span-2">
+                                  <div className="text-[10px] text-muted-foreground font-bold uppercase md:hidden mb-0.5">Bio Ref Range:</div>
                                   {isEditing ? (
                                     <input value={param.unit} onChange={e => updateParam(groupIdx, paramIdx, { unit: e.target.value })} className="w-full text-xs border border-border rounded px-2 py-1 bg-background outline-none focus:border-primary" placeholder="Unit" />
                                   ) : (
@@ -1206,37 +1248,41 @@ const filteredBookings = useMemo(() => {
                                   )}
                                 </div>
 
-                                <div className="col-span-2">
+                                {/* Observed Value Input */}
+                                <div className="md:col-span-2">
+                                  <div className="text-[10px] text-muted-foreground font-bold uppercase md:hidden mb-0.5">Observed Value:</div>
                                   {param.resultType === 'NUMERIC' ? (
                                     <input type="number" step="0.01" value={param.value} onChange={e => updateParam(groupIdx, paramIdx, { value: e.target.value })}
-                                      className={cn("w-full text-center py-1 px-2 text-sm font-bold rounded border outline-none focus:ring-1",
+                                      className={cn("w-full text-center py-1.5 px-2 text-sm font-bold rounded border outline-none focus:ring-1",
                                         param.flag === 'CRITICAL_HIGH' || param.flag === 'CRITICAL_LOW' ? "border-red-300 text-red-700 bg-red-50 focus:ring-red-200"
                                           : param.flag === 'HIGH' || param.flag === 'LOW' ? "border-amber-300 text-amber-700 bg-amber-50 focus:ring-amber-200"
                                           : param.flag === 'NORMAL' ? "border-emerald-300 text-emerald-700 bg-emerald-50 focus:ring-emerald-200"
                                           : "border-input bg-card focus:ring-primary/20"
                                       )} placeholder="Value" />
                                   ) : param.resultType === 'POS_NEG' ? (
-                                    <select value={param.value} onChange={e => updateParam(groupIdx, paramIdx, { value: e.target.value, flag: e.target.value === 'Positive' ? 'HIGH' : 'NORMAL' })} className="w-full text-xs border border-border rounded px-2 py-1 bg-background outline-none">
+                                    <select value={param.value} onChange={e => updateParam(groupIdx, paramIdx, { value: e.target.value, flag: e.target.value === 'Positive' ? 'HIGH' : 'NORMAL' })} className="w-full text-xs border border-border rounded px-2 py-1.5 bg-background outline-none">
                                       <option value="">Select</option>
                                       <option>Positive</option>
                                       <option>Negative</option>
                                     </select>
                                   ) : param.resultType === 'YES_NO' ? (
-                                    <select value={param.value} onChange={e => updateParam(groupIdx, paramIdx, { value: e.target.value })} className="w-full text-xs border border-border rounded px-2 py-1 bg-background outline-none">
+                                    <select value={param.value} onChange={e => updateParam(groupIdx, paramIdx, { value: e.target.value })} className="w-full text-xs border border-border rounded px-2 py-1.5 bg-background outline-none">
                                       <option value="">Select</option>
                                       <option>Yes</option>
                                       <option>No</option>
                                     </select>
                                   ) : (
-                                    <input type="text" value={param.value} onChange={e => updateParam(groupIdx, paramIdx, { value: e.target.value })} className="w-full text-xs border border-border rounded px-2 py-1 bg-background outline-none focus:border-primary" placeholder="Result" />
+                                    <input type="text" value={param.value} onChange={e => updateParam(groupIdx, paramIdx, { value: e.target.value })} className="w-full text-xs border border-border rounded px-2 py-1.5 bg-background outline-none focus:border-primary" placeholder="Result" />
                                   )}
                                 </div>
 
-                                <div className="col-span-2">
+                                {/* Flag badge (Desktop) */}
+                                <div className="hidden md:block md:col-span-2">
                                   <span className={cn("text-[10px] font-black px-2 py-0.5 rounded border uppercase", flagCfg.className)}>{flagCfg.label}</span>
                                 </div>
 
-                                <div className="col-span-3 flex items-center justify-end gap-1.5">
+                                {/* Actions & Result Type (Desktop) */}
+                                <div className="hidden md:flex md:col-span-3 items-center justify-end gap-1.5">
                                   {isEditing ? (
                                     <select value={param.resultType} onChange={e => updateParam(groupIdx, paramIdx, { resultType: e.target.value as ResultType })} className="text-[10px] border border-border rounded px-1.5 py-1 bg-background outline-none">
                                       <option value="NUMERIC">Numeric</option>
@@ -1256,8 +1302,8 @@ const filteredBookings = useMemo(() => {
                             </div>
 
                             {isEditing && (
-                              <div className="px-5 pb-4 space-y-4 border-t border-border/50 pt-3">
-                                <div className="grid grid-cols-2 gap-3">
+                              <div className="px-3 sm:px-5 pb-4 space-y-4 border-t border-border/50 pt-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                   <div>
                                     <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Critical Low</label>
                                     <input type="number" step="0.01" value={param.criticalLow} onChange={e => updateParam(groupIdx, paramIdx, { criticalLow: e.target.value })} className="w-full text-xs border border-border rounded px-2 py-1.5 bg-background outline-none focus:border-primary" placeholder="e.g. 2.0" />
@@ -1277,7 +1323,7 @@ const filteredBookings = useMemo(() => {
                                   </div>
                                   <div className="space-y-2">
                                     {param.referenceRanges.map((r, ri) => (
-                                      <div key={ri} className="grid grid-cols-6 gap-2 items-center bg-muted/30 rounded p-2">
+                                      <div key={ri} className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-center bg-muted/30 rounded p-2">
                                         <select value={r.gender} onChange={e => updateRange(groupIdx, paramIdx, ri, { gender: e.target.value as any })} className="text-[10px] border border-border rounded px-1.5 py-1 bg-background outline-none col-span-1">
                                           <option value="ANY">ANY</option>
                                           <option value="MALE">MALE</option>
@@ -1287,7 +1333,7 @@ const filteredBookings = useMemo(() => {
                                         <input type="number" value={r.maxAge} onChange={e => updateRange(groupIdx, paramIdx, ri, { maxAge: Number(e.target.value) })} className="text-[10px] border border-border rounded px-1.5 py-1 bg-background outline-none col-span-1" placeholder="Max Age" />
                                         <input type="number" step="0.01" value={r.minRange} onChange={e => updateRange(groupIdx, paramIdx, ri, { minRange: Number(e.target.value) })} className="text-[10px] border border-border rounded px-1.5 py-1 bg-background outline-none col-span-1" placeholder="Min" />
                                         <input type="number" step="0.01" value={r.maxRange} onChange={e => updateRange(groupIdx, paramIdx, ri, { maxRange: Number(e.target.value) })} className="text-[10px] border border-border rounded px-1.5 py-1 bg-background outline-none col-span-1" placeholder="Max" />
-                                        <button type="button" onClick={() => deleteRange(groupIdx, paramIdx, ri)} className="text-destructive hover:bg-destructive/10 p-1 rounded col-span-1">
+                                        <button type="button" onClick={() => deleteRange(groupIdx, paramIdx, ri)} className="text-destructive hover:bg-destructive/10 p-1 rounded col-span-2 sm:col-span-1 flex items-center justify-center">
                                           <X className="h-3 w-3" />
                                         </button>
                                       </div>
@@ -1313,16 +1359,34 @@ const filteredBookings = useMemo(() => {
                   </div>
                 ))}
 
-                {/* Report Template Format Selection */}
-                <div className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-3">
+                <div className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-4">
                   <div className="flex items-center justify-between">
                     <h4 className="font-bold text-sm text-foreground flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-primary" /> Report Template Format
+                      <Sparkles className="h-4 w-4 text-primary" /> Report Layout & Format
                     </h4>
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-primary/10 text-primary">
-                      {reportTemplate === 'STANDARD' ? 'Standard Layout' : 'Detailed Layout'}
-                    </span>
                   </div>
+
+                  {customReportTemplates.length > 0 && (
+                    <div className="p-3 bg-muted/30 border border-border rounded-xl space-y-1.5">
+                      <label className="text-xs font-bold text-foreground block">Apply Custom Report Format</label>
+                      <select
+                        value={selectedCustomTemplateId}
+                        onChange={(e) => {
+                          const newId = e.target.value;
+                          setSelectedCustomTemplateId(newId);
+                          const tpl = customReportTemplates.find(t => t.id === newId);
+                          if (tpl) setReportTemplate(tpl.type);
+                        }}
+                        className="w-full text-xs border border-border rounded-lg px-3 py-2 bg-card text-foreground font-semibold focus:ring-1 focus:ring-primary outline-none"
+                      >
+                        {customReportTemplates.map(t => (
+                          <option key={t.id} value={t.id}>
+                            {t.name} ({t.type} Report){t.isDefault ? ' ★ Default' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                     {/* Standard Report */}
@@ -1630,12 +1694,12 @@ const filteredBookings = useMemo(() => {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-3 pt-3 border-t border-border">
-                  <button onClick={() => setSelectedBooking(null)} className="px-4 py-2 border border-border hover:bg-muted rounded-lg text-xs font-bold">Back</button>
-                  <button onClick={handleSaveDraft} disabled={saving} className="px-4 py-2 border border-border hover:bg-muted rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs disabled:opacity-60">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5 sm:gap-3 pt-3 border-t border-border">
+                  <button onClick={() => setSelectedBooking(null)} className="px-4 py-2.5 border border-border hover:bg-muted rounded-lg text-xs font-bold text-center">Back</button>
+                  <button onClick={handleSaveDraft} disabled={saving} className="px-4 py-2.5 border border-border hover:bg-muted rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs disabled:opacity-60">
                     <Save className="h-3.5 w-3.5" /> {saving ? 'Saving...' : 'Save Draft'}
                   </button>
-                  <button onClick={handleSaveAndFinalize} disabled={saving} className="px-6 py-2 bg-primary text-white hover:bg-primary/90 rounded-lg text-xs font-black flex items-center gap-2 shadow-sm disabled:opacity-60">
+                  <button onClick={handleSaveAndFinalize} disabled={saving} className="px-6 py-2.5 bg-primary text-white hover:bg-primary/90 rounded-lg text-xs font-black flex items-center justify-center gap-2 shadow-sm disabled:opacity-60">
                     <Sparkles className="h-4 w-4" /> {saving ? 'Processing...' : 'Save & Finalize Report'}
                   </button>
                 </div>

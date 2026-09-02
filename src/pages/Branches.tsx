@@ -315,7 +315,7 @@ export default function Branches() {
         <div className="text-center py-12 text-gray-400 text-sm">No branches found</div>
       ) : (
         <div className="bg-white border rounded-xl overflow-x-auto shadow-sm">
-          <table className="w-full text-sm text-left">
+          <table className="w-full text-sm text-left min-w-[700px]">
             <thead className="bg-gray-50 text-xs text-gray-500 font-semibold uppercase tracking-wider border-b">
               <tr>
                 <th className="px-4 py-3">Branch</th>

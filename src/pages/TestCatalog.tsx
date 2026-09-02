@@ -366,10 +366,11 @@ const backendPayload: any = {
       </div>
 
     
+      {/* Data Table Section */}
       <div className="flex-1 bg-card border border-border rounded-2xl overflow-hidden shadow-sm flex flex-col min-h-[400px]">
         
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-          <table className="w-full text-left border-collapse relative text-sm font-medium select-none">
+        <div className="flex-1 overflow-x-auto custom-scrollbar">
+          <table className="w-full text-left border-collapse relative text-sm font-medium select-none min-w-[750px]">
             <thead className="sticky top-0 z-10 bg-muted/60 backdrop-blur-md border-b border-border text-muted-foreground text-xs font-bold uppercase tracking-wider">
               <tr>
                 <th className="px-6 py-4 font-bold text-left">Test Specification</th>

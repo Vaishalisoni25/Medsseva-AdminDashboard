@@ -396,7 +396,7 @@ export const ExpensesPage: React.FC = () => {
       {/* EXPENSES TABLE */}
       <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-xs min-w-[750px]">
             <thead className="bg-muted/50 text-muted-foreground uppercase text-[10px] tracking-wider border-b border-border">
               <tr>
                 <th className="py-3.5 px-4 font-bold">Date & Title</th>

@@ -27,6 +27,7 @@ import {
   Receipt,
   Truck,
   Star,
+  Palette,
 } from 'lucide-react';
 import { UserRole } from '../types';
 
@@ -112,6 +113,12 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     title: 'Report Generator',
     path: '/report-builder',
     icon: FilePlus2,
+    moduleKey: 'reports',
+  },
+  {
+    title: 'Custom Format',
+    path: '/custom-formats',
+    icon: Palette,
     moduleKey: 'reports',
   },
 

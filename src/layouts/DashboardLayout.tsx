@@ -236,77 +236,74 @@ const filteredNavItems = NAVIGATION_ITEMS.filter((item) => {
       </AnimatePresence>
 
     
-      <div className="flex-1 flex flex-col h-screen overflow-hidden bg-background relative">
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col h-screen overflow-hidden bg-background relative min-w-0">
         
-    
-        <header className="h-16 bg-card/80 backdrop-blur-md border-b border-border/80 sticky top-0 z-30 flex items-center justify-between px-4 md:px-8 flex-shrink-0 shadow-sm shadow-border/10">
-          <div className="flex items-center gap-3 md:gap-6">
-        
+        {/* Responsive Header */}
+        <header className="h-14 sm:h-16 bg-card/80 backdrop-blur-md border-b border-border/80 sticky top-0 z-30 flex items-center justify-between px-3 sm:px-4 md:px-8 flex-shrink-0 shadow-sm shadow-border/10">
+          <div className="flex items-center gap-2 sm:gap-4 md:gap-6 min-w-0">
+            {/* Mobile Hamburger Toggle */}
             <button 
               onClick={() => setIsMobileMenuOpen(true)}
-              className="p-2 md:hidden hover:bg-muted rounded-xl text-muted-foreground active:scale-95"
+              className="p-1.5 sm:p-2 md:hidden hover:bg-muted rounded-xl text-muted-foreground active:scale-95 shrink-0"
+              aria-label="Open Mobile Menu"
             >
               <Menu className="w-5 h-5" />
             </button>
 
-          
-            <div className="flex items-center text-sm font-medium text-muted-foreground select-none overflow-hidden truncate max-w-[180px] md:max-w-full">
-              <span className="hover:text-foreground transition-colors">LMS Admin</span>
-              <ChevronRight className="w-4 h-4 mx-1.5 flex-shrink-0 opacity-50" />
+            {/* Breadcrumb Header */}
+            <div className="flex items-center text-xs sm:text-sm font-medium text-muted-foreground select-none overflow-hidden truncate max-w-[140px] xs:max-w-[200px] sm:max-w-full">
+              <span className="hover:text-foreground transition-colors hidden sm:inline">LMS Admin</span>
+              <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 mx-1 sm:mx-1.5 flex-shrink-0 opacity-50 hidden sm:inline" />
               <span className="text-foreground font-semibold truncate">{activeItem.title}</span>
             </div>
           </div>
 
-      
-          <div className="flex items-center gap-3.5">
-            
-          
-            <div className="hidden sm:inline-flex items-center h-8 bg-accent/40 text-accent-foreground rounded-full border border-primary/10 px-3 text-[11px] font-bold uppercase tracking-wider select-none shadow-sm">
+          {/* Right Header Controls */}
+          <div className="flex items-center gap-1.5 sm:gap-3">
+            {/* User Role Badge */}
+            <div className="hidden md:inline-flex items-center h-7 sm:h-8 bg-accent/40 text-accent-foreground rounded-full border border-primary/10 px-2.5 sm:px-3 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider select-none shadow-sm">
               {user?.role.replace('_', ' ')}
             </div>
 
-         
-    <button
+            {/* Page Data Refresh */}
+            <button
               onClick={handleRefresh}
               disabled={isRefreshing}
               title="Refresh current page data"
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-primary/40 bg-primary/8 hover:bg-primary/15 text-primary font-semibold text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed select-none"
+              className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl border border-primary/40 bg-primary/8 hover:bg-primary/15 text-primary font-semibold text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed select-none"
             >
               <RefreshCw className={cn("w-3.5 h-3.5", isRefreshing && "animate-spin")} />
               <span className="hidden sm:inline">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
             </button>
-         <button onClick={() => navigate('/notifications')} className="relative p-2 rounded-xl border border-border/60 hover:border-border hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-all">
-              <Bell className="w-[19px] h-[19px]" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full border border-card" />
+
+            {/* Notification Bell */}
+            <button onClick={() => navigate('/notifications')} className="relative p-1.5 sm:p-2 rounded-xl border border-border/60 hover:border-border hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-all">
+              <Bell className="w-[18px] h-[18px] sm:w-[19px] sm:h-[19px]" />
+              <span className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-2 h-2 bg-destructive rounded-full border border-card" />
             </button>
-            <div className="w-px h-6 bg-border/60 hidden md:block mx-0.5" />
 
-     
-          
+            <div className="w-px h-5 sm:h-6 bg-border/60 hidden sm:block mx-0.5" />
 
-          
-            <div className="w-px h-6 bg-border/60 hidden md:block mx-0.5" />
-
-         
+            {/* Profile Avatar & Menu Dropdown */}
             <div className="relative">
               <button
                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                className="flex items-center gap-2.5 pl-1 pr-1.5 md:pr-2 py-1 rounded-full border border-border/60 hover:bg-muted/50 transition-colors select-none active:scale-95"
+                className="flex items-center gap-2 pl-1 pr-1 sm:pr-2 py-1 rounded-full border border-border/60 hover:bg-muted/50 transition-colors select-none active:scale-95"
               >
                 {user?.avatarUrl ? (
-                  <img src={user.avatarUrl} alt={user.name} className="w-8 h-8 rounded-full object-cover shadow-sm" />
+                  <img src={user.avatarUrl} alt={user.name} className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover shadow-sm" />
                 ) : (
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary shadow-sm">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary shadow-sm">
                     <User2 className="w-4 h-4" />
                   </div>
                 )}
-                <div className="hidden md:flex flex-col text-left text-xs font-medium select-none">
+                <div className="hidden lg:flex flex-col text-left text-xs font-medium select-none">
                   <span className="text-foreground font-semibold leading-tight">{user?.name}</span>
                   <span className="text-muted-foreground text-[10px] font-normal leading-none mt-0.5">{user?.email}</span>
                 </div>
               </button>
 
-   
               <AnimatePresence>
                 {isProfileMenuOpen && (
                   <>
@@ -318,7 +315,7 @@ const filteredNavItems = NAVIGATION_ITEMS.filter((item) => {
                       transition={{ duration: 0.15 }}
                       className="absolute right-0 mt-2 w-56 z-20 bg-card border border-border rounded-xl shadow-xl py-2 origin-top-right"
                     >
-                      <div className="px-4 py-2.5 border-b border-border/50 md:hidden">
+                      <div className="px-4 py-2.5 border-b border-border/50 lg:hidden">
                         <p className="text-sm font-semibold text-foreground truncate">{user?.name}</p>
                         <p className="text-xs text-muted-foreground truncate mt-0.5">{user?.email}</p>
                       </div>
@@ -336,16 +333,11 @@ const filteredNavItems = NAVIGATION_ITEMS.filter((item) => {
                 )}
               </AnimatePresence>
             </div>
-
           </div>
         </header>
 
-  
-      
-
-    
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-background custom-scrollbar relative">
-       
+        {/* Scrollable Responsive Main Body */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 lg:p-8 bg-background custom-scrollbar relative min-w-0">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
@@ -353,7 +345,7 @@ const filteredNavItems = NAVIGATION_ITEMS.filter((item) => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.15, ease: "easeInOut" }}
-              className="h-full max-w-7xl mx-auto flex flex-col"
+              className="h-full max-w-7xl mx-auto flex flex-col w-full min-w-0"
             >
               <Outlet />
             </motion.div>

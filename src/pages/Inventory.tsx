@@ -308,7 +308,7 @@ export const InventoryPage: React.FC = () => {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse min-w-[700px]">
                 <thead className="bg-muted/50 text-[10px] font-black uppercase tracking-wider text-slate-500 border-b">
                   {activeTab === 'reagents' ? (
                     <tr>

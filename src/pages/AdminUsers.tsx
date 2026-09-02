@@ -367,7 +367,7 @@ export const AdminUsersPage: React.FC = () => {
       {/* Header with Title and Action Buttons */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
             <ShieldCheck className="w-5 h-5 text-primary" />
           </div>
           <div>
@@ -376,7 +376,7 @@ export const AdminUsersPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => openCreate('DOCTOR')}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold transition-colors shadow-sm"
@@ -393,8 +393,8 @@ export const AdminUsersPage: React.FC = () => {
       </div>
 
       {/* Category Tabs & Search Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-card border border-border rounded-xl p-2.5">
-        <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card border border-border rounded-xl p-2.5">
+        <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
           {[
             { key: 'ALL', label: `All Users (${adminUsers.length})` },
             { key: 'DOCTOR', label: `🩺 Doctors (${countDoctors})` },
@@ -433,8 +433,8 @@ export const AdminUsersPage: React.FC = () => {
           <Loader2 className="w-5 h-5 animate-spin text-primary" /> Loading users...
         </div>
       ) : (
-        <div className="bg-card border border-border rounded-2xl overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-card border border-border rounded-2xl overflow-x-auto">
+          <table className="w-full text-sm min-w-[750px]">
             <thead className="bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               <tr>
                 <th className="px-5 py-3.5 text-left">User / Details</th>
@@ -570,7 +570,7 @@ export const AdminUsersPage: React.FC = () => {
                 <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">
                   Select User Category *
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {[
                     { type: 'DOCTOR', label: '🩺 Doctor / Pathologist', desc: 'Adds Doctor with Reg No & Signature' },
                     { type: 'EMPLOYEE', label: '🔬 Lab Employee / Staff', desc: 'Technician, Phlebotomist, Executive' },

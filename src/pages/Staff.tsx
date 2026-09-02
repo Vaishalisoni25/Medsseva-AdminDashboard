@@ -373,8 +373,8 @@ export const StaffPage: React.FC = () => {
           <Loader2 className="w-5 h-5 animate-spin text-indigo-600" /> Loading staff directory...
         </div>
       ) : (
-        <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-          <table className="w-full text-sm">
+        <div className="bg-card border border-border rounded-2xl overflow-x-auto shadow-sm">
+          <table className="w-full text-sm min-w-[850px]">
             <thead className="bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               <tr>
                 <th className="px-5 py-3.5 text-left">Employee Name & Role</th>

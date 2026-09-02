@@ -444,7 +444,7 @@ export const DoctorsPage: React.FC = () => {
       {/* Header with Title and Mode Switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-teal-50 dark:bg-teal-950/40 border border-teal-500/20 text-teal-600 flex items-center justify-center font-bold shadow-sm">
+          <div className="w-10 h-10 rounded-xl bg-teal-50 dark:bg-teal-950/40 border border-teal-500/20 text-teal-600 flex items-center justify-center font-bold shadow-sm shrink-0">
             <Stethoscope className="w-5 h-5" />
           </div>
           <div>
@@ -453,7 +453,7 @@ export const DoctorsPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center bg-card border border-border p-1 rounded-xl shadow-sm">
             <button
               onClick={() => {
@@ -779,8 +779,8 @@ export const DoctorsPage: React.FC = () => {
               <Loader2 className="w-5 h-5 animate-spin text-teal-600" /> Loading doctor directory...
             </div>
           ) : (
-            <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-              <table className="w-full text-left text-xs">
+            <div className="bg-card border border-border rounded-2xl shadow-sm overflow-x-auto">
+              <table className="w-full text-left text-xs min-w-[750px]">
                 <thead className="bg-muted/60 text-muted-foreground uppercase text-[10px] tracking-wider border-b border-border">
                   <tr>
                     <th className="py-3 px-5">Doctor Details</th>

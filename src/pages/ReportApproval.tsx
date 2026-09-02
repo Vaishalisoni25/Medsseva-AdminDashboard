@@ -34,6 +34,8 @@ import {
 import { cn } from '../utils/cn';
 import { ReportPDFDocument, DoctorDetails } from '../components/ReportPDFDocument';
 import { useToast } from '../components/Toast';
+import { customFormatService } from '../services/customFormat.service';
+import { CustomReportTemplate } from '../types/customFormat';
 
 export const ReportApprovalPage: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -41,6 +43,9 @@ export const ReportApprovalPage: React.FC = () => {
 
   const [selectedReport, setSelectedReport] = useState<any>(null);
   const [approvalTemplate, setApprovalTemplate] = useState<'STANDARD' | 'DETAILED'>('STANDARD');
+  const [customReportTemplates, setCustomReportTemplates] = useState<CustomReportTemplate[]>([]);
+  const [selectedCustomTemplateId, setSelectedCustomTemplateId] = useState<string>('');
+  const [previewScale, setPreviewScale] = useState<number>(0.78);
   const [generatingPDF, setGeneratingPDF] = useState(false);
   const [uploadingPDF, setUploadingPDF] = useState(false);
   const [portalReport, setPortalReport] = useState<any>(null);
@@ -65,11 +70,34 @@ export const ReportApprovalPage: React.FC = () => {
   useBookingsForReportQuery();
 
   React.useEffect(() => {
-    if (selectedReport) {
+    customFormatService.getReportTemplates()
+      .then(templates => {
+        if (Array.isArray(templates)) {
+          setCustomReportTemplates(templates);
+          const defaultTpl = templates.find(t => t.isDefault && t.type === 'STANDARD') || templates[0];
+          if (defaultTpl && !selectedCustomTemplateId) {
+            setSelectedCustomTemplateId(defaultTpl.id);
+            setApprovalTemplate(defaultTpl.type);
+          }
+        }
+      })
+      .catch(err => console.error('Failed to load custom report templates:', err));
+  }, []);
+
+  React.useEffect(() => {
+    if (selectedReport && customReportTemplates.length > 0) {
       const isDetailed = selectedReport.templateType === 'DETAILED' || selectedReport.internalNotes?.includes('[TEMPLATE:DETAILED]');
-      setApprovalTemplate(isDetailed ? 'DETAILED' : 'STANDARD');
+      const targetType = isDetailed ? 'DETAILED' : 'STANDARD';
+      const matchingTpl = customReportTemplates.find(t => t.id === selectedCustomTemplateId) ||
+                          customReportTemplates.find(t => t.isDefault && t.type === targetType) ||
+                          customReportTemplates.find(t => t.type === targetType) ||
+                          customReportTemplates[0];
+      if (matchingTpl && !selectedCustomTemplateId) {
+        setSelectedCustomTemplateId(matchingTpl.id);
+        setApprovalTemplate(matchingTpl.type);
+      }
     }
-  }, [selectedReport?.id]);
+  }, [selectedReport?.id, customReportTemplates]);
 
   const buildBranchAndDoctor = useCallback(() => {
     const rb = selectedReport?.reportBranch || null;
@@ -98,69 +126,106 @@ export const ReportApprovalPage: React.FC = () => {
   }, [selectedReport]);
 
   const generateAndDownloadPDF = useCallback(async (reportData: any, templateType: 'STANDARD' | 'DETAILED') => {
-    const { branch, doctor } = buildBranchAndDoctor();
-    const matchingBooking = bookingsForReport?.find((b: any) => b.id === reportData.bookingId || b.id === reportData.booking?.id);
-    const enrichedBooking = {
-      ...(matchingBooking || {}),
-      ...(reportData.booking || {}),
-      address: reportData.booking?.address || matchingBooking?.address || reportData.booking?.user?.addresses?.[0] || matchingBooking?.user?.addresses?.[0] || null,
-      patientMobile: reportData.booking?.patientMobile || matchingBooking?.patientMobile || reportData.booking?.user?.mobile || matchingBooking?.user?.mobile || '',
-    };
-    const enrichedReport = {
-      ...reportData,
-      booking: enrichedBooking,
-      status: 'RELEASED',
-      templateType,
-    };
-
-    setPortalReport(enrichedReport);
-    setPortalBranch(branch);
-    setPortalDoctor(doctor);
-
-    await new Promise(r => setTimeout(r, 600));
-
     try {
       const [html2canvas, jsPDFModule] = await Promise.all([
         import('html2canvas').then(m => m.default),
         import('jspdf').then(m => m.default),
       ]);
 
-      const el = document.getElementById('clinical-report-document');
-      if (!el) throw new Error('Report element not found');
+      // Always prioritize the unscaled dedicated capture container to avoid transform: scale() distortion
+      const el = document.getElementById('pdf-export-report-document') || document.getElementById('clinical-report-document');
+      if (!el) throw new Error('Report element not found for PDF capture.');
 
-      const canvas = await html2canvas(el, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        width: 794,
-        windowWidth: 794,
-        scrollX: 0,
-        scrollY: 0,
-      });
+      const pageElements = Array.from(el.querySelectorAll('.a4-page-sheet'));
+      const targets = pageElements.length > 0 ? pageElements : [el];
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      const A4_W_PX = 794;
-      const A4_H_PX = 1123;
-      const SCALE = A4_W_PX / canvas.width;
-      const contentHeightPx = canvas.height * SCALE;
-      const totalPages = Math.ceil(contentHeightPx / A4_H_PX);
-      const pdf = new jsPDFModule({ orientation: 'portrait', unit: 'px', format: [A4_W_PX, A4_H_PX] });
+      const pdf = new jsPDFModule({ orientation: 'portrait', unit: 'px', format: [794, 1123] });
 
-      for (let page = 0; page < totalPages; page++) {
-        if (page > 0) pdf.addPage([A4_W_PX, A4_H_PX], 'portrait');
-        pdf.addImage(imgData, 'JPEG', 0, -(page * A4_H_PX), A4_W_PX, contentHeightPx);
+      for (let i = 0; i < targets.length; i++) {
+        const pageEl = targets[i] as HTMLElement;
+        const canvas = await html2canvas(pageEl, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+          windowWidth: 794,
+          windowHeight: 1123,
+          scrollX: 0,
+          scrollY: 0,
+          onclone: (clonedDoc) => {
+            // 1. Remove/replace oklch and color-mix from all <style> blocks
+            const styleTags = clonedDoc.querySelectorAll('style');
+            styleTags.forEach((s: any) => {
+              if (s.textContent && (s.textContent.includes('oklch') || s.textContent.includes('color-mix') || s.textContent.includes('lab('))) {
+                s.textContent = s.textContent
+                  .replace(/oklch\([^)]+\)/gi, '#006d6f')
+                  .replace(/color-mix\([^)]+\)/gi, '#006d6f')
+                  .replace(/lab\([^)]+\)/gi, '#006d6f');
+              }
+            });
+
+            // 2. Inject explicit typography, sizing, and CSS variable overrides to guarantee razor-sharp uncompressed rendering
+            const overrideStyle = clonedDoc.createElement('style');
+            overrideStyle.innerHTML = `
+              *, *::before, *::after {
+                --primary: #006d6f !important;
+                --secondary: #0a7c7c !important;
+                --background: #ffffff !important;
+                --foreground: #0f172a !important;
+                --muted: #f1f5f9 !important;
+                --muted-foreground: #64748b !important;
+                --border: #e2e8f0 !important;
+                --card: #ffffff !important;
+                --card-foreground: #0f172a !important;
+                letter-spacing: normal !important;
+                word-spacing: normal !important;
+                font-kerning: normal !important;
+                transform: none !important;
+                zoom: 1 !important;
+                -webkit-font-smoothing: antialiased !important;
+                text-rendering: geometricPrecision !important;
+              }
+              .a4-page-sheet {
+                width: 794px !important;
+                min-height: 1123px !important;
+                transform: none !important;
+                margin: 0 !important;
+                box-sizing: border-box !important;
+              }
+            `;
+            clonedDoc.head.appendChild(overrideStyle);
+
+            // 3. Clear inline style attributes with transforms or oklch
+            const allElements = clonedDoc.querySelectorAll('*');
+            allElements.forEach((node: any) => {
+              if (node && node.style) {
+                if (node.style.transform) node.style.transform = 'none';
+                if (node.style.zoom) node.style.zoom = '1';
+                ['color', 'backgroundColor', 'borderColor', 'outlineColor', 'fill', 'stroke', 'boxShadow', 'textDecorationColor'].forEach((prop: string) => {
+                  const val = node.style[prop];
+                  if (typeof val === 'string' && (val.includes('oklch') || val.includes('color-mix') || val.includes('lab'))) {
+                    node.style[prop] = prop === 'backgroundColor' ? '#ffffff' : prop === 'color' ? '#0f172a' : '#cbd5e1';
+                  }
+                });
+              }
+            });
+          },
+        });
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        if (i > 0) pdf.addPage([794, 1123], 'portrait');
+        pdf.addImage(imgData, 'JPEG', 0, 0, 794, 1123);
       }
 
       const patientName = reportData.booking?.patientName?.replace(/\s+/g, '_') || reportData.patientName?.replace(/\s+/g, '_') || 'Patient';
-      const bookingCode = reportData.booking?.bookingCode || reportData.bookingCode || reportData.id.slice(0, 8);
-      const fileName = `MedsSeva_Report_${patientName}_${bookingCode}_${templateType.toLowerCase()}.pdf`;
+      const bookingCode = reportData.booking?.bookingCode || reportData.bookingCode || reportData.id?.slice(0, 8) || 'REPORT';
+      const fileName = `MedsSeva_Report_${patientName}_${bookingCode}.pdf`;
 
-      // 1. Direct guaranteed client download
+      // 1. Direct client download
       pdf.save(fileName);
 
-      // 2. Background async upload to server & update state
+      // 2. Background async upload
       try {
         const pdfBlob = pdf.output('blob');
         const formData = new FormData();
@@ -180,12 +245,15 @@ export const ReportApprovalPage: React.FC = () => {
       }
 
       return true;
+    } catch (err: any) {
+      console.error('PDF generation error:', err);
+      throw err;
     } finally {
       setPortalReport(null);
       setPortalBranch(null);
       setPortalDoctor(undefined);
     }
-  }, [buildBranchAndDoctor, dispatch]);
+  }, [dispatch]);
 
   const handlePrintPDF = useCallback(async () => {
     if (!selectedReport) return;
@@ -403,32 +471,83 @@ const handleFinalize = async () => {
                     {getStatusBadge(selectedReport.status)}
                   </div>
                   <div className="flex items-center gap-2">
-                    {/* Template Switcher */}
+                    {/* Zoom Controls */}
                     <div className="flex items-center gap-1 bg-muted p-1 rounded-lg border border-border">
                       <button
-                        onClick={() => setApprovalTemplate('STANDARD')}
+                        type="button"
+                        onClick={() => setPreviewScale(0.78)}
                         className={cn(
-                          "px-2.5 py-1 rounded text-[11px] font-bold transition-all",
-                          approvalTemplate === 'STANDARD'
+                          "px-2 py-0.5 rounded text-[10px] font-bold transition-all",
+                          previewScale === 0.78
                             ? "bg-background text-foreground shadow-xs"
                             : "text-muted-foreground hover:text-foreground"
                         )}
-                        title="Medsseva Standard Layout"
+                        title="Fit inside container"
                       >
-                        Standard
+                        Fit (78%)
                       </button>
                       <button
-                        onClick={() => setApprovalTemplate('DETAILED')}
+                        type="button"
+                        onClick={() => setPreviewScale(1)}
                         className={cn(
-                          "px-2.5 py-1 rounded text-[11px] font-bold transition-all",
-                          approvalTemplate === 'DETAILED'
-                            ? "bg-primary text-white shadow-xs"
+                          "px-2 py-0.5 rounded text-[10px] font-bold transition-all",
+                          previewScale === 1
+                            ? "bg-background text-foreground shadow-xs"
                             : "text-muted-foreground hover:text-foreground"
                         )}
-                        title="Detailed Diagnostic Layout"
+                        title="100% Full View"
                       >
-                        Detailed
+                        100%
                       </button>
+                    </div>
+
+                    {/* Template Switcher */}
+                    <div className="flex items-center gap-1.5 bg-muted p-1 rounded-lg border border-border">
+                      {customReportTemplates.length > 0 ? (
+                        <select
+                          value={selectedCustomTemplateId}
+                          onChange={(e) => {
+                            const newId = e.target.value;
+                            setSelectedCustomTemplateId(newId);
+                            const tpl = customReportTemplates.find(t => t.id === newId);
+                            if (tpl) setApprovalTemplate(tpl.type);
+                          }}
+                          className="px-2 py-1 text-[11px] font-bold bg-background border border-border rounded text-foreground focus:outline-none focus:ring-1 focus:ring-primary max-w-[200px]"
+                        >
+                          {customReportTemplates.map(t => (
+                            <option key={t.id} value={t.id}>
+                              {t.name} ({t.type}){t.isDefault ? ' ★' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => setApprovalTemplate('STANDARD')}
+                            className={cn(
+                              "px-2.5 py-1 rounded text-[11px] font-bold transition-all",
+                              approvalTemplate === 'STANDARD'
+                                ? "bg-background text-foreground shadow-xs"
+                                : "text-muted-foreground hover:text-foreground"
+                            )}
+                            title="Medsseva Standard Layout"
+                          >
+                            Standard
+                          </button>
+                          <button
+                            onClick={() => setApprovalTemplate('DETAILED')}
+                            className={cn(
+                              "px-2.5 py-1 rounded text-[11px] font-bold transition-all",
+                              approvalTemplate === 'DETAILED'
+                                ? "bg-primary text-white shadow-xs"
+                                : "text-muted-foreground hover:text-foreground"
+                            )}
+                            title="Detailed Diagnostic Layout"
+                          >
+                            Detailed
+                          </button>
+                        </>
+                      )}
                     </div>
 
                     <button
@@ -467,107 +586,71 @@ const handleFinalize = async () => {
                   </div>
                 </div>
 
-                <div className="p-6 space-y-6 max-h-[600px] overflow-y-auto bg-white text-slate-900">
-                  <div className="grid grid-cols-2 gap-4 border border-slate-200 p-4 text-xs bg-slate-50 rounded-lg">
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between"><span className="text-slate-500">Patient:</span><span className="font-bold">{selectedReport.booking?.patientName}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Age:</span><span className="font-bold">{selectedReport.booking?.patientAge ? `${selectedReport.booking.patientAge} yrs` : '-'}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Gender:</span><span className="font-bold">{selectedReport.booking?.patientGender || '-'}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Mobile:</span><span className="font-bold">{selectedReport.booking?.patientMobile || '-'}</span></div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between"><span className="text-slate-500">Booking Code:</span><span className="font-mono font-bold">{selectedReport.booking?.bookingCode}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Report Date:</span><span className="font-bold">{new Date(selectedReport.reportedDate).toLocaleDateString('en-IN')}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Branch:</span><span className="font-bold">{selectedReport.reportBranch?.name || selectedReport.booking?.branch?.name || '-'}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Collection:</span><span className="font-bold">{selectedReport.booking?.collectionMode || '-'}</span></div>
+                <div className="p-4 bg-slate-100 dark:bg-slate-900 flex justify-center max-h-[750px] overflow-x-auto overflow-y-auto">
+                  <div
+                    style={{
+                      width: previewScale === 0.78 ? '580px' : '794px',
+                      transition: 'width 0.2s ease',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <div
+                      className="shadow-2xl rounded-xl overflow-hidden bg-white border border-slate-200"
+                      style={{
+                        transform: previewScale === 0.78 ? 'scale(0.73)' : 'scale(1)',
+                        transformOrigin: 'top left',
+                        width: '794px',
+                      }}
+                    >
+                      <ReportPDFDocument
+                        report={{
+                          ...selectedReport,
+                          booking: {
+                            ...(bookingsForReport?.find((b: any) => b.id === selectedReport.bookingId || b.id === selectedReport.booking?.id) || {}),
+                            ...(selectedReport.booking || {}),
+                            address: selectedReport.booking?.address || selectedReport.booking?.user?.addresses?.[0] || null,
+                            patientMobile: selectedReport.booking?.patientMobile || selectedReport.booking?.user?.mobile || '',
+                          },
+                        }}
+                        branch={buildBranchAndDoctor().branch}
+                        doctor={buildBranchAndDoctor().doctor}
+                        templateType={approvalTemplate}
+                        customTemplate={customReportTemplates.find(t => t.id === selectedCustomTemplateId)}
+                        containerId="clinical-report-document"
+                      />
                     </div>
                   </div>
 
-                  {selectedReport.doctorName && (
-                    <div className="border border-slate-200 rounded-lg p-3 bg-slate-50 text-xs space-y-1">
-                      <div className="font-bold text-slate-700 uppercase mb-2">Verifier Details</div>
-                      <div className="flex justify-between"><span className="text-slate-500">Doctor:</span><span className="font-bold">{selectedReport.doctorName}</span></div>
-                      {selectedReport.doctorQualification && <div className="flex justify-between"><span className="text-slate-500">Qualification:</span><span className="font-bold">{selectedReport.doctorQualification}</span></div>}
-                      {selectedReport.doctorRegNo && <div className="flex justify-between"><span className="text-slate-500">Reg. No.:</span><span className="font-bold">{selectedReport.doctorRegNo}</span></div>}
-                      {selectedReport.doctorDesignation && <div className="flex justify-between"><span className="text-slate-500">Designation:</span><span className="font-bold">{selectedReport.doctorDesignation}</span></div>}
-                      {selectedReport.doctorVerifiedAt && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Verified At:</span>
-                          <span className="font-bold">{new Date(selectedReport.doctorVerifiedAt).toLocaleString('en-IN')}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {selectedReport.hasAbnormalFlags && (
-                    <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 font-bold">
-                      <AlertTriangle className="h-4 w-4" /> This report contains abnormal values. Review carefully before finalizing.
-                    </div>
-                  )}
-
-                  <div className="space-y-4">
-                    <div className="text-xs font-extrabold bg-slate-100 px-3 py-2 tracking-wider uppercase text-slate-700 border-l-4 border-primary">
-                      {selectedReport.testName}
-                    </div>
-                    <table className="w-full text-xs text-left">
-                      <thead>
-                        <tr className="border-b border-slate-200 text-[10px] text-slate-500 uppercase font-bold">
-                          <th className="py-2 w-1/2">Parameter</th>
-                          <th className="py-2 text-center">Result</th>
-                          <th className="py-2 text-center">Reference</th>
-                          <th className="py-2 text-center">Unit</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {(selectedReport.parameters || []).map((p: any) => (
-                          <tr key={p.id}>
-                            <td className="py-2.5 font-semibold text-slate-800">{p.parameterName}</td>
-                            <td className="py-2.5 text-center">
-                              <span className={cn(
-                                "font-bold px-2 py-0.5 rounded",
-                                p.isAbnormal ? "bg-amber-100 text-amber-800" : "text-slate-900"
-                              )}>
-                                {p.observedValue}
-                              </span>
-                            </td>
-                            <td className="py-2.5 text-center font-mono text-slate-500">{p.referenceRange || '-'}</td>
-                            <td className="py-2.5 text-center text-slate-500">{p.unit || '-'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  {/* Dedicated 100% Unscaled A4 PDF Capture Container (No CSS transform, No scaling artifacts) */}
+                  <div
+                    style={{
+                      position: 'fixed',
+                      left: '-99999px',
+                      top: 0,
+                      width: '794px',
+                      pointerEvents: 'none',
+                      zIndex: -9999,
+                      opacity: 0,
+                    }}
+                  >
+                    <ReportPDFDocument
+                      report={{
+                        ...selectedReport,
+                        booking: {
+                          ...(bookingsForReport?.find((b: any) => b.id === selectedReport.bookingId || b.id === selectedReport.booking?.id) || {}),
+                          ...(selectedReport.booking || {}),
+                          address: selectedReport.booking?.address || selectedReport.booking?.user?.addresses?.[0] || null,
+                          patientMobile: selectedReport.booking?.patientMobile || selectedReport.booking?.user?.mobile || '',
+                        },
+                      }}
+                      branch={buildBranchAndDoctor().branch}
+                      doctor={buildBranchAndDoctor().doctor}
+                      templateType={approvalTemplate}
+                      customTemplate={customReportTemplates.find(t => t.id === selectedCustomTemplateId)}
+                      containerId="pdf-export-report-document"
+                      scale={1}
+                    />
                   </div>
-
-                  {selectedReport.clinicalNotes && (
-                    <div className="border border-slate-200 rounded-lg p-4 bg-slate-50 text-[11px]">
-                      <div className="font-bold text-slate-700 mb-1 uppercase">Clinical Notes</div>
-                      <p className="text-slate-600 italic leading-relaxed">{selectedReport.clinicalNotes}</p>
-                    </div>
-                  )}
-
-                  {selectedReport.auditLogs?.length > 0 && (
-                    <div className="border border-slate-200 rounded-lg p-4 text-[11px]">
-                      <div className="font-bold text-slate-700 mb-2 uppercase">Audit Trail</div>
-                      <div className="space-y-1.5">
-                        {selectedReport.auditLogs.map((log: any) => (
-                          <div key={log.id} className="flex items-start gap-2 text-slate-600">
-                            <span className="text-slate-400 font-mono shrink-0">{new Date(log.createdAt).toLocaleString('en-IN')}</span>
-                            <span className="font-bold text-slate-700">{log.action}</span>
-                            {log.details && <span className="text-slate-500">- {log.details}</span>}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedReport.verifiedBy && (
-                    <div className="border-t border-slate-200 pt-4 text-xs text-right">
-                      <div className="font-bold text-slate-700">Verified by: {selectedReport.verifiedBy.name}</div>
-                      {selectedReport.verifiedAt && (
-                        <div className="text-slate-500">{new Date(selectedReport.verifiedAt).toLocaleString('en-IN')}</div>
-                      )}
-                    </div>
-                  )}
                 </div>
               </motion.div>
         ) : loading ? (
@@ -883,7 +966,13 @@ const handleFinalize = async () => {
 
       {portalReport && ReactDOM.createPortal(
         <div style={{ position: 'fixed', top: 0, left: 0, width: '794px', zIndex: -1000, opacity: 0.001, pointerEvents: 'none', backgroundColor: '#ffffff' }}>
-          <ReportPDFDocument report={portalReport} branch={portalBranch} doctor={portalDoctor} templateType={approvalTemplate} />
+          <ReportPDFDocument
+            report={portalReport}
+            branch={portalBranch}
+            doctor={portalDoctor}
+            templateType={approvalTemplate}
+            customTemplate={customReportTemplates.find(t => t.id === selectedCustomTemplateId)}
+          />
         </div>,
         document.body
       )}

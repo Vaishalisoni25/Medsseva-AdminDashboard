@@ -26,6 +26,9 @@ import {
   Star,
   FileText,
   FlaskConical,
+  Receipt,
+  Printer,
+  Sparkles,
 } from 'lucide-react';
 
 import { cn } from '../utils/cn';
@@ -33,6 +36,9 @@ import toast from 'react-hot-toast';
 import { processPayment } from '../utils/PaymentModule';
 import { testService } from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import { customFormatService } from '../services/customFormat.service';
+import { CustomInvoiceTemplate } from '../types/customFormat';
+import { LiveInvoicePreview } from '../components/customFormats/LiveInvoicePreview';
 
 const STATUS_COLORS: Record<BookingStatus, { bg: string; text: string; border: string }> = {
   'Pending': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
@@ -78,13 +84,29 @@ const [isLabActioning, setIsLabActioning] = useState(false);
 const [isLabStatusUpdating, setIsLabStatusUpdating] = useState(false);
 const [isCollectingPayment, setIsCollectingPayment] = useState(false);
 const [isSendingInvoice, setIsSendingInvoice] = useState(false);
+const [customInvoiceTemplates, setCustomInvoiceTemplates] = useState<CustomInvoiceTemplate[]>([]);
+const [invoiceModalBooking, setInvoiceModalBooking] = useState<Booking | null>(null);
+const [selectedInvoiceTemplateId, setSelectedInvoiceTemplateId] = useState<string>('');
 
 React.useEffect(() => {
-    Promise.all([
-      testService.getExecutives().then(setExecutives).catch(() => {}),
-      testService.getAvailablePartners().then(setAvailablePartners).catch(() => {}),
-    ]);
-  }, []);
+  Promise.all([
+    testService.getExecutives().then(res => {
+      if (Array.isArray(res)) setExecutives(res);
+      else if (res?.data && Array.isArray(res.data)) setExecutives(res.data);
+    }).catch(() => {}),
+    testService.getAvailablePartners().then(res => {
+      if (Array.isArray(res)) setAvailablePartners(res);
+      else if (res?.data && Array.isArray(res.data)) setAvailablePartners(res.data);
+    }).catch(() => {}),
+    customFormatService.getInvoiceTemplates().then(tpls => {
+      if (Array.isArray(tpls)) {
+        setCustomInvoiceTemplates(tpls);
+        const def = tpls.find(t => t.isDefault) || tpls[0];
+        if (def) setSelectedInvoiceTemplateId(def.id);
+      }
+    }).catch(() => {}),
+  ]);
+}, []);
 
   React.useEffect(() => {
     if (!bookingsQueryLoading) setPageLoading(false);
@@ -252,16 +274,28 @@ const handleMarkPayment = async (bookingId: string, paymentStatus: 'SUCCESS', pa
     setIsUpdatingPayment(false);
   };
 
-const handleSendInvoice = async () => {
-    if (!selectedBooking) return;
+  const handleSendInvoice = async (bookingId?: any) => {
+    let targetId: string = '';
+    if (typeof bookingId === 'string' && bookingId.trim()) {
+      targetId = bookingId.trim();
+    } else if (bookingId && typeof bookingId === 'object' && typeof bookingId.id === 'string') {
+      targetId = bookingId.id;
+    } else if (selectedBooking && typeof selectedBooking.id === 'string') {
+      targetId = selectedBooking.id;
+    }
+
+    if (!targetId || targetId === '[object Object]') return;
+
     setIsSendingInvoice(true);
     try {
-      await testService.sendInvoice(selectedBooking.id);
-      toast.success('Invoice sent to patient successfully.');
+      const res = await testService.sendInvoice(targetId);
+      toast.success(res?.message || 'Invoice sent to patient successfully.');
+      dispatch(fetchBookings() as any);
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || 'Failed to send invoice.');
+      toast.error(err?.response?.data?.error || err?.message || 'Failed to send invoice.');
+    } finally {
+      setIsSendingInvoice(false);
     }
-    setIsSendingInvoice(false);
   };
 
   const handleCollectPayment = async () => {
@@ -326,25 +360,26 @@ const getStaffName = (id?: string) => {
   return (
     <div className="space-y-6 pb-10">
      
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      {/* Header and Filter Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Diagnostic Bookings</h1>
-          <p className="text-sm text-muted-foreground">Track sample collections, clinical processing, and field phlebotomy.</p>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">Diagnostic Bookings</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground">Track sample collections, clinical processing, and field phlebotomy.</p>
         </div>
         
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 md:w-64">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input 
               type="text"
               placeholder="Search booking or phone..."
-              className="w-full pl-9 pr-4 py-2 rounded-md bg-card border border-input text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              className="w-full pl-9 pr-4 py-2 rounded-md bg-card border border-input text-xs sm:text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           <select
-            className="py-2 pl-3 pr-8 rounded-md bg-card border border-input text-sm outline-none cursor-pointer focus:ring-2 focus:ring-primary/20"
+            className="py-2 pl-3 pr-8 rounded-md bg-card border border-input text-xs sm:text-sm outline-none cursor-pointer focus:ring-2 focus:ring-primary/20 flex-1 sm:flex-none"
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
           >
@@ -359,7 +394,7 @@ const getStaffName = (id?: string) => {
         </div>
       </div>
 
-<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {pageLoading ? (
           Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="bg-card border border-border p-4 rounded-xl shadow-sm animate-pulse">
@@ -371,19 +406,19 @@ const getStaffName = (id?: string) => {
           <>
             <div className="bg-card border border-border p-4 rounded-xl shadow-sm">
               <div className="text-xs font-semibold text-muted-foreground uppercase">Total Active</div>
-              <div className="text-2xl font-bold mt-1">{filteredBookings.filter(b => b.status !== 'Completed' && b.status !== 'Cancelled').length}</div>
+              <div className="text-xl sm:text-2xl font-bold mt-1">{filteredBookings.filter(b => b.status !== 'Completed' && b.status !== 'Cancelled').length}</div>
             </div>
             <div className="bg-card border border-border p-4 rounded-xl shadow-sm">
               <div className="text-xs font-semibold text-muted-foreground uppercase">Pending Pickup</div>
-              <div className="text-2xl font-bold mt-1 text-amber-600">{filteredBookings.filter(b => b.status === 'Confirmed' || b.status === 'Assigned').length}</div>
+              <div className="text-xl sm:text-2xl font-bold mt-1 text-amber-600">{filteredBookings.filter(b => b.status === 'Confirmed' || b.status === 'Assigned').length}</div>
             </div>
             <div className="bg-card border border-border p-4 rounded-xl shadow-sm">
               <div className="text-xs font-semibold text-muted-foreground uppercase">In Processing</div>
-              <div className="text-2xl font-bold mt-1 text-sky-600">{filteredBookings.filter(b => b.status === 'Processing').length}</div>
+              <div className="text-xl sm:text-2xl font-bold mt-1 text-sky-600">{filteredBookings.filter(b => b.status === 'Processing').length}</div>
             </div>
             <div className="bg-card border border-border p-4 rounded-xl shadow-sm">
               <div className="text-xs font-semibold text-muted-foreground uppercase">Completed</div>
-              <div className="text-2xl font-bold mt-1 text-emerald-600">{filteredBookings.filter(b => b.status === 'Completed').length}</div>
+              <div className="text-xl sm:text-2xl font-bold mt-1 text-emerald-600">{filteredBookings.filter(b => b.status === 'Completed').length}</div>
             </div>
           </>
         )}
@@ -391,7 +426,7 @@ const getStaffName = (id?: string) => {
      
       <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full text-left text-sm min-w-[950px]">
             <thead className="bg-muted/50 text-muted-foreground uppercase text-[10px] tracking-wider border-b border-border">
               <tr>
                 <th className="px-6 py-4 font-bold">Booking Code</th>
@@ -584,7 +619,7 @@ const getStaffName = (id?: string) => {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-background border-l border-border z-50 shadow-2xl flex flex-col"
+              className="fixed right-0 top-0 bottom-0 w-full max-w-full sm:max-w-md bg-background border-l border-border z-50 shadow-2xl flex flex-col"
             >
               {/* Drawer Header */}
               <div className="p-6 border-b border-border flex items-center justify-between bg-card">
@@ -753,7 +788,7 @@ const getStaffName = (id?: string) => {
                       <div className="w-full">
                         <button
                           disabled={isSendingInvoice}
-                          onClick={handleSendInvoice}
+                          onClick={() => handleSendInvoice(selectedBooking.id)}
                           className="w-full px-3 py-2 bg-teal-600 text-white rounded text-xs font-bold hover:bg-teal-700 disabled:opacity-50 flex items-center justify-center gap-1.5"
                         >
                           <CheckCircle2 className="h-3.5 w-3.5" />
@@ -934,6 +969,16 @@ const getStaffName = (id?: string) => {
                     <div className="text-sm font-bold text-foreground">Total Invoiced:</div>
                     <div className="text-lg font-extrabold text-primary">₹{selectedBooking.totalAmount}</div>
                   </div>
+                  <button
+                    onClick={() => {
+                      setInvoiceModalBooking(selectedBooking);
+                      const def = customInvoiceTemplates.find(t => t.isDefault) || customInvoiceTemplates[0];
+                      if (def) setSelectedInvoiceTemplateId(def.id);
+                    }}
+                    className="w-full mt-2 py-2 px-3 bg-teal-50 dark:bg-teal-950/30 hover:bg-teal-100 border border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-teal-600" /> View / Print Custom Invoice
+                  </button>
                 </div>
 
                 
@@ -1230,8 +1275,97 @@ const getStaffName = (id?: string) => {
         )}
       </AnimatePresence>
 
+      {/* Custom Invoice Preview Modal */}
+      {invoiceModalBooking && (
+        <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-md flex flex-col items-center p-2 sm:p-6 overflow-y-auto">
+          <div className="w-full max-w-5xl flex flex-col sm:flex-row sm:items-center justify-between mb-3 text-white gap-2">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap min-w-0">
+              <span className="font-bold text-xs sm:text-sm truncate">
+                Invoice & Bill: {invoiceModalBooking.bookingCode} ({invoiceModalBooking.patient?.name})
+              </span>
+              {customInvoiceTemplates.length > 0 && (
+                <select
+                  value={selectedInvoiceTemplateId}
+                  onChange={(e) => setSelectedInvoiceTemplateId(e.target.value)}
+                  className="px-2 py-1 text-[11px] sm:text-xs font-bold bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none"
+                >
+                  {customInvoiceTemplates.map(t => (
+                    <option key={t.id} value={t.id} className="text-slate-900 bg-white">
+                      {t.name} ({t.type}){t.isDefault ? ' ★ Default' : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+              <button
+                disabled={isSendingInvoice}
+                onClick={() => handleSendInvoice(invoiceModalBooking.id)}
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {isSendingInvoice ? 'Sending...' : 'Send Invoice'}
+              </button>
+              <button
+                onClick={() => window.print()}
+                className="px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white text-xs font-bold flex items-center gap-1.5"
+              >
+                <Printer className="w-3.5 h-3.5" /> Print Bill
+              </button>
+              <button
+                onClick={() => setInvoiceModalBooking(null)}
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
 
-
+          <div className="overflow-x-auto overflow-y-auto max-h-[85vh] pb-12 w-full flex justify-center custom-scrollbar">
+            <LiveInvoicePreview
+              template={customInvoiceTemplates.find(t => t.id === selectedInvoiceTemplateId) || {}}
+              scale={typeof window !== 'undefined' && window.innerWidth < 640 ? 0.45 : 0.88}
+              invoiceData={{
+                invoiceNumber: `INV-${invoiceModalBooking.bookingCode}`,
+                receiptNumber: `REC-${invoiceModalBooking.bookingCode}`,
+                date: new Date().toLocaleDateString('en-IN'),
+                status: (invoiceModalBooking as any).paymentStatus === 'SUCCESS' ? 'PAID' : 'PENDING',
+                paymentMethod: (invoiceModalBooking as any).paymentMethod || 'Pay on Collection',
+                transactionId: invoiceModalBooking.id,
+                bookingCode: invoiceModalBooking.bookingCode,
+                patientName: invoiceModalBooking.patient?.name || 'Patient',
+                patientId: (invoiceModalBooking as any).uhid || (invoiceModalBooking as any).patient?.uhid || 'UHID-2026',
+                patientAge: invoiceModalBooking.patient?.age || 30,
+                patientGender: invoiceModalBooking.patient?.gender || 'Male',
+                patientMobile: invoiceModalBooking.patient?.phone || '',
+                patientAddress: invoiceModalBooking.patient?.address || '',
+                items: [
+                  ...(invoiceModalBooking.packages || []).map((pkg: any, idx: number) => ({
+                    id: `pkg-${idx + 1}`,
+                    name: `[Package] ${pkg.name}`,
+                    code: pkg.id?.slice(0, 6) || '',
+                    rate: pkg.price || pkg.discountedPrice || 0,
+                    quantity: 1,
+                    discount: (pkg.price && pkg.discountedPrice) ? (pkg.price - pkg.discountedPrice) : 0,
+                    taxRate: 5,
+                    total: pkg.discountedPrice || pkg.price || 0,
+                  })),
+                  ...(invoiceModalBooking.tests || []).map((test: any, idx: number) => ({
+                    id: `test-${idx + 1}`,
+                    name: `${test.name} (${test.category || 'Diagnostic'})`,
+                    code: test.id?.slice(0, 6) || '',
+                    rate: test.price || test.discountedPrice || 0,
+                    quantity: 1,
+                    discount: (test.price && test.discountedPrice) ? (test.price - test.discountedPrice) : 0,
+                    taxRate: 5,
+                    total: test.discountedPrice || test.price || 0,
+                  })),
+                ],
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
