@@ -656,7 +656,6 @@ export const ReportTemplateBuilder: React.FC = () => {
                   { key: 'showAbnormalFlags', label: 'Abnormal High/Low Highlight Badges', desc: 'Highlight out-of-range values in bold color' },
                   { key: 'showDoctorDetails', label: 'Pathologist Signature & Qualifications', desc: 'Show validating doctor digital signature' },
                   { key: 'showTechnicianDetails', label: 'Lab Technologist Verification', desc: 'Show verifying DMLT/BMLT signature' },
-                  { key: 'showStamp', label: 'Official Laboratory Stamp / Seal', desc: 'Render circular MedsSeva verification seal' },
                 ].map((f) => {
                   const isChecked = (template.fieldSettings as any)?.[f.key] ?? true;
                   return (

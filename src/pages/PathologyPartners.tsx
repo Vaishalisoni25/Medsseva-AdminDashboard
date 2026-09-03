@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { usePartnersQuery } from '@/hooks/useAdminQueries';
 import { testService, commissionService } from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -7,7 +8,7 @@ import {
   Microscope, Phone, Mail, MapPin, Star, Clock,
   ShieldCheck, ShieldX, ShieldAlert, RefreshCw,
   DollarSign, Activity, TrendingUp, FileText, Building2, Loader2,
-  Plus, Edit3, Trash2, Eye, EyeOff, Percent, UserCheck
+  Plus, Edit3, Trash2, Eye, EyeOff, Percent, UserCheck, ExternalLink, ArrowLeft
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn } from '../utils/cn';
@@ -56,6 +57,7 @@ const REJECTION_REASONS = [
 import { useAppSelector } from '@/redux/hooks';
 
 export const PathologyPartnersPage: React.FC = () => {
+  const navigate = useNavigate();
   const currentUser = useAppSelector(state => state.auth.user);
   const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'SUPER_ADMIN' || (currentUser as any)?.isSuperAdmin;
   const userBranchId = (currentUser as any)?.branchId;
@@ -367,32 +369,18 @@ export const PathologyPartnersPage: React.FC = () => {
           <p className="text-xs text-muted-foreground">Manage tie-up diagnostic laboratories, sample collections & referral commissions.</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border">
-            <button
-              onClick={() => setActiveView('DIRECTORY')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeView === 'DIRECTORY' ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Partner Directory & Approvals
-            </button>
-            <button
-              onClick={() => {
-                setActiveView('PORTAL');
-                loadPartnerPortal(selectedPartnerId, portalPeriod);
-              }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeView === 'PORTAL' ? 'bg-emerald-600 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <DollarSign className="w-3.5 h-3.5" /> Referral & Commission Portal
-            </button>
-          </div>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => navigate('/partner-portal/login')}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/80 text-xs font-bold transition-all shadow-sm"
+            title="Open Partner Login Portal"
+          >
+            <Building2 className="w-3.5 h-3.5" /> Partner Portal Login
+          </button>
 
           <button
             onClick={openCreatePartner}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary/90 shadow-sm transition-all"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all"
           >
             <Plus className="w-4 h-4" /> Add New Partner
           </button>
@@ -409,24 +397,18 @@ export const PathologyPartnersPage: React.FC = () => {
       {/* VIEW 1: TIE-UP PARTNER REFERRAL & COMMISSION PORTAL */}
       {activeView === 'PORTAL' ? (
         <div className="space-y-6">
-          {/* Partner Selector & Controls Bar */}
-          <div className="bg-card border border-border rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Select Partner Lab:</div>
-              <select
-                value={selectedPartnerId}
-                onChange={e => {
-                  setSelectedPartnerId(e.target.value);
-                  loadPartnerPortal(e.target.value, portalPeriod);
-                }}
-                className="bg-background border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground outline-none focus:border-emerald-500"
+          {/* Controls Bar with Back Button */}
+          <div className="bg-card border border-border rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setActiveView('DIRECTORY')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-muted hover:bg-muted/80 text-foreground text-xs font-bold transition-colors border border-border"
               >
-                {partners.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.labName} ({p.partnerCode || 'PART'}) — {p.user?.name}
-                  </option>
-                ))}
-              </select>
+                <ArrowLeft className="w-3.5 h-3.5" /> Back to Partner Directory
+              </button>
+              <div className="text-xs font-bold text-emerald-600">
+                Viewing: {portalData?.partner?.labName || partners.find(p => p.id === selectedPartnerId)?.labName || 'Partner'}
+              </div>
             </div>
 
             <div className="flex items-center gap-2">

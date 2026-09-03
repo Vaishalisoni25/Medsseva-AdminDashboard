@@ -26,6 +26,7 @@ import {
   Printer,
   Sparkles,
   Eye,
+  Download,
 } from 'lucide-react';
 import { financeService, API_URL } from '../services/api';
 import { cn } from '../utils/cn';
@@ -33,6 +34,7 @@ import { useToast } from '../components/Toast';
 import { customFormatService } from '../services/customFormat.service';
 import { CustomInvoiceTemplate } from '../types/customFormat';
 import { LiveInvoicePreview } from '../components/customFormats/LiveInvoicePreview';
+import { exportInvoiceToPdf } from '../utils/exportInvoicePdf';
 
 export const PaymentsPage: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -44,8 +46,24 @@ export const PaymentsPage: React.FC = () => {
   const [invoicePreviewModal, setInvoicePreviewModal] = useState<{
     open: boolean;
     payment: any;
-    selectedTemplateId: string;
+    selectedTemplateId?: string;
   } | null>(null);
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
+
+  const handleDownloadInvoicePDF = async () => {
+    if (!invoicePreviewModal?.payment) return;
+    setIsExportingPDF(true);
+    try {
+      const code = invoicePreviewModal.payment?.booking?.bookingCode || invoicePreviewModal.payment?.id || 'Payment';
+      await exportInvoiceToPdf('payment-invoice-capture', `Invoice_${code}.pdf`);
+      success('Invoice PDF downloaded successfully');
+    } catch (err) {
+      console.error('Invoice PDF export failed:', err);
+      toastError('Failed to export PDF');
+    } finally {
+      setIsExportingPDF(false);
+    }
+  };
 
   const [refundModal, setRefundModal] = useState<{ open: boolean; paymentId: string; maxAmount: number; bookingCode: string } | null>(null);
   const [refundForm, setRefundForm] = useState<{ refundType: 'FULL' | 'PARTIAL'; amount: string; reason: string }>({
@@ -349,30 +367,10 @@ if (executeRefundThunk.fulfilled.match(result)) {
                                   selectedTemplateId: defTpl?.id || '',
                                 });
                               }}
-                              className="text-teal-700 dark:text-teal-400 hover:text-teal-800 text-[11px] font-bold flex items-center gap-1 hover:underline bg-teal-50 dark:bg-teal-950/30 px-2 py-0.5 rounded border border-teal-200 dark:border-teal-900"
+                              className="text-teal-700 dark:text-teal-400 hover:text-teal-800 text-[11px] font-bold flex items-center gap-1.5 hover:underline bg-teal-50 dark:bg-teal-950/30 px-2.5 py-1 rounded-lg border border-teal-200 dark:border-teal-900"
                             >
-                              <Sparkles className="h-3 w-3 text-teal-600" /> Invoice Preview
+                              <FileText className="h-3.5 w-3.5 text-teal-600" /> Invoice & PDF
                             </button>
-
-                            {(tx.booking?.id || tx.bookingId) && tx.status === 'CAPTURED' ? (
-                              <a 
-                                href={`${API_URL}/payments/invoice/${tx.booking?.id || tx.bookingId}/pdf`} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-primary hover:text-primary/80 text-[11px] font-bold flex items-center gap-1 hover:underline"
-                              >
-                                <FileText className="h-3 w-3" /> PDF
-                              </a>
-                            ) : tx.invoiceUrl ? (
-                              <a 
-                                href={tx.invoiceUrl} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-primary hover:text-primary/80 text-[11px] font-bold flex items-center gap-1 hover:underline"
-                              >
-                                <FileText className="h-3 w-3" /> PDF
-                              </a>
-                            ) : null}
                             {(tx.booking?.id || tx.bookingId) ? (
                               <button
                                 onClick={() => handleRegenerateInvoice(tx.booking?.id || tx.bookingId)}
@@ -652,8 +650,8 @@ if (executeRefundThunk.fulfilled.match(result)) {
 
       {/* Custom Invoice Preview Modal */}
       {invoicePreviewModal?.open && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center p-2 sm:p-6 overflow-y-auto">
-          <div className="w-full max-w-5xl flex flex-col sm:flex-row sm:items-center justify-between mb-3 text-white gap-2">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center p-2 sm:p-6 overflow-y-auto printable-modal-overlay">
+          <div className="no-print w-full max-w-5xl flex flex-col sm:flex-row sm:items-center justify-between mb-3 text-white gap-2">
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap min-w-0">
               <span className="font-bold text-xs sm:text-sm truncate">
                 Invoice: {invoicePreviewModal.payment?.booking?.bookingCode || invoicePreviewModal.payment?.id}
@@ -677,6 +675,18 @@ if (executeRefundThunk.fulfilled.match(result)) {
             </div>
             <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
               <button
+                disabled={isExportingPDF}
+                onClick={handleDownloadInvoicePDF}
+                className="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {isExportingPDF ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )}
+                {isExportingPDF ? 'Exporting...' : 'Download PDF'}
+              </button>
+              <button
                 onClick={() => window.print()}
                 className="px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white text-xs font-bold flex items-center gap-1.5"
               >
@@ -691,7 +701,7 @@ if (executeRefundThunk.fulfilled.match(result)) {
             </div>
           </div>
 
-          <div className="overflow-x-auto overflow-y-auto max-h-[85vh] pb-12 w-full flex justify-center custom-scrollbar">
+          <div id="payment-invoice-capture" className="overflow-x-auto overflow-y-auto max-h-[85vh] pb-12 w-full flex justify-center custom-scrollbar printable-modal-scroll">
             <LiveInvoicePreview
               template={customInvoiceTemplates.find(t => t.id === invoicePreviewModal.selectedTemplateId) || {}}
               scale={typeof window !== 'undefined' && window.innerWidth < 640 ? 0.45 : 0.88}
@@ -699,7 +709,7 @@ if (executeRefundThunk.fulfilled.match(result)) {
                 invoiceNumber: invoicePreviewModal.payment?.invoiceNumber || `INV-${invoicePreviewModal.payment?.id?.slice(0, 8)}`,
                 receiptNumber: invoicePreviewModal.payment?.receiptNumber || `REC-${invoicePreviewModal.payment?.id?.slice(0, 8)}`,
                 date: invoicePreviewModal.payment?.paidAt ? new Date(invoicePreviewModal.payment.paidAt).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN'),
-                status: invoicePreviewModal.payment?.status || 'CAPTURED',
+                status: ['CAPTURED', 'SUCCESS', 'PAID'].includes(String(invoicePreviewModal.payment?.status).toUpperCase()) ? 'PAID' : (invoicePreviewModal.payment?.status || 'PAID'),
                 paymentMethod: invoicePreviewModal.payment?.method || invoicePreviewModal.payment?.gateway || 'Online (Razorpay)',
                 transactionId: invoicePreviewModal.payment?.gatewayPaymentId || invoicePreviewModal.payment?.id,
                 bookingCode: invoicePreviewModal.payment?.booking?.bookingCode || 'MEDS-BOOKING',

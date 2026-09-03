@@ -9,7 +9,18 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('medsseva_token') || localStorage.getItem('token');
+  const isDoctorPortal = typeof window !== 'undefined' && window.location.pathname.startsWith('/doctor-portal');
+  const isPartnerPortal = typeof window !== 'undefined' && window.location.pathname.startsWith('/partner-portal');
+
+  let token = null;
+  if (isDoctorPortal) {
+    token = localStorage.getItem('doctor_token') || localStorage.getItem('token');
+  } else if (isPartnerPortal) {
+    token = localStorage.getItem('partner_token') || localStorage.getItem('token');
+  } else {
+    token = localStorage.getItem('medsseva_token') || localStorage.getItem('token');
+  }
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }

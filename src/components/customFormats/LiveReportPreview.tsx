@@ -659,36 +659,6 @@ export const LiveReportPreview: React.FC<LiveReportPreviewProps> = ({
               </div>
             )}
 
-            {/* Middle: Stamp / Verification Badge */}
-            {fields.showStamp && (
-              <div style={{ textAlign: 'center' }}>
-                <div
-                  style={{
-                    border: `1.5px dashed ${primaryColor}`,
-                    borderRadius: '50%',
-                    width: '60px',
-                    height: '60px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    margin: '0 auto',
-                    color: primaryColor,
-                    fontSize: '6.5px',
-                    fontWeight: 900,
-                    textTransform: 'uppercase',
-                    textAlign: 'center',
-                    lineHeight: '1.1',
-                    transform: 'rotate(-8deg)',
-                  }}
-                >
-                  <span>MedsSeva</span>
-                  <span>VERIFIED</span>
-                  <span>LAB SEAL</span>
-                </div>
-              </div>
-            )}
-
             {/* Right: Pathologist Signature */}
             {fields.showDoctorDetails && (
               <div style={{ textAlign: 'right', minWidth: '180px' }}>
@@ -709,24 +679,24 @@ export const LiveReportPreview: React.FC<LiveReportPreviewProps> = ({
             style={{
               borderTop: `1.5px solid ${primaryColor}`,
               paddingTop: '6px',
-              display: 'flex',
-              justifyContent: 'space-between',
+              display: 'grid',
+              gridTemplateColumns: '1fr auto 1fr',
               alignItems: 'center',
               fontSize: '8px',
               color: '#64748b',
             }}
           >
-            <div>
+            <div style={{ textAlign: 'left' }}>
               {footer.customFooterText || 'This is an electronically validated diagnostic report.'}
             </div>
 
             {/* MANDATORY POWERED BY MEDSSEVA */}
-            <div style={{ fontWeight: 800, color: '#0f172a' }}>
+            <div style={{ fontWeight: 800, color: '#0f172a', textAlign: 'center' }}>
               Powered by <span style={{ color: primaryColor }}>Medsseva</span>
             </div>
 
             {/* DYNAMIC PAGE NUMBER */}
-            <div style={{ fontWeight: 700, color: '#0f172a' }}>
+            <div style={{ fontWeight: 700, color: '#0f172a', textAlign: 'right' }}>
               Page {pageNum} of {totalPages}
             </div>
           </div>

@@ -131,12 +131,27 @@ export const LiveInvoicePreview: React.FC<LiveInvoicePreviewProps> = ({
     logoUrl: template.logoUrl || '/trusted-partner.jpg',
   };
 
+  const rawStatus = String(invoiceData?.status || 'PAID').toUpperCase();
+  const displayStatus = ['CAPTURED', 'SUCCESS', 'COMPLETED', 'PAID'].includes(rawStatus)
+    ? 'PAID'
+    : rawStatus === 'PARTIALLY_REFUNDED'
+    ? 'PARTIAL REFUND'
+    : rawStatus;
+
+  const statusStyle = displayStatus === 'PAID'
+    ? { bg: '#dcfce7', text: '#15803d', border: '#bbf7d0' }
+    : ['REFUNDED', 'PARTIAL REFUND'].includes(displayStatus)
+    ? { bg: '#fee2e2', text: '#b91c1c', border: '#fca5a5' }
+    : displayStatus === 'PENDING'
+    ? { bg: '#fef3c7', text: '#b45309', border: '#fde68a' }
+    : { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' };
+
   const invoice = {
     number: invoiceData?.invoiceNumber || 'INV-2026-004812',
     receiptNumber: invoiceData?.receiptNumber || 'REC-2026-004812',
     date: invoiceData?.date || '12/03/2026',
     dueDate: invoiceData?.dueDate || 'Immediate',
-    status: invoiceData?.status || 'PAID',
+    status: displayStatus,
     paymentMethod: invoiceData?.paymentMethod || 'Online (Razorpay / UPI)',
     transactionId: invoiceData?.transactionId || 'pay_P92kL109zM821a',
     bookingCode: invoiceData?.bookingCode || 'MEDS-88219',
@@ -225,57 +240,78 @@ export const LiveInvoicePreview: React.FC<LiveInvoicePreviewProps> = ({
               ) : (
                 <div
                   style={{
-                    backgroundColor: primaryColor,
-                    color: '#ffffff',
-                    padding: '8px 14px',
+                    width: '46px',
+                    height: '46px',
                     borderRadius: '8px',
+                    backgroundColor: primaryColor,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ffffff',
                     fontWeight: 900,
-                    fontSize: '16px',
+                    fontSize: '18px',
                   }}
                 >
-                  {lab.name.slice(0, 3).toUpperCase()}
+                  {branding.labName?.[0] || 'M'}
                 </div>
               )}
               <div>
-                <div style={{ fontSize: '13px', fontWeight: 900, color: primaryColor, lineHeight: '1.2' }}>
+                <div style={{ fontSize: '13px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.2px', textTransform: 'uppercase' }}>
                   {lab.name}
                 </div>
-                <div style={{ fontSize: '8px', color: '#64748b', fontStyle: 'italic', marginTop: '2px' }}>
-                  {lab.tagline}
-                </div>
-                <div style={{ fontSize: '7.5px', color: '#475569', marginTop: '3px', lineHeight: '1.3' }}>
+                {branding.showTagline && (
+                  <div style={{ fontSize: '8px', color: '#64748b', fontStyle: 'italic', marginTop: '1px' }}>
+                    {lab.tagline}
+                  </div>
+                )}
+                <div style={{ fontSize: '7.5px', color: '#64748b', marginTop: '2px', lineHeight: '1.3' }}>
                   {lab.address}
                 </div>
               </div>
             </div>
 
-            {/* Invoice Meta & QR Code */}
-            <div style={{ textAlign: 'right', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-              <div>
+            {/* Invoice Meta & QR */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+              <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: '20px', fontWeight: 900, color: primaryColor, letterSpacing: '0.5px' }}>
-                  {isDetailed ? 'TAX INVOICE' : 'LAB INVOICE'}
+                  TAX INVOICE
                 </div>
-                <div style={{ fontSize: '9px', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
+                <div style={{ fontSize: '9px', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>
                   Invoice No: <span style={{ fontFamily: 'monospace' }}>{invoice.number}</span>
                 </div>
                 <div style={{ fontSize: '8.5px', color: '#64748b', marginTop: '1px' }}>
                   Date: {invoice.date}
                 </div>
-                <div
-                  style={{
-                    display: 'inline-block',
-                    marginTop: '4px',
-                    backgroundColor: '#dcfce7',
-                    color: '#15803d',
-                    border: '1px solid #bbf7d0',
-                    fontSize: '8px',
-                    fontWeight: 800,
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  ● {invoice.status}
+                <div style={{ marginTop: '4px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <svg
+                    width={Math.max(56, displayStatus.length * 7 + 24)}
+                    height="18"
+                    viewBox={`0 0 ${Math.max(56, displayStatus.length * 7 + 24)} 18`}
+                    style={{ display: 'block' }}
+                  >
+                    <rect
+                      x="0.5"
+                      y="0.5"
+                      width={Math.max(56, displayStatus.length * 7 + 24) - 1}
+                      height="17"
+                      rx="8.5"
+                      fill={statusStyle.bg}
+                      stroke={statusStyle.border}
+                      strokeWidth="1"
+                    />
+                    <circle cx="11" cy="9" r="2.5" fill={statusStyle.text} />
+                    <text
+                      x="18"
+                      y="11.8"
+                      fill={statusStyle.text}
+                      fontSize="8"
+                      fontWeight="800"
+                      fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+                      letterSpacing="0.4"
+                    >
+                      {displayStatus}
+                    </text>
+                  </svg>
                 </div>
               </div>
 
@@ -489,33 +525,57 @@ export const LiveInvoicePreview: React.FC<LiveInvoicePreviewProps> = ({
 
             {/* Right: Calculations Box */}
             <div style={{ backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '10px 14px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5px', lineHeight: '1.7' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5px', lineHeight: '1.6' }}>
                 <tbody>
                   <tr>
-                    <td style={{ color: '#64748b' }}>Item Gross Subtotal</td>
-                    <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 600 }}>₹{subtotal.toFixed(2)}</td>
+                    <td style={{ color: '#64748b', paddingBottom: '4px', verticalAlign: 'middle' }}>Item Gross Subtotal</td>
+                    <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, paddingBottom: '4px', verticalAlign: 'middle' }}>₹{subtotal.toFixed(2)}</td>
                   </tr>
                   {fields.showDiscountBreakdown && totalDiscount > 0 && (
                     <tr>
-                      <td style={{ color: '#dc2626' }}>Special Discount</td>
-                      <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#dc2626', fontWeight: 600 }}>- ₹{totalDiscount.toFixed(2)}</td>
+                      <td style={{ color: '#dc2626', paddingBottom: '4px', verticalAlign: 'middle' }}>Special Discount</td>
+                      <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#dc2626', fontWeight: 600, paddingBottom: '4px', verticalAlign: 'middle' }}>- ₹{totalDiscount.toFixed(2)}</td>
                     </tr>
                   )}
                   {fields.showTaxBreakdown && (
                     <>
                       <tr>
-                        <td style={{ color: '#64748b' }}>CGST (2.5%)</td>
-                        <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>₹{cgst.toFixed(2)}</td>
+                        <td style={{ color: '#64748b', paddingBottom: '4px', verticalAlign: 'middle' }}>CGST (2.5%)</td>
+                        <td style={{ textAlign: 'right', fontFamily: 'monospace', paddingBottom: '4px', verticalAlign: 'middle' }}>₹{cgst.toFixed(2)}</td>
                       </tr>
                       <tr>
-                        <td style={{ color: '#64748b' }}>SGST (2.5%)</td>
-                        <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>₹{sgst.toFixed(2)}</td>
+                        <td style={{ color: '#64748b', paddingBottom: '6px', verticalAlign: 'middle' }}>SGST (2.5%)</td>
+                        <td style={{ textAlign: 'right', fontFamily: 'monospace', paddingBottom: '6px', verticalAlign: 'middle' }}>₹{sgst.toFixed(2)}</td>
                       </tr>
                     </>
                   )}
-                  <tr style={{ borderTop: `2px solid ${primaryColor}`, paddingTop: '4px' }}>
-                    <td style={{ fontSize: '11px', fontWeight: 900, color: '#0f172a', paddingTop: '4px' }}>TOTAL PAID</td>
-                    <td style={{ textAlign: 'right', fontSize: '13px', fontWeight: 900, color: primaryColor, fontFamily: 'monospace', paddingTop: '4px' }}>
+                  <tr>
+                    <td
+                      style={{
+                        borderTop: `2px solid ${primaryColor}`,
+                        paddingTop: '8px',
+                        paddingBottom: '2px',
+                        fontSize: '11px',
+                        fontWeight: 900,
+                        color: '#0f172a',
+                        verticalAlign: 'middle',
+                      }}
+                    >
+                      TOTAL PAID
+                    </td>
+                    <td
+                      style={{
+                        borderTop: `2px solid ${primaryColor}`,
+                        paddingTop: '8px',
+                        paddingBottom: '2px',
+                        textAlign: 'right',
+                        fontSize: '13px',
+                        fontWeight: 900,
+                        color: primaryColor,
+                        fontFamily: 'monospace',
+                        verticalAlign: 'middle',
+                      }}
+                    >
                       ₹{grandTotal.toFixed(2)}
                     </td>
                   </tr>
@@ -572,23 +632,23 @@ export const LiveInvoicePreview: React.FC<LiveInvoicePreviewProps> = ({
             style={{
               borderTop: `1.5px solid ${primaryColor}`,
               paddingTop: '6px',
-              display: 'flex',
-              justifyContent: 'space-between',
+              display: 'grid',
+              gridTemplateColumns: '1fr auto 1fr',
               alignItems: 'center',
               fontSize: '8px',
               color: '#64748b',
             }}
           >
-            <div>
+            <div style={{ textAlign: 'left' }}>
               {footer.customFooterText || 'Thank you for your business.'}
             </div>
 
             {/* MANDATORY POWERED BY MEDSSEVA */}
-            <div style={{ fontWeight: 800, color: '#0f172a' }}>
+            <div style={{ fontWeight: 800, color: '#0f172a', textAlign: 'center' }}>
               Powered by <span style={{ color: primaryColor }}>Medsseva</span>
             </div>
 
-            <div>
+            <div style={{ fontWeight: 700, color: '#0f172a', textAlign: 'right' }}>
               Page 1 of 1
             </div>
           </div>

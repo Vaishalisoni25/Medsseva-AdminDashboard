@@ -179,3 +179,107 @@ input::-webkit-contacts-auto-fill-button {
   visibility: hidden !important;
   pointer-events: none !important;
 }
+
+/* ==========================================================================
+   PRINT MEDIA STYLES - Crisp, Pixel-Perfect Invoice & Report Printing
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  /* Completely hide all UI bars, navigation, modal header, action buttons, backdrop overlays */
+  .no-print,
+  .no-print *,
+  header,
+  nav,
+  aside,
+  button,
+  select,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Reset modal overlays and containers so only the printable document sheet is printed */
+  .printable-modal-overlay,
+  .fixed.inset-0 {
+    position: static !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    display: block !important;
+    inset: auto !important;
+    z-index: auto !important;
+  }
+
+  .printable-modal-scroll,
+  .overflow-y-auto,
+  .overflow-x-auto {
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+  }
+
+  /* Ensure unscaled 1:1 true A4 size without transform scaling distortion */
+  .live-invoice-preview-wrapper,
+  .live-report-preview-wrapper {
+    width: 794px !important;
+    height: auto !important;
+    min-height: 1123px !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  .live-invoice-preview-container,
+  .live-report-preview-container {
+    transform: none !important;
+    width: 794px !important;
+    margin: 0 !important;
+  }
+
+  .invoice-status-badge {
+    display: inline-block !important;
+    height: 18px !important;
+    line-height: 16px !important;
+    text-align: center !important;
+    vertical-align: middle !important;
+    box-sizing: border-box !important;
+  }
+
+  .a4-page-sheet {
+    width: 794px !important;
+    min-height: 1123px !important;
+    height: 1123px !important;
+    box-sizing: border-box !important;
+    margin: 0 auto !important;
+    padding: 28px 36px 20px !important;
+    box-shadow: none !important;
+    border: none !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    page-break-after: always;
+    break-after: page;
+    background: #ffffff !important;
+  }
+}

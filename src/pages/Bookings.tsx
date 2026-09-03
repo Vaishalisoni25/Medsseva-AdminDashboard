@@ -29,6 +29,8 @@ import {
   Receipt,
   Printer,
   Sparkles,
+  Download,
+  Loader2,
 } from 'lucide-react';
 
 import { cn } from '../utils/cn';
@@ -37,8 +39,8 @@ import { processPayment } from '../utils/PaymentModule';
 import { testService } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { customFormatService } from '../services/customFormat.service';
-import { CustomInvoiceTemplate } from '../types/customFormat';
 import { LiveInvoicePreview } from '../components/customFormats/LiveInvoicePreview';
+import { exportInvoiceToPdf } from '../utils/exportInvoicePdf';
 
 const STATUS_COLORS: Record<BookingStatus, { bg: string; text: string; border: string }> = {
   'Pending': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
@@ -84,9 +86,27 @@ const [isLabActioning, setIsLabActioning] = useState(false);
 const [isLabStatusUpdating, setIsLabStatusUpdating] = useState(false);
 const [isCollectingPayment, setIsCollectingPayment] = useState(false);
 const [isSendingInvoice, setIsSendingInvoice] = useState(false);
-const [customInvoiceTemplates, setCustomInvoiceTemplates] = useState<CustomInvoiceTemplate[]>([]);
+const [customInvoiceTemplates, setCustomInvoiceTemplates] = useState<any[]>([]);
 const [invoiceModalBooking, setInvoiceModalBooking] = useState<Booking | null>(null);
 const [selectedInvoiceTemplateId, setSelectedInvoiceTemplateId] = useState<string>('');
+const [isExportingInvoicePDF, setIsExportingInvoicePDF] = useState(false);
+
+const handleDownloadInvoicePDF = async () => {
+  if (!invoiceModalBooking) return;
+  setIsExportingInvoicePDF(true);
+  try {
+    await exportInvoiceToPdf(
+      'booking-invoice-capture',
+      `Invoice_${invoiceModalBooking.bookingCode || invoiceModalBooking.id}.pdf`
+    );
+    toast.success('Invoice PDF downloaded successfully');
+  } catch (err) {
+    console.error('Invoice PDF export failed:', err);
+    toast.error('Failed to export PDF');
+  } finally {
+    setIsExportingInvoicePDF(false);
+  }
+};
 
 React.useEffect(() => {
   Promise.all([
@@ -1277,8 +1297,8 @@ const getStaffName = (id?: string) => {
 
       {/* Custom Invoice Preview Modal */}
       {invoiceModalBooking && (
-        <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-md flex flex-col items-center p-2 sm:p-6 overflow-y-auto">
-          <div className="w-full max-w-5xl flex flex-col sm:flex-row sm:items-center justify-between mb-3 text-white gap-2">
+        <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-md flex flex-col items-center p-2 sm:p-6 overflow-y-auto printable-modal-overlay">
+          <div className="no-print w-full max-w-5xl flex flex-col sm:flex-row sm:items-center justify-between mb-3 text-white gap-2">
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap min-w-0">
               <span className="font-bold text-xs sm:text-sm truncate">
                 Invoice & Bill: {invoiceModalBooking.bookingCode} ({invoiceModalBooking.patient?.name})
@@ -1307,6 +1327,18 @@ const getStaffName = (id?: string) => {
                 {isSendingInvoice ? 'Sending...' : 'Send Invoice'}
               </button>
               <button
+                disabled={isExportingInvoicePDF}
+                onClick={handleDownloadInvoicePDF}
+                className="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {isExportingInvoicePDF ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )}
+                {isExportingInvoicePDF ? 'Exporting...' : 'Download PDF'}
+              </button>
+              <button
                 onClick={() => window.print()}
                 className="px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white text-xs font-bold flex items-center gap-1.5"
               >
@@ -1321,7 +1353,7 @@ const getStaffName = (id?: string) => {
             </div>
           </div>
 
-          <div className="overflow-x-auto overflow-y-auto max-h-[85vh] pb-12 w-full flex justify-center custom-scrollbar">
+          <div id="booking-invoice-capture" className="overflow-x-auto overflow-y-auto max-h-[85vh] pb-12 w-full flex justify-center custom-scrollbar printable-modal-scroll">
             <LiveInvoicePreview
               template={customInvoiceTemplates.find(t => t.id === selectedInvoiceTemplateId) || {}}
               scale={typeof window !== 'undefined' && window.innerWidth < 640 ? 0.45 : 0.88}

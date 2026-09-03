@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '@/redux/hooks';
 import { useRolesQuery, useAllPermissionsQuery, useBranchesQuery } from '@/hooks/useAdminQueries';
 import { doctorService, commissionService, adminUserService, rbacService } from '@/services/api';
@@ -9,7 +10,7 @@ import {
   Building2, CheckCircle2,
   FileSignature, Eye, EyeOff, UserCheck,
   DollarSign, Activity, TrendingUp, FileText, RefreshCw,
-  Briefcase, CheckSquare, Square
+  Briefcase, CheckSquare, Square, ExternalLink
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import toast from 'react-hot-toast';
@@ -81,17 +82,20 @@ const MODULE_PERMISSIONS: { module: string; label: string; actions: string[] }[]
 ];
 
 export const DoctorsPage: React.FC = () => {
+  const navigate = useNavigate();
   const currentUser = useAppSelector(state => state.auth.user);
   const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'SUPER_ADMIN' || (currentUser as any)?.isSuperAdmin;
+  const isDoctorUser = currentUser?.role === 'DOCTOR' || (currentUser as any)?.roleSlug === 'doctor' || (currentUser as any)?.userType === 'DOCTOR';
   const userBranchId = (currentUser as any)?.branchId || (currentUser as any)?.adminUser?.branchId;
 
-  const [activeView, setActiveView] = useState<'DIRECTORY' | 'PORTAL'>('DIRECTORY');
+  const [activeView, setActiveView] = useState<'DIRECTORY' | 'PORTAL'>(isDoctorUser ? 'PORTAL' : 'DIRECTORY');
   const [doctors, setDoctors] = useState<DoctorRecord[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [roles, setRoles] = useState<AdminRole[]>([]);
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [portalSearch, setPortalSearch] = useState('');
   const [specFilter, setSpecFilter] = useState('ALL');
   const [branchFilter, setBranchFilter] = useState('ALL');
 
@@ -164,12 +168,14 @@ export const DoctorsPage: React.FC = () => {
   };
 
   const loadDoctorPortal = async (docId?: string, period = portalPeriod) => {
-    const targetId = docId || selectedDoctorId;
-    if (!targetId) return;
+    const targetId = isDoctorUser ? undefined : (docId || selectedDoctorId);
     setPortalLoading(true);
     try {
-      const res = await commissionService.getDoctorPortalData(period);
+      const res = await commissionService.getDoctorPortalData(period, targetId);
       setPortalData(res);
+      if (res?.doctor?.id && !selectedDoctorId) {
+        setSelectedDoctorId(res.doctor.id);
+      }
     } catch (err) {
       console.error('Failed to load doctor portal data:', err);
     } finally {
@@ -178,14 +184,16 @@ export const DoctorsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (!isDoctorUser) {
+      loadData();
+    }
+  }, [isDoctorUser]);
 
   useEffect(() => {
-    if (activeView === 'PORTAL') {
-      loadDoctorPortal(selectedDoctorId, portalPeriod);
+    if (activeView === 'PORTAL' || isDoctorUser) {
+      loadDoctorPortal(isDoctorUser ? undefined : selectedDoctorId, portalPeriod);
     }
-  }, [activeView, selectedDoctorId, portalPeriod]);
+  }, [activeView, isDoctorUser, selectedDoctorId, portalPeriod]);
 
   const openPortalForDoctor = (doc: DoctorRecord) => {
     setSelectedDoctorId(doc.id);
@@ -439,6 +447,18 @@ export const DoctorsPage: React.FC = () => {
     });
   }, [baseDoctors, specFilter, branchFilter, search]);
 
+  const filteredReferrals = useMemo(() => {
+    if (!portalData?.referrals) return [];
+    if (!portalSearch.trim()) return portalData.referrals;
+    const q = portalSearch.toLowerCase();
+    return portalData.referrals.filter((item: any) =>
+      item.patientName?.toLowerCase().includes(q) ||
+      item.bookingCode?.toLowerCase().includes(q) ||
+      item.patientMobile?.includes(q) ||
+      item.tests?.some((t: any) => t.name?.toLowerCase().includes(q))
+    );
+  }, [portalData?.referrals, portalSearch]);
+
   return (
     <div className="space-y-6">
       {/* Header with Title and Mode Switcher */}
@@ -448,79 +468,63 @@ export const DoctorsPage: React.FC = () => {
             <Stethoscope className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-foreground">Doctor Management & Portal</h1>
-            <p className="text-xs text-muted-foreground">Manage doctor profiles, referred samples, test-wise 30% commissions & lab reports</p>
+            <h1 className="text-xl font-bold text-foreground">
+              {isDoctorUser ? 'Doctor Portal Dashboard' : 'Doctor Management & Portal'}
+            </h1>
+            <p className="text-xs text-muted-foreground">
+              {isDoctorUser
+                ? 'Your referred patients, diagnostic tests, 30% commission payouts & verified lab reports'
+                : 'Manage doctor profiles, referred samples, test-wise 30% commissions & lab reports'}
+            </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center bg-card border border-border p-1 rounded-xl shadow-sm">
+        {!isDoctorUser && (
+          <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={() => {
-                setActiveView('DIRECTORY');
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeView === 'DIRECTORY'
-                  ? 'bg-teal-600 text-white shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
+              onClick={() => navigate('/doctor-portal/login')}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-900/60 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/80 text-xs font-bold transition-all shadow-sm"
+              title="Open Doctor Login Portal"
             >
-              <UserCheck className="w-3.5 h-3.5" /> Doctor Directory
+              <Stethoscope className="w-3.5 h-3.5" /> Doctor Portal Login
             </button>
+
             <button
-              onClick={() => {
-                setActiveView('PORTAL');
-                loadDoctorPortal(selectedDoctorId, portalPeriod);
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeView === 'PORTAL'
-                  ? 'bg-teal-600 text-white shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
+              onClick={() => openCreate('DOCTOR')}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold transition-colors shadow-md shadow-teal-600/20"
             >
-              <Activity className="w-3.5 h-3.5" /> Doctor Portal View
+              <Plus className="w-4 h-4" /> Add Doctor
             </button>
           </div>
-
-          <button
-            onClick={() => openCreate('DOCTOR')}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold transition-colors shadow-md shadow-teal-600/20"
-          >
-            <Plus className="w-4 h-4" /> Add Doctor
-          </button>
-        </div>
+        )}
       </div>
 
       {/* VIEW 1: PORTAL VIEW */}
       {activeView === 'PORTAL' ? (
         <div className="space-y-6">
-          <div className="bg-card border border-border rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          {/* Top Control Bar (NO dropdown of all doctors) */}
+          <div className="bg-card border border-border rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3">
-              <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Select Doctor:</div>
-              <select
-                value={selectedDoctorId}
-                onChange={e => {
-                  setSelectedDoctorId(e.target.value);
-                  loadDoctorPortal(e.target.value, portalPeriod);
-                }}
-                className="bg-background border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground outline-none focus:border-teal-500"
-              >
-                {doctors.map(d => (
-                  <option key={d.id} value={d.id}>
-                    Dr. {d.name} ({d.code || 'DOC'}) — {d.specialization || 'Pathology'}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => openCreate('DOCTOR')}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-900/60 text-teal-700 dark:text-teal-300 hover:bg-teal-100 text-xs font-bold transition-colors"
-                title="Add New Doctor"
-              >
-                <Plus className="w-3.5 h-3.5" /> Add Doctor
-              </button>
+              {!isDoctorUser && (
+                <button
+                  onClick={() => setActiveView('DIRECTORY')}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-muted/60 hover:bg-muted border border-border text-xs font-bold text-foreground transition-all shadow-sm"
+                >
+                  ← Back to Doctor Directory
+                </button>
+              )}
+              <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-900/60 text-teal-800 dark:text-teal-200 text-xs font-bold">
+                <Stethoscope className="w-4 h-4 text-teal-600" />
+                <span>
+                  Dr. {portalData?.doctor?.name || doctors.find(d => d.id === selectedDoctorId)?.name || 'Doctor'}
+                </span>
+                <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-teal-200/50 dark:bg-teal-900/80 text-teal-900 dark:text-teal-100">
+                  {portalData?.doctor?.code || doctors.find(d => d.id === selectedDoctorId)?.code || 'DOC'}
+                </span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
+
+            <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border text-xs">
                 {[
                   { id: 'WEEKLY', label: 'Weekly (7D)' },
@@ -532,7 +536,7 @@ export const DoctorsPage: React.FC = () => {
                     key={tab.id}
                     onClick={() => {
                       setPortalPeriod(tab.id as any);
-                      loadDoctorPortal(selectedDoctorId, tab.id as any);
+                      loadDoctorPortal(isDoctorUser ? undefined : selectedDoctorId, tab.id as any);
                     }}
                     className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
                       portalPeriod === tab.id
@@ -545,35 +549,45 @@ export const DoctorsPage: React.FC = () => {
                 ))}
               </div>
               <button
-                onClick={() => loadDoctorPortal(selectedDoctorId, portalPeriod)}
+                onClick={() => loadDoctorPortal(isDoctorUser ? undefined : selectedDoctorId, portalPeriod)}
                 className="p-2 rounded-xl bg-card border border-border hover:bg-muted text-foreground transition-colors"
+                title="Refresh Portal Data"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${portalLoading ? 'animate-spin' : ''}`} />
               </button>
             </div>
           </div>
+
           {/* Doctor Overview Banner */}
-          <div className="bg-gradient-to-r from-teal-900/10 via-card to-card border border-teal-500/30 rounded-2xl p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <div className="text-[11px] font-bold text-teal-600 uppercase tracking-wider">Referred Samples & Diagnostics</div>
-              <h2 className="text-xl font-black text-foreground">
+          <div className="bg-gradient-to-r from-teal-900/10 via-card to-card border border-teal-500/30 rounded-2xl p-5 sm:p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4 shadow-sm">
+            <div className="space-y-1">
+              <div className="text-[11px] font-bold text-teal-600 uppercase tracking-wider">Referred Diagnostics & Commissions</div>
+              <h2 className="text-xl sm:text-2xl font-black text-foreground">
                 Dr. {portalData?.doctor?.name || doctors.find(d => d.id === selectedDoctorId)?.name || 'Doctor'}
               </h2>
-              <div className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5">
-                <span>Code: <strong className="text-teal-600 font-mono">{portalData?.doctor?.code || 'DOC-101'}</strong></span>
+              <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-2 pt-0.5">
+                <span className="font-semibold text-foreground">{portalData?.doctor?.qualification || 'MBBS, MD'}</span>
                 <span>•</span>
-                <span>{portalData?.doctor?.qualification || 'MBBS, MD'}</span>
+                <span>{portalData?.doctor?.specialization || 'Clinical Pathology'}</span>
+                <span>•</span>
+                <span>Reg: <strong className="text-foreground">{portalData?.doctor?.registrationNo || 'MCI-REG'}</strong></span>
+                {portalData?.doctor?.branch?.name && (
+                  <>
+                    <span>•</span>
+                    <span className="text-teal-700 dark:text-teal-300 font-medium">{portalData.doctor.branch.name}</span>
+                  </>
+                )}
               </div>
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="bg-teal-50 dark:bg-teal-950/40 border border-teal-200/80 rounded-xl px-4 py-2 text-center">
+              <div className="bg-teal-50 dark:bg-teal-950/40 border border-teal-200/80 dark:border-teal-900/60 rounded-xl px-4 py-2.5 text-center">
                 <div className="text-[10px] font-bold uppercase text-teal-700 dark:text-teal-300">Commission Rate</div>
-                <div className="text-lg font-black text-teal-800 dark:text-teal-200">{portalData?.summary?.commissionRate ?? 30}%</div>
+                <div className="text-xl font-black text-teal-800 dark:text-teal-200">{portalData?.summary?.commissionRate ?? 30}%</div>
               </div>
-              <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200/80 rounded-xl px-4 py-2 text-center">
+              <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-900/60 rounded-xl px-4 py-2.5 text-center">
                 <div className="text-[10px] font-bold uppercase text-blue-700 dark:text-blue-300">Payment Cycle</div>
-                <div className="text-lg font-black text-blue-800 dark:text-blue-200">{portalData?.summary?.paymentCycle || 'MONTHLY'}</div>
+                <div className="text-xl font-black text-blue-800 dark:text-blue-200">{portalData?.summary?.paymentCycle || 'MONTHLY'}</div>
               </div>
             </div>
           </div>
@@ -582,7 +596,7 @@ export const DoctorsPage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
               <div className="flex items-center justify-between text-muted-foreground mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider">Referred Samples</span>
+                <span className="text-xs font-bold uppercase tracking-wider">Referred Patients</span>
                 <Activity className="w-4 h-4 text-teal-600" />
               </div>
               <div className="text-2xl font-black text-foreground">{portalData?.summary?.totalReferredSamples ?? 0}</div>
@@ -591,11 +605,11 @@ export const DoctorsPage: React.FC = () => {
 
             <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
               <div className="flex items-center justify-between text-muted-foreground mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider">Billed Turnover</span>
+                <span className="text-xs font-bold uppercase tracking-wider">Diagnostic Turnover</span>
                 <TrendingUp className="w-4 h-4 text-blue-600" />
               </div>
-              <div className="text-2xl font-black text-foreground">₹{portalData?.summary?.totalBilledAmount?.toLocaleString('en-IN') ?? 0}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">Diagnostic Billed Volume</div>
+              <div className="text-2xl font-black text-foreground">₹{(portalData?.summary?.totalBilledAmount ?? 0).toLocaleString('en-IN')}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Total Billed Diagnostic Value</div>
             </div>
 
             <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
@@ -603,36 +617,48 @@ export const DoctorsPage: React.FC = () => {
                 <span className="text-xs font-bold uppercase tracking-wider">Calculated Commission</span>
                 <DollarSign className="w-4 h-4 text-emerald-600" />
               </div>
-              <div className="text-2xl font-black text-emerald-600">₹{portalData?.summary?.totalCommissionEarned?.toLocaleString('en-IN') ?? 0}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">Calculated @ {portalData?.summary?.commissionRate ?? 30}%</div>
+              <div className="text-2xl font-black text-emerald-600">₹{(portalData?.summary?.totalCommissionEarned ?? 0).toLocaleString('en-IN')}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Earned @ {portalData?.summary?.commissionRate ?? 30}% Rate</div>
             </div>
 
             <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
               <div className="flex items-center justify-between text-muted-foreground mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider">Payout Status</span>
+                <span className="text-xs font-bold uppercase tracking-wider">Payout Balance</span>
                 <CheckCircle2 className="w-4 h-4 text-amber-500" />
               </div>
               <div className="flex items-center justify-between pt-1">
                 <div>
-                  <div className="text-xs text-emerald-600 font-bold">₹{portalData?.summary?.paidCommission?.toLocaleString('en-IN') ?? 0}</div>
+                  <div className="text-xs text-emerald-600 font-bold">₹{(portalData?.summary?.paidCommission ?? 0).toLocaleString('en-IN')}</div>
                   <div className="text-[10px] text-muted-foreground font-semibold">Paid</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xs text-amber-600 font-bold">₹{portalData?.summary?.unpaidCommission?.toLocaleString('en-IN') ?? 0}</div>
+                  <div className="text-xs text-amber-600 font-bold">₹{(portalData?.summary?.unpaidCommission ?? 0).toLocaleString('en-IN')}</div>
                   <div className="text-[10px] text-muted-foreground font-semibold">Unpaid (Pending)</div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Referred Samples Table */}
+          {/* Referred Samples Table with Search */}
           <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-            <div className="p-4 bg-muted/40 border-b border-border flex items-center justify-between">
+            <div className="p-4 bg-muted/40 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <h3 className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
                 <FileText className="w-4 h-4 text-teal-600" /> Doctor Referred Samples & Diagnostic Reports
               </h3>
-              <div className="text-xs text-muted-foreground font-mono">
-                {portalData?.referrals?.length ?? 0} Referrals
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Search patient, test, ref..."
+                    value={portalSearch}
+                    onChange={e => setPortalSearch(e.target.value)}
+                    className="pl-8 pr-3 py-1.5 bg-background border border-border rounded-xl text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-teal-500 w-48 sm:w-56"
+                  />
+                </div>
+                <div className="text-xs text-muted-foreground font-mono whitespace-nowrap">
+                  {filteredReferrals.length} Referrals
+                </div>
               </div>
             </div>
 
@@ -656,14 +682,14 @@ export const DoctorsPage: React.FC = () => {
                         <Loader2 className="w-4 h-4 animate-spin inline mr-2 text-teal-600" /> Loading referral records...
                       </td>
                     </tr>
-                  ) : !portalData?.referrals || portalData.referrals.length === 0 ? (
+                  ) : !filteredReferrals || filteredReferrals.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="py-10 text-center text-muted-foreground">
-                        No referred samples found for this doctor in this cycle period.
+                        {portalSearch ? `No referrals matching "${portalSearch}"` : 'No referred samples found for this doctor in this cycle period.'}
                       </td>
                     </tr>
                   ) : (
-                    portalData.referrals.map((item: any) => (
+                    filteredReferrals.map((item: any) => (
                       <tr key={item.bookingId} className="hover:bg-muted/30 transition-colors">
                         <td className="py-3.5 px-4 font-mono font-bold text-teal-700 dark:text-teal-400">
                           {item.bookingCode}

@@ -7,7 +7,11 @@ import {
 } from '../types/customFormat';
 
 const getAuthHeaders = () => {
-  const token = localStorage.getItem('medsseva_token') || localStorage.getItem('token');
+  const token =
+    localStorage.getItem('partner_token') ||
+    localStorage.getItem('doctor_token') ||
+    localStorage.getItem('medsseva_token') ||
+    localStorage.getItem('token');
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 

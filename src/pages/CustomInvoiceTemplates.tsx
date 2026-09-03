@@ -427,8 +427,8 @@ export const CustomInvoiceTemplatesPage: React.FC = () => {
 
       {/* Live Preview Modal */}
       {previewTemplate && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center p-2 sm:p-6 overflow-y-auto">
-          <div className="w-full max-w-5xl flex items-center justify-between mb-3 text-white gap-2 flex-wrap">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center p-2 sm:p-6 overflow-y-auto printable-modal-overlay">
+          <div className="no-print w-full max-w-5xl flex items-center justify-between mb-3 text-white gap-2 flex-wrap">
             <div className="flex items-center gap-2 min-w-0">
               <span className="font-bold text-xs sm:text-sm truncate">Previewing: {previewTemplate.name}</span>
               <span className="text-[10px] sm:text-xs bg-white/20 px-2 py-0.5 rounded font-mono uppercase shrink-0">{previewTemplate.type}</span>
@@ -467,7 +467,7 @@ export const CustomInvoiceTemplatesPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="overflow-x-auto overflow-y-auto max-h-[85vh] pb-12 w-full flex justify-center custom-scrollbar">
+          <div className="overflow-x-auto overflow-y-auto max-h-[85vh] pb-12 w-full flex justify-center custom-scrollbar printable-modal-scroll">
             <LiveInvoicePreview
               template={previewTemplate}
               scale={previewZoom}
