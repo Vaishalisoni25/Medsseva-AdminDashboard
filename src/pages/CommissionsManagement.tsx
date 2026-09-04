@@ -76,18 +76,20 @@ export const CommissionsManagementPage: React.FC = () => {
   };
 
   const list = (activeTab === 'DOCTORS' ? data?.doctors : data?.partners) || [];
-  const filteredList = list.filter((item: any) => {
-    const q = search.toLowerCase();
+  const filteredList = Array.isArray(list) ? list.filter((item: any) => {
+    if (!item) return false;
+    const q = (search || '').toLowerCase();
     return (
-      item.name?.toLowerCase().includes(q) ||
-      item.code?.toLowerCase().includes(q) ||
-      item.specialization?.toLowerCase().includes(q)
+      (item.name || '').toLowerCase().includes(q) ||
+      (item.code || '').toLowerCase().includes(q) ||
+      (item.specialization || '').toLowerCase().includes(q) ||
+      (item.qualification || '').toLowerCase().includes(q)
     );
-  });
+  }) : [];
 
-  const totalRevenue = list.reduce((acc: number, curr: any) => acc + (curr.totalRevenue || 0), 0);
-  const totalCommission = list.reduce((acc: number, curr: any) => acc + (curr.totalCommission || 0), 0);
-  const totalSamples = list.reduce((acc: number, curr: any) => acc + (curr.totalSamples || 0), 0);
+  const totalRevenue = Array.isArray(list) ? list.reduce((acc: number, curr: any) => acc + (Number(curr?.totalRevenue) || 0), 0) : 0;
+  const totalCommission = Array.isArray(list) ? list.reduce((acc: number, curr: any) => acc + (Number(curr?.totalCommission) || 0), 0) : 0;
+  const totalSamples = Array.isArray(list) ? list.reduce((acc: number, curr: any) => acc + (Number(curr?.totalSamples) || 0), 0) : 0;
 
   return (
     <div className="space-y-6 pb-12 font-sans">

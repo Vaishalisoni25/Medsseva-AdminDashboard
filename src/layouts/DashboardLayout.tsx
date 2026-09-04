@@ -46,6 +46,8 @@ const queryClient = useQueryClient();
     '/branches': [['branches']],
     '/inventory': [['inventory'], ['inventoryTransactions'], ['inventorySuppliers'], ['inventoryAnalytics']],
     '/partners': [['partners']],
+    '/pathology-partners': [['partners']],
+    '/collection-partners': [['collectionPartners'], ['collectionPartnersSummary']],
     '/samples': [['sampleQueue']],
     '/analytics': [['analyticsDashboard']],
     '/logs': [['auditLogs'], ['apiLogs']],

@@ -27,6 +27,7 @@ import { StaffPage } from '@/pages/Staff';
 import { UnauthorizedPage } from '@/pages/Unauthorized';
 import Branches from '../pages/Branches';
 import { PathologyPartnersPage } from '@/pages/PathologyPartners';
+import { CollectionPartnersPage } from '@/pages/CollectionPartners';
 import PrescriptionsPage from '@/pages/Prescriptions';
 import { VerifyBillPage } from '@/pages/VerifyBill';
 import { VerifyReportPage } from '@/pages/VerifyReport';
@@ -273,6 +274,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission="bookings.view">
             <PathologyPartnersPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'collection-partners',
+        element: (
+          <ProtectedRoute permission="bookings.view">
+            <CollectionPartnersPage />
           </ProtectedRoute>
         ),
       },

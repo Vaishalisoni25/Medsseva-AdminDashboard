@@ -414,4 +414,21 @@ export interface SystemSettings {
 
 export type SettingsUpdateDTO = Partial<Omit<SystemSettings, 'id' | 'updatedBy' | 'updatedAt' | 'createdAt'>>;
 
+export const collectionPartnerService = {
+  getSummary: () => api.get('/collection-partners/summary').then(r => r.data),
+  getPartners: (params?: { search?: string; labId?: string; status?: string; date?: string; startDate?: string; endDate?: string }) =>
+    api.get('/collection-partners', { params }).then(r => r.data),
+  getPartnerDetails: (id: string, params?: { date?: string; startDate?: string; endDate?: string; status?: string; labId?: string }) =>
+    api.get(`/collection-partners/${id}`, { params }).then(r => r.data),
+  getDailySummary: (params?: { partnerId?: string; labId?: string; status?: string; date?: string; startDate?: string; endDate?: string }) =>
+    api.get('/collection-partners/daily-summary', { params }).then(r => r.data),
+  getLabWise: (params?: { partnerId?: string; labId?: string; date?: string; startDate?: string; endDate?: string }) =>
+    api.get('/collection-partners/lab-wise', { params }).then(r => r.data),
+  updatePartnerStatus: (id: string, data: any) =>
+    api.patch(`/collection-partners/${id}/status`, data).then(r => r.data),
+  creditCommissionPayout: (data: { bookingId: string; partnerId: string; status?: string; notes?: string }) =>
+    api.patch('/collection-partners/commissions/payout', data).then(r => r.data),
+};
+
 export default api;
+

@@ -28,6 +28,7 @@ import {
   Truck,
   Star,
   Palette,
+  UserCheck,
 } from 'lucide-react';
 import { UserRole } from '../types';
 
@@ -63,6 +64,12 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     title: 'Tie-up Partners & Portal',
     path: '/pathology-partners',
     icon: Microscope,
+    moduleKey: 'bookings',
+  },
+  {
+    title: 'Collection Partner Management',
+    path: '/collection-partners',
+    icon: UserCheck,
     moduleKey: 'bookings',
   },
   {

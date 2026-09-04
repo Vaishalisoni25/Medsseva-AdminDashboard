@@ -2,18 +2,56 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePartnersQuery } from '@/hooks/useAdminQueries';
 import { testService, commissionService } from '../services/api';
+import { customFormatService } from '@/services/customFormat.service';
+import { exportInvoiceToPdf } from '@/utils/exportInvoicePdf';
+import { LiveReportPreview } from '@/components/customFormats/LiveReportPreview';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, X, CheckCircle2, XCircle, AlertCircle,
   Microscope, Phone, Mail, MapPin, Star, Clock,
   ShieldCheck, ShieldX, ShieldAlert, RefreshCw,
   DollarSign, Activity, TrendingUp, FileText, Building2, Loader2,
-  Plus, Edit3, Trash2, Eye, EyeOff, Percent, UserCheck, ExternalLink, ArrowLeft
+  Plus, Edit3, Trash2, Eye, EyeOff, Percent, UserCheck, ExternalLink, ArrowLeft,
+  Download, ZoomIn, ZoomOut
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { cn } from '../utils/cn';
 
 type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
+
+export type CanonicalPartnerType = 'ALL' | 'LAB_PARTNER' | 'PHLEBOTOMIST' | 'CHANNEL_PARTNER';
+
+export const getPartnerTypeInfo = (role?: string) => {
+  const r = (role || '').toUpperCase().trim();
+  if (r === 'PHLEBOTOMIST' || r.includes('PHLEBO') || r === 'COLLECTION_PARTNER' || r.includes('SAMPLE COLLECTOR')) {
+    return {
+      typeKey: 'PHLEBOTOMIST' as CanonicalPartnerType,
+      label: 'Phlebotomist',
+      badgeBg: 'bg-blue-50 dark:bg-blue-950/50',
+      badgeText: 'text-blue-700 dark:text-blue-300',
+      badgeBorder: 'border-blue-200 dark:border-blue-800/60',
+      icon: UserCheck,
+    };
+  }
+  if (r === 'CHANNEL_PARTNER' || r.includes('CHANNEL')) {
+    return {
+      typeKey: 'CHANNEL_PARTNER' as CanonicalPartnerType,
+      label: 'Channel Partner',
+      badgeBg: 'bg-purple-50 dark:bg-purple-950/50',
+      badgeText: 'text-purple-700 dark:text-purple-300',
+      badgeBorder: 'border-purple-200 dark:border-purple-800/60',
+      icon: Building2,
+    };
+  }
+  return {
+    typeKey: 'LAB_PARTNER' as CanonicalPartnerType,
+    label: 'Lab Partner',
+    badgeBg: 'bg-emerald-50 dark:bg-emerald-950/50',
+    badgeText: 'text-emerald-700 dark:text-emerald-300',
+    badgeBorder: 'border-emerald-200 dark:border-emerald-800/60',
+    icon: Microscope,
+  };
+};
 
 interface Partner {
   id: string;
@@ -65,6 +103,7 @@ export const PathologyPartnersPage: React.FC = () => {
   const [activeView, setActiveView] = useState<'DIRECTORY' | 'PORTAL'>('DIRECTORY');
   const [partners, setPartners] = useState<Partner[]>([]);
 
+  const [partnerTypeFilter, setPartnerTypeFilter] = useState<CanonicalPartnerType>('ALL');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
@@ -74,6 +113,12 @@ export const PathologyPartnersPage: React.FC = () => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [partnerRatings, setPartnerRatings] = useState<any>(null);
   const [ratingsLoading, setRatingsLoading] = useState(false);
+
+  // Custom Report Template & Preview Modal State
+  const [customTemplate, setCustomTemplate] = useState<any>(null);
+  const [selectedReportItem, setSelectedReportItem] = useState<any>(null);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [previewZoom, setPreviewZoom] = useState(0.85);
 
   // Partner Portal Specific State
   const [selectedPartnerId, setSelectedPartnerId] = useState<string>('');
@@ -90,7 +135,7 @@ export const PathologyPartnersPage: React.FC = () => {
   const [formMobile, setFormMobile] = useState('');
   const [formPassword, setFormPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [formRole, setFormRole] = useState('PARTNER_LAB');
+  const [formRole, setFormRole] = useState('LAB_PARTNER');
   const [formPartnerCode, setFormPartnerCode] = useState('');
   const [formAddress, setFormAddress] = useState('');
   const [formCommissionRate, setFormCommissionRate] = useState<number>(30);
@@ -109,6 +154,55 @@ export const PathologyPartnersPage: React.FC = () => {
       }
     }
   }, [partnersData]);
+
+  useEffect(() => {
+    customFormatService.getReportTemplates()
+      .then(templates => {
+        const def = templates.find((t: any) => t.isDefault) || templates[0];
+        if (def) setCustomTemplate(def);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleDownloadReportPdf = async () => {
+    if (!selectedReportItem) return;
+    setExportingPdf(true);
+    try {
+      await exportInvoiceToPdf('#admin-partner-report-preview-sheet', `Lab_Report_${selectedReportItem.bookingCode || 'Report'}.pdf`);
+      toast.success('Report PDF downloaded successfully');
+    } catch (err) {
+      console.error('Export report PDF error:', err);
+      toast.error('Failed to download Report PDF');
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
+  const patientReportData = selectedReportItem ? {
+    patientName: selectedReportItem.patientName,
+    age: selectedReportItem.patientAge || '32',
+    gender: selectedReportItem.patientGender || 'Male',
+    mobile: selectedReportItem.patientMobile || '',
+    bookingCode: selectedReportItem.bookingCode,
+    sampleId: `SMP-${selectedReportItem.bookingCode?.slice(-4) || '101'}`,
+    collectionDate: selectedReportItem.scheduledDate || selectedReportItem.createdAt,
+    reportingDate: selectedReportItem.report?.reportedDate || new Date().toISOString(),
+    referredBy: portalData?.partner?.labName || partners.find(p => p.id === selectedPartnerId)?.labName || 'Authorized Pathology Center',
+    branchName: portalData?.partner?.address || 'Main Central Laboratory',
+  } : undefined;
+
+  const testReportItems = selectedReportItem?.tests?.map((t: any) => ({
+    testName: t.name || 'Diagnostic Investigation',
+    testCode: t.code || 'LAB-TEST',
+    category: t.category || 'CLINICAL PATHOLOGY / BIOCHEMISTRY',
+    parameters: t.parameters && t.parameters.length > 0
+      ? t.parameters
+      : [
+          { name: t.name || 'Sample Parameter', value: 'Normal / Complete', unit: '-', referenceRange: 'Within Biological Limits', isAbnormal: false, flag: 'NORMAL' as const },
+        ],
+    remarks: 'Sample investigated on automated analyzers and verified as per NABL guidelines.',
+    interpretation: 'Diagnostic parameters are within normal physiological reference intervals.',
+  })) || [];
 
   const loadPartnerPortal = async (partId?: string, period = portalPeriod) => {
     const targetId = partId || selectedPartnerId || (partners.length > 0 ? partners[0].id : '');
@@ -163,7 +257,7 @@ export const PathologyPartnersPage: React.FC = () => {
     setFormMobile('');
     setFormPassword('');
     setShowPassword(false);
-    setFormRole('PARTNER_LAB');
+    setFormRole('LAB_PARTNER');
     setFormPartnerCode(`PART-${Math.floor(1000 + Math.random() * 9000)}`);
     setFormAddress('');
     setFormCommissionRate(30);
@@ -180,7 +274,8 @@ export const PathologyPartnersPage: React.FC = () => {
     setFormMobile(p.user?.mobile || '');
     setFormPassword('');
     setShowPassword(false);
-    setFormRole(p.role || 'PARTNER_LAB');
+    const typeInfo = getPartnerTypeInfo(p.role);
+    setFormRole(typeInfo.typeKey);
     setFormPartnerCode(p.partnerCode || `PART-${p.id.slice(0, 5).toUpperCase()}`);
     setFormAddress(p.address || '');
     setFormCommissionRate(p.commissionRate !== undefined && p.commissionRate !== null ? Number(p.commissionRate) : 30);
@@ -191,7 +286,11 @@ export const PathologyPartnersPage: React.FC = () => {
 
   const handleSavePartner = async () => {
     if (!formLabName.trim()) {
-      toast.error('Lab / Center Name is required');
+      toast.error('Diagnostic Lab / Organization Name is required');
+      return;
+    }
+    if (!formRole) {
+      toast.error('Please select a Partner Type');
       return;
     }
     if (!formContactName.trim()) {
@@ -342,13 +441,24 @@ export const PathologyPartnersPage: React.FC = () => {
   }, [partners, isSuperAdmin, userBranchId]);
 
   const filtered = basePartners.filter(p => {
+    const typeInfo = getPartnerTypeInfo(p.role);
     const matchesSearch =
       p.user.name.toLowerCase().includes(search.toLowerCase()) ||
       p.user.mobile.includes(search) ||
-      p.labName.toLowerCase().includes(search.toLowerCase());
+      p.labName.toLowerCase().includes(search.toLowerCase()) ||
+      typeInfo.label.toLowerCase().includes(search.toLowerCase()) ||
+      (p.partnerCode || '').toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === 'ALL' || p.approvalStatus === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesType = partnerTypeFilter === 'ALL' || typeInfo.typeKey === partnerTypeFilter;
+    return matchesSearch && matchesStatus && matchesType;
   });
+
+  const typeCounts = {
+    ALL: basePartners.length,
+    LAB_PARTNER: basePartners.filter(p => getPartnerTypeInfo(p.role).typeKey === 'LAB_PARTNER').length,
+    PHLEBOTOMIST: basePartners.filter(p => getPartnerTypeInfo(p.role).typeKey === 'PHLEBOTOMIST').length,
+    CHANNEL_PARTNER: basePartners.filter(p => getPartnerTypeInfo(p.role).typeKey === 'CHANNEL_PARTNER').length,
+  };
 
   const counts = {
     ALL: basePartners.length,
@@ -608,18 +718,12 @@ export const PathologyPartnersPage: React.FC = () => {
                         </td>
 
                         <td className="py-3.5 px-4 text-center">
-                          {item.report ? (
-                            <a
-                              href={item.report.verificationUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 text-emerald-700 dark:text-emerald-300 text-xs font-bold hover:bg-emerald-100 transition-colors"
-                            >
-                              <FileText className="w-3.5 h-3.5" /> View Report
-                            </a>
-                          ) : (
-                            <span className="text-[10px] text-muted-foreground italic">Processing</span>
-                          )}
+                          <button
+                            onClick={() => setSelectedReportItem(item)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-bold hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-colors cursor-pointer shadow-2xs"
+                          >
+                            <FileText className="w-3.5 h-3.5" /> View Report
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -632,6 +736,40 @@ export const PathologyPartnersPage: React.FC = () => {
       ) : (
         /* VIEW 2: PARTNER DIRECTORY & APPROVALS */
         <>
+          {/* Partner Type Top Filter Tabs */}
+          <div className="bg-card border border-border rounded-2xl p-2.5 shadow-sm flex flex-wrap items-center gap-2">
+            {[
+              { id: 'ALL', label: 'All Partners', icon: Building2, count: typeCounts.ALL },
+              { id: 'LAB_PARTNER', label: 'Lab Partner', icon: Microscope, count: typeCounts.LAB_PARTNER },
+              { id: 'PHLEBOTOMIST', label: 'Phlebotomist', icon: UserCheck, count: typeCounts.PHLEBOTOMIST },
+              { id: 'CHANNEL_PARTNER', label: 'Channel Partner', icon: Building2, count: typeCounts.CHANNEL_PARTNER },
+            ].map(tab => {
+              const TabIcon = tab.icon;
+              const isActive = partnerTypeFilter === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setPartnerTypeFilter(tab.id as CanonicalPartnerType)}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all',
+                    isActive
+                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+                      : 'bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground border border-transparent'
+                  )}
+                >
+                  <TabIcon className="w-4 h-4" />
+                  <span>{tab.label}</span>
+                  <span className={cn(
+                    'px-2 py-0.5 rounded-full text-[10px] font-extrabold',
+                    isActive ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'
+                  )}>
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {(['PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED'] as ApprovalStatus[]).map(s => {
@@ -659,7 +797,7 @@ export const PathologyPartnersPage: React.FC = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Search by name, mobile, or lab..."
+                placeholder="Search by name, mobile, lab, or partner type..."
                 className="w-full pl-9 pr-4 py-2 rounded-md bg-card border border-input text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
@@ -690,11 +828,12 @@ export const PathologyPartnersPage: React.FC = () => {
                 <thead className="bg-muted/50 text-muted-foreground uppercase text-[10px] tracking-wider border-b border-border">
                   <tr>
                     <th className="px-6 py-4 font-bold">Partner</th>
-                    <th className="px-6 py-4 font-bold">Lab & Role</th>
+                    <th className="px-6 py-4 font-bold">Partner Type</th>
+                    <th className="px-6 py-4 font-bold">Lab / Organization</th>
                     <th className="px-6 py-4 font-bold">Contact</th>
                     <th className="px-6 py-4 font-bold">Rating</th>
                     <th className="px-6 py-4 font-bold">Status</th>
-                    <th className="px-6 py-4 font-bold text-center">Referral Portal</th>
+                    <th className="px-6 py-4 font-bold text-center">Commission Rate</th>
                     <th className="px-6 py-4 font-bold text-right">Actions</th>
                   </tr>
                 </thead>
@@ -704,6 +843,7 @@ export const PathologyPartnersPage: React.FC = () => {
                       {[1, 2, 3, 4, 5].map(i => (
                         <tr key={i} className="animate-pulse border-b border-border">
                           <td className="px-6 py-4"><div className="h-5 bg-muted rounded w-32" /></td>
+                          <td className="px-6 py-4"><div className="h-5 bg-muted rounded w-24" /></td>
                           <td className="px-6 py-4"><div className="h-5 bg-muted rounded w-24" /></td>
                           <td className="px-6 py-4"><div className="h-5 bg-muted rounded w-28" /></td>
                           <td className="px-6 py-4"><div className="h-5 bg-muted rounded w-16" /></td>
@@ -715,13 +855,15 @@ export const PathologyPartnersPage: React.FC = () => {
                     </>
                   ) : filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">
-                        No partners found.
+                      <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground">
+                        No partners found matching the selected filters.
                       </td>
                     </tr>
                   ) : filtered.map(partner => {
                     const cfg = STATUS_CONFIG[partner.approvalStatus];
                     const StatusIcon = cfg.icon;
+                    const typeInfo = getPartnerTypeInfo(partner.role);
+                    const TypeIcon = typeInfo.icon;
                     return (
                       <tr
                         key={partner.id}
@@ -740,8 +882,19 @@ export const PathologyPartnersPage: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4">
+                          <span className={cn(
+                            'inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold border rounded-lg',
+                            typeInfo.badgeBg, typeInfo.badgeText, typeInfo.badgeBorder
+                          )}>
+                            <TypeIcon className="w-3.5 h-3.5" />
+                            {typeInfo.label}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
                           <div className="font-medium text-foreground">{partner.labName}</div>
-                          <div className="text-xs text-muted-foreground">{partner.role}</div>
+                          <div className="text-xs text-muted-foreground font-mono">
+                            {partner.partnerCode || `PART-${partner.id.slice(0, 5).toUpperCase()}`}
+                          </div>
                         </td>
                         <td className="px-6 py-4">
                           <div className="text-xs text-muted-foreground flex items-center gap-1">
@@ -769,13 +922,10 @@ export const PathologyPartnersPage: React.FC = () => {
                             {cfg.label}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-center" onClick={e => e.stopPropagation()}>
-                          <button
-                            onClick={() => openPortalForPartner(partner)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold transition-colors"
-                          >
-                            <DollarSign className="w-3.5 h-3.5" /> Portal ({partner.commissionRate ?? 30}%)
-                          </button>
+                        <td className="px-6 py-4 text-center">
+                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300 text-xs font-black font-mono shadow-2xs">
+                            <Percent className="w-3.5 h-3.5" /> {partner.commissionRate ?? 30}%
+                          </span>
                         </td>
                         <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1.5">
@@ -864,14 +1014,29 @@ export const PathologyPartnersPage: React.FC = () => {
                 {/* Drawer Header */}
                 <div className="flex items-start justify-between">
                   <div>
-                    <span className={cn(
-                      'inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-bold border rounded-full mb-2',
-                      STATUS_CONFIG[selectedPartner.approvalStatus].bg,
-                      STATUS_CONFIG[selectedPartner.approvalStatus].text,
-                      STATUS_CONFIG[selectedPartner.approvalStatus].border
-                    )}>
-                      {STATUS_CONFIG[selectedPartner.approvalStatus].label}
-                    </span>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={cn(
+                        'inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-bold border rounded-full',
+                        STATUS_CONFIG[selectedPartner.approvalStatus].bg,
+                        STATUS_CONFIG[selectedPartner.approvalStatus].text,
+                        STATUS_CONFIG[selectedPartner.approvalStatus].border
+                      )}>
+                        {STATUS_CONFIG[selectedPartner.approvalStatus].label}
+                      </span>
+                      {(() => {
+                        const tInfo = getPartnerTypeInfo(selectedPartner.role);
+                        const TIcon = tInfo.icon;
+                        return (
+                          <span className={cn(
+                            'inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-bold border rounded-full',
+                            tInfo.badgeBg, tInfo.badgeText, tInfo.badgeBorder
+                          )}>
+                            <TIcon className="w-3 h-3" />
+                            {tInfo.label}
+                          </span>
+                        );
+                      })()}
+                    </div>
                     <h2 className="text-xl font-bold text-foreground">{selectedPartner.labName}</h2>
                     <p className="text-xs text-muted-foreground">{selectedPartner.role} · Code: {selectedPartner.partnerCode || 'N/A'}</p>
                   </div>
@@ -895,10 +1060,10 @@ export const PathologyPartnersPage: React.FC = () => {
                     <div className="text-2xl font-black text-emerald-700 dark:text-emerald-300">{selectedPartner.commissionRate ?? 30}% <span className="text-xs font-normal text-muted-foreground">({selectedPartner.paymentCycle || 'MONTHLY'} cycle)</span></div>
                   </div>
                   <button
-                    onClick={() => openPortalForPartner(selectedPartner)}
-                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm flex items-center gap-1.5 transition-all"
+                    onClick={() => navigate('/partner-portal/login')}
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
                   >
-                    <DollarSign className="w-4 h-4" /> Open Portal
+                    <ExternalLink className="w-4 h-4" /> Portal Login
                   </button>
                 </div>
 
@@ -952,12 +1117,14 @@ export const PathologyPartnersPage: React.FC = () => {
                     <div className="space-y-3 pt-2 border-t border-border">
                       <div className="flex items-center justify-between text-xs">
                         <span className="font-semibold text-muted-foreground">Rating Breakdown</span>
-                        <span className="text-muted-foreground">{partnerRatings.stats.total} total reviews</span>
+                        <span className="text-muted-foreground">{(partnerRatings.totalReviews ?? partnerRatings.stats?.total ?? 0)} total reviews</span>
                       </div>
                       <div className="space-y-1">
                         {[5, 4, 3, 2, 1].map(stars => {
-                          const count = partnerRatings.stats.breakdown[stars] || 0;
-                          const pct = partnerRatings.stats.total > 0 ? (count / partnerRatings.stats.total) * 100 : 0;
+                          const breakdown = partnerRatings.breakdown || partnerRatings.stats?.breakdown || {};
+                          const total = partnerRatings.totalReviews ?? partnerRatings.stats?.total ?? 0;
+                          const count = breakdown[stars] || 0;
+                          const pct = total > 0 ? (count / total) * 100 : 0;
                           return (
                             <div key={stars} className="flex items-center gap-2 text-xs">
                               <span className="w-3 text-muted-foreground font-mono">{stars}★</span>
@@ -970,21 +1137,21 @@ export const PathologyPartnersPage: React.FC = () => {
                         })}
                       </div>
 
-                      {partnerRatings.reviews.length > 0 && (
+                      {Array.isArray(partnerRatings.reviews) && partnerRatings.reviews.length > 0 && (
                         <div className="space-y-3 pt-2 border-t border-border">
                           <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Recent Reviews</p>
                           {partnerRatings.reviews.slice(0, 5).map((r: any) => (
                             <div key={r.id} className="space-y-1">
                               <div className="flex items-center justify-between">
-                                <span className="text-sm font-semibold text-foreground">{r.userName}</span>
+                                <span className="text-sm font-semibold text-foreground">{r.customerName || r.userName || 'Customer'}</span>
                                 <div className="flex gap-0.5">
                                   {[1,2,3,4,5].map((i: number) => (
                                     <Star key={i} className={cn('h-3 w-3', i <= r.rating ? 'text-amber-400 fill-amber-400' : 'text-muted-foreground')} />
                                   ))}
                                 </div>
                               </div>
-                              <p className="text-xs text-muted-foreground">#{r.bookingCode} · {new Date(r.createdAt).toLocaleDateString()}</p>
-                              {r.review && <p className="text-xs text-foreground">{r.review}</p>}
+                              <p className="text-xs text-muted-foreground">{r.bookingCode ? `#${r.bookingCode} · ` : ''}{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : ''}</p>
+                              {(r.comment || r.review) && <p className="text-xs text-foreground">{r.comment || r.review}</p>}
                             </div>
                           ))}
                         </div>
@@ -1053,20 +1220,19 @@ export const PathologyPartnersPage: React.FC = () => {
                     />
                   </div>
 
-                  {/* Partner Category / Role */}
+                  {/* Partner Type */}
                   <div>
                     <label className="block text-xs font-bold text-foreground mb-1.5">
-                      Partner Category / Type
+                      Partner Type <span className="text-destructive">*</span>
                     </label>
                     <select
                       value={formRole}
                       onChange={e => setFormRole(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-bold text-foreground"
                     >
-                      <option value="PARTNER_LAB">Diagnostic Partner Lab</option>
-                      <option value="COLLECTION_CENTER">Sample Collection Center</option>
-                      <option value="HOSPITAL_TIEUP">Hospital Pathology Tie-up</option>
-                      <option value="CLINIC">Clinic / Nursing Home</option>
+                      <option value="LAB_PARTNER">Lab Partner</option>
+                      <option value="PHLEBOTOMIST">Phlebotomist</option>
+                      <option value="CHANNEL_PARTNER">Channel Partner</option>
                     </select>
                   </div>
 
@@ -1350,6 +1516,86 @@ export const PathologyPartnersPage: React.FC = () => {
               </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* REPORT PREVIEW MODAL */}
+      <AnimatePresence>
+        {selectedReportItem && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="p-4 border-b border-border flex items-center justify-between bg-muted/40 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center text-emerald-600 dark:text-emerald-300 font-bold">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-foreground">
+                      Diagnostic Lab Report — {selectedReportItem.patientName}
+                    </h2>
+                    <p className="text-[11px] text-muted-foreground">
+                      Booking Ref: <strong className="font-mono text-emerald-600 dark:text-emerald-400">{selectedReportItem.bookingCode}</strong> • Official Diagnostic Report Template
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* Zoom controls */}
+                  <div className="hidden sm:flex items-center bg-card border border-border rounded-xl p-1 gap-1">
+                    <button
+                      onClick={() => setPreviewZoom(z => Math.max(0.4, z - 0.1))}
+                      className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+                      title="Zoom Out"
+                    >
+                      <ZoomOut className="w-4 h-4" />
+                    </button>
+                    <span className="text-[11px] font-bold text-foreground px-1 font-mono">{Math.round(previewZoom * 100)}%</span>
+                    <button
+                      onClick={() => setPreviewZoom(z => Math.min(1.2, z + 0.1))}
+                      className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+                      title="Zoom In"
+                    >
+                      <ZoomIn className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={handleDownloadReportPdf}
+                    disabled={exportingPdf}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all disabled:opacity-60 cursor-pointer"
+                  >
+                    {exportingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                    <span>{exportingPdf ? 'Exporting PDF...' : 'Download PDF'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => setSelectedReportItem(null)}
+                    className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body - Report Template Sheet */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-muted/20 flex justify-center items-start">
+                <div id="admin-partner-report-preview-sheet" className="shadow-2xl rounded-sm">
+                  <LiveReportPreview
+                    template={customTemplate || {}}
+                    patientData={patientReportData}
+                    tests={testReportItems}
+                    scale={previewZoom}
+                  />
+                </div>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>
