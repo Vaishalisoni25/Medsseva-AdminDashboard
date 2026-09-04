@@ -36,6 +36,7 @@ import { ReportPDFDocument, DoctorDetails } from '../components/ReportPDFDocumen
 import { useToast } from '../components/Toast';
 import { customFormatService } from '../services/customFormat.service';
 import { CustomReportTemplate } from '../types/customFormat';
+import { sanitizeClonedDocForPdf } from '@/utils/exportInvoicePdf';
 
 export const ReportApprovalPage: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -154,18 +155,9 @@ export const ReportApprovalPage: React.FC = () => {
           scrollX: 0,
           scrollY: 0,
           onclone: (clonedDoc) => {
-            // 1. Remove/replace oklch and color-mix from all <style> blocks
-            const styleTags = clonedDoc.querySelectorAll('style');
-            styleTags.forEach((s: any) => {
-              if (s.textContent && (s.textContent.includes('oklch') || s.textContent.includes('color-mix') || s.textContent.includes('lab('))) {
-                s.textContent = s.textContent
-                  .replace(/oklch\([^)]+\)/gi, '#006d6f')
-                  .replace(/color-mix\([^)]+\)/gi, '#006d6f')
-                  .replace(/lab\([^)]+\)/gi, '#006d6f');
-              }
-            });
+            sanitizeClonedDocForPdf(clonedDoc);
 
-            // 2. Inject explicit typography, sizing, and CSS variable overrides to guarantee razor-sharp uncompressed rendering
+            // Inject explicit typography, sizing, and CSS variable overrides to guarantee razor-sharp uncompressed rendering
             const overrideStyle = clonedDoc.createElement('style');
             overrideStyle.innerHTML = `
               *, *::before, *::after {
@@ -195,21 +187,6 @@ export const ReportApprovalPage: React.FC = () => {
               }
             `;
             clonedDoc.head.appendChild(overrideStyle);
-
-            // 3. Clear inline style attributes with transforms or oklch
-            const allElements = clonedDoc.querySelectorAll('*');
-            allElements.forEach((node: any) => {
-              if (node && node.style) {
-                if (node.style.transform) node.style.transform = 'none';
-                if (node.style.zoom) node.style.zoom = '1';
-                ['color', 'backgroundColor', 'borderColor', 'outlineColor', 'fill', 'stroke', 'boxShadow', 'textDecorationColor'].forEach((prop: string) => {
-                  const val = node.style[prop];
-                  if (typeof val === 'string' && (val.includes('oklch') || val.includes('color-mix') || val.includes('lab'))) {
-                    node.style[prop] = prop === 'backgroundColor' ? '#ffffff' : prop === 'color' ? '#0f172a' : '#cbd5e1';
-                  }
-                });
-              }
-            });
           },
         });
 

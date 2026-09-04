@@ -3,6 +3,90 @@
  * Captures clean, unscaled 794x1123 (A4 @ 96 DPI / 2x Retina) vector-like raster PDFs.
  */
 
+export const sanitizeClonedDocForPdf = (clonedDoc: Document) => {
+  // 1. Process all existing <style> tags
+  const styleTags = clonedDoc.querySelectorAll('style');
+  styleTags.forEach((s: any) => {
+    if (s.textContent) {
+      s.textContent = s.textContent
+        .replace(/oklch\([^)]+\)/gi, '#006d6f')
+        .replace(/color-mix\([^)]+\)/gi, '#006d6f')
+        .replace(/lab\([^)]+\)/gi, '#006d6f')
+        .replace(/lch\([^)]+\)/gi, '#006d6f');
+    }
+  });
+
+  // 2. Process all <link rel="stylesheet"> tags: extract CSS rules, sanitize, add as <style>, and remove <link>
+  const linkTags = Array.from(clonedDoc.querySelectorAll('link[rel="stylesheet"]'));
+  linkTags.forEach((link: any) => {
+    try {
+      const matchingSheet = Array.from(document.styleSheets).find(
+        sheet => sheet.href === link.href || (sheet.ownerNode as any)?.href === link.href
+      );
+      if (matchingSheet) {
+        let cssText = '';
+        try {
+          const rules = Array.from(matchingSheet.cssRules || []);
+          cssText = rules.map(r => r.cssText).join('\n');
+        } catch {
+          // ignore CORS issues
+        }
+        if (cssText) {
+          const sanitizedCss = cssText
+            .replace(/oklch\([^)]+\)/gi, '#006d6f')
+            .replace(/color-mix\([^)]+\)/gi, '#006d6f')
+            .replace(/lab\([^)]+\)/gi, '#006d6f')
+            .replace(/lch\([^)]+\)/gi, '#006d6f');
+          const newStyle = clonedDoc.createElement('style');
+          newStyle.textContent = sanitizedCss;
+          clonedDoc.head.appendChild(newStyle);
+        }
+      }
+    } catch {}
+    link.remove();
+  });
+
+  // 3. Fallback: Import parent document stylesheets into clonedDoc as sanitized inline <style> tags
+  Array.from(document.styleSheets).forEach(sheet => {
+    try {
+      const rules = Array.from(sheet.cssRules || []);
+      const cssText = rules.map(r => r.cssText).join('\n');
+      if (cssText && (cssText.includes('oklch') || cssText.includes('color-mix') || cssText.includes('lab('))) {
+        const sanitizedCss = cssText
+          .replace(/oklch\([^)]+\)/gi, '#006d6f')
+          .replace(/color-mix\([^)]+\)/gi, '#006d6f')
+          .replace(/lab\([^)]+\)/gi, '#006d6f')
+          .replace(/lch\([^)]+\)/gi, '#006d6f');
+        const newStyle = clonedDoc.createElement('style');
+        newStyle.textContent = sanitizedCss;
+        clonedDoc.head.appendChild(newStyle);
+      }
+    } catch {}
+  });
+
+  // 4. Sanitize all elements: inline styles & attributes
+  const allElements = clonedDoc.querySelectorAll('*');
+  allElements.forEach((node: any) => {
+    if (node && node.style) {
+      if (node.style.transform) node.style.transform = 'none';
+      if (node.style.zoom) node.style.zoom = '1';
+      for (let i = 0; i < node.style.length; i++) {
+        const prop = node.style[i];
+        const val = node.style.getPropertyValue(prop);
+        if (val && (val.includes('oklch') || val.includes('color-mix') || val.includes('lab(') || val.includes('lch('))) {
+          node.style.setProperty(prop, '#006d6f');
+        }
+      }
+    }
+    ['fill', 'stroke', 'color', 'background', 'style'].forEach(attr => {
+      const attrVal = node.getAttribute?.(attr);
+      if (attrVal && (attrVal.includes('oklch') || attrVal.includes('color-mix') || attrVal.includes('lab('))) {
+        node.setAttribute(attr, attrVal.replace(/oklch\([^)]+\)/gi, '#006d6f').replace(/color-mix\([^)]+\)/gi, '#006d6f'));
+      }
+    });
+  });
+};
+
 export const exportInvoiceToPdf = async (
   containerOrSelector: HTMLElement | string,
   fileName: string = 'Invoice.pdf'
@@ -37,18 +121,9 @@ export const exportInvoiceToPdf = async (
     scrollX: 0,
     scrollY: 0,
     onclone: (clonedDoc) => {
-      // 1. Clean style tags that might have unsupported modern color CSS functions
-      const styleTags = clonedDoc.querySelectorAll('style');
-      styleTags.forEach((s: any) => {
-        if (s.textContent && (s.textContent.includes('oklch') || s.textContent.includes('color-mix') || s.textContent.includes('lab('))) {
-          s.textContent = s.textContent
-            .replace(/oklch\([^)]+\)/gi, '#006d6f')
-            .replace(/color-mix\([^)]+\)/gi, '#006d6f')
-            .replace(/lab\([^)]+\)/gi, '#006d6f');
-        }
-      });
+      sanitizeClonedDocForPdf(clonedDoc);
 
-      // 2. Inject explicit override styles for crisp capture without modal scale/border
+      // Inject explicit override styles for crisp capture without modal scale/border
       const overrideStyle = clonedDoc.createElement('style');
       overrideStyle.innerHTML = `
         *, *::before, *::after {
@@ -99,15 +174,6 @@ export const exportInvoiceToPdf = async (
         }
       `;
       clonedDoc.head.appendChild(overrideStyle);
-
-      // 3. Reset transforms on cloned elements
-      const allElements = clonedDoc.querySelectorAll('*');
-      allElements.forEach((node: any) => {
-        if (node && node.style) {
-          if (node.style.transform) node.style.transform = 'none';
-          if (node.style.zoom) node.style.zoom = '1';
-        }
-      });
     },
   });
 
