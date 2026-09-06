@@ -843,8 +843,8 @@ export const ReportTemplateBuilder: React.FC = () => {
                     className="rounded text-primary focus:ring-primary h-4 w-4"
                   />
                   <div>
-                    <div className="text-xs font-bold text-foreground">Set as Default {template.type} Template</div>
-                    <div className="text-[10px] text-muted-foreground">Automatically applied to newly generated {template.type.toLowerCase()} reports</div>
+                    <div className="text-xs font-bold text-foreground">Set as Default {template.type || ''} Template</div>
+                    <div className="text-[10px] text-muted-foreground">Automatically applied to newly generated {template.type?.toLowerCase() || ''} reports</div>
                   </div>
                 </label>
               </div>

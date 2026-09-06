@@ -262,7 +262,7 @@ const emptyVerification = (): VerificationDetails => ({
 export const ReportBuilderPage: React.FC = () => {
   const dispatch = useAppDispatch();
   const currentUser = useAppSelector(s => s.auth.user);
-  const userBranchId = currentUser?.branchId || (currentUser as any)?.adminUser?.branchId;
+  const userBranchId = (currentUser as any)?.branchId || (currentUser as any)?.adminUser?.branchId;
   const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'SUPER_ADMIN' || (currentUser as any)?.isSuperAdmin;
 
   const { bookingsForReport = [], bookingsLoading, reports = [] } = useAppSelector(s => s.reports);

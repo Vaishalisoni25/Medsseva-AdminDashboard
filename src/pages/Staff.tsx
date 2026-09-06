@@ -263,7 +263,7 @@ export const StaffPage: React.FC = () => {
           s.designation?.toLowerCase().includes(q) ||
           s.department?.toLowerCase().includes(q) ||
           s.branch?.name.toLowerCase().includes(q) ||
-          s.role.name.toLowerCase().includes(q)
+          (s.role as any)?.name?.toLowerCase()?.includes(q)
         );
       }
       return true;
@@ -440,7 +440,7 @@ export const StaffPage: React.FC = () => {
                   {/* Access Role */}
                   <td className="px-5 py-3.5">
                     <span className="text-xs px-2.5 py-0.5 bg-primary/10 text-primary rounded-full font-semibold">
-                      {s.role.name}
+                      {s.role?.name || 'Staff'}
                     </span>
                   </td>
 

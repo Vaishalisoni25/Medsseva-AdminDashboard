@@ -212,7 +212,7 @@ if (executeRefundThunk.fulfilled.match(result)) {
               </div>
               <div className="min-w-0">
                 <div className="text-[11px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider truncate">Total Invoiced Assets</div>
-                <div className="text-xl sm:text-2xl font-black text-foreground mt-0.5">₹{(summary?.totalCaptured || 0).toLocaleString('en-IN')}</div>
+                <div className="text-xl sm:text-2xl font-black text-foreground mt-0.5">₹{((summary as any)?.totalCaptured || 0).toLocaleString('en-IN')}</div>
               </div>
             </div>
 

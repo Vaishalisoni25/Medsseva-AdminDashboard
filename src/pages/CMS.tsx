@@ -162,7 +162,7 @@ useCmsBannersQuery();
     dispatch(saveConfig({ categoryOrder: cats }));
   };
 
-  const handleToggleFeature = (key: keyof typeof config.featureFlags, val: boolean) => {
+  const handleToggleFeature = (key: string, val: boolean) => {
     if (!config) return;
     dispatch(saveConfig({ featureFlags: { ...config.featureFlags, [key]: val } }));
   };

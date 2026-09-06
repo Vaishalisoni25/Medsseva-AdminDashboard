@@ -439,18 +439,18 @@ export const OutsourceSamplesPage: React.FC = () => {
     const activeTemplate = customReportTemplates.find(t => t.id === selectedCustomTemplateId) || customReportTemplates[0] || {};
     
     // Merge template with reference lab information
-    const mergedTemplate: Partial<CustomReportTemplate> = {
+    const mergedTemplate: any = {
       ...activeTemplate,
       labDetails: {
-        name: sample.referenceLab?.name || activeTemplate.labDetails?.name || 'Medsseva Diagnostics & Research Center',
-        tagline: activeTemplate.labDetails?.tagline || 'External Reference Laboratory Diagnostic Network',
-        address: sample.referenceLab?.address ? `${sample.referenceLab.address}, ${sample.referenceLab.city}` : activeTemplate.labDetails?.address || 'Plot 44, Industrial Area, Noida, Uttar Pradesh',
-        phone: sample.referenceLab?.phone || activeTemplate.labDetails?.phone || '+91 8448009366',
-        email: sample.referenceLab?.email || activeTemplate.labDetails?.email || 'reports@medsseva.com',
-        branch: sample.referenceLab?.name ? `External Ref Lab: ${sample.referenceLab.name}` : activeTemplate.labDetails?.branch || 'Central Reference Lab',
-        regNo: sample.referenceLab?.code ? `Lab Code: ${sample.referenceLab.code}` : activeTemplate.labDetails?.regNo || 'REG-MED-2026',
-        logoUrl: activeTemplate.labDetails?.logoUrl || '',
-        gstPan: activeTemplate.labDetails?.gstPan || '',
+        name: sample.referenceLab?.name || (activeTemplate as any).labDetails?.name || 'Medsseva Diagnostics & Research Center',
+        tagline: (activeTemplate as any).labDetails?.tagline || 'External Reference Laboratory Diagnostic Network',
+        address: sample.referenceLab?.address ? `${sample.referenceLab.address}, ${sample.referenceLab.city}` : (activeTemplate as any).labDetails?.address || 'Plot 44, Industrial Area, Noida, Uttar Pradesh',
+        phone: sample.referenceLab?.phone || (activeTemplate as any).labDetails?.phone || '+91 8448009366',
+        email: sample.referenceLab?.email || (activeTemplate as any).labDetails?.email || 'reports@medsseva.com',
+        branch: sample.referenceLab?.name ? `External Ref Lab: ${sample.referenceLab.name}` : (activeTemplate as any).labDetails?.branch || 'Central Reference Lab',
+        regNo: sample.referenceLab?.code ? `Lab Code: ${sample.referenceLab.code}` : (activeTemplate as any).labDetails?.regNo || 'REG-MED-2026',
+        logoUrl: (activeTemplate as any).labDetails?.logoUrl || '',
+        gstPan: (activeTemplate as any).labDetails?.gstPan || '',
       },
     };
 

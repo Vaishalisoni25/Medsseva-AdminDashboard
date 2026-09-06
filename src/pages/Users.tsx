@@ -216,7 +216,7 @@ const handleRegisterUser = (e: React.FormEvent) => {
     return new Set(
       (bookings || [])
         .filter(b => b.branchId === userBranchId)
-        .map(b => b.patient?.id || (b as any).userId)
+        .map(b => (b.patient as any)?.id || (b as any).userId)
         .filter(Boolean)
     );
   }, [bookings, isSuperAdmin, userBranchId]);

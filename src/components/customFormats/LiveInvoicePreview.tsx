@@ -259,7 +259,7 @@ export const LiveInvoicePreview: React.FC<LiveInvoicePreviewProps> = ({
                 <div style={{ fontSize: '13px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.2px', textTransform: 'uppercase' }}>
                   {lab.name}
                 </div>
-                {branding.showTagline && (
+                {(branding as any).showTagline && (
                   <div style={{ fontSize: '8px', color: '#64748b', fontStyle: 'italic', marginTop: '1px' }}>
                     {lab.tagline}
                   </div>

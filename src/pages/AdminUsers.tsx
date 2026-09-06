@@ -178,8 +178,8 @@ export const AdminUsersPage: React.FC = () => {
     setFormPaymentCycle(docData?.paymentCycle || (u as any).paymentCycle || 'MONTHLY');
 
     const currentRole = roles.find(r => r.id === u.role.id) || u.role;
-    const rolePerms = new Set(
-      ((currentRole as any)?.permissions || u.role.permissions || []).map((rp: any) => rp.permission?.id || rp.permissionId)
+    const rolePerms = new Set<string>(
+      ((currentRole as any)?.permissions || u.role.permissions || []).map((rp: any) => String(rp.permission?.id || rp.permissionId))
     );
     setSelectedPerms(rolePerms);
     setIsCustomRole(false);

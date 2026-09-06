@@ -273,7 +273,7 @@ export const ReportPDFDocument: React.FC<ReportPDFDocumentProps> = ({
         <LiveReportPreview
           template={{ ...customTemplate, type: resolvedTemplate }}
           patientData={booking}
-          tests={tests.length > 0 ? tests : undefined}
+          tests={tests.length > 0 ? (tests as any) : undefined}
           scale={scale}
         />
       </div>

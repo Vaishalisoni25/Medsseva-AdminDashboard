@@ -85,7 +85,7 @@ export const DoctorsPage: React.FC = () => {
   const navigate = useNavigate();
   const currentUser = useAppSelector(state => state.auth.user);
   const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'SUPER_ADMIN' || (currentUser as any)?.isSuperAdmin;
-  const isDoctorUser = currentUser?.role === 'DOCTOR' || (currentUser as any)?.roleSlug === 'doctor' || (currentUser as any)?.userType === 'DOCTOR';
+  const isDoctorUser = (currentUser?.role as string) === 'DOCTOR' || (currentUser as any)?.roleSlug === 'doctor' || (currentUser as any)?.userType === 'DOCTOR';
   const userBranchId = (currentUser as any)?.branchId || (currentUser as any)?.adminUser?.branchId;
 
   const [activeView, setActiveView] = useState<'DIRECTORY' | 'PORTAL'>(isDoctorUser ? 'PORTAL' : 'DIRECTORY');
@@ -258,12 +258,12 @@ export const DoctorsPage: React.FC = () => {
 
     const activeRole = roles.find(r => r.id === currentRoleId) || (d.user as any)?.adminUser?.role || matchedRole;
     if (activeRole) {
-      const perms = new Set(
-        ((activeRole as any)?.permissions || []).map((rp: any) => rp.permission?.id || rp.permissionId || rp.id)
+      const perms = new Set<string>(
+        ((activeRole as any)?.permissions || []).map((rp: any) => String(rp.permission?.id || rp.permissionId || rp.id))
       );
       setSelectedPerms(perms);
     } else {
-      setSelectedPerms(new Set());
+      setSelectedPerms(new Set<string>());
     }
 
     setIsCustomRole(false);
@@ -311,15 +311,15 @@ export const DoctorsPage: React.FC = () => {
     if (roleId === 'custom') {
       setIsCustomRole(true);
       setFormRoleId('');
-      setSelectedPerms(new Set());
+      setSelectedPerms(new Set<string>());
       return;
     }
     setIsCustomRole(false);
     setFormRoleId(roleId);
     const role = roles.find(r => r.id === roleId);
     if (role) {
-      const perms = new Set(
-        ((role as any).permissions || []).map((rp: any) => rp.permission?.id || rp.permissionId || rp.id)
+      const perms = new Set<string>(
+        ((role as any).permissions || []).map((rp: any) => String(rp.permission?.id || rp.permissionId || rp.id))
       );
       setSelectedPerms(perms);
     }

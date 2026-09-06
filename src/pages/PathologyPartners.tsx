@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { usePartnersQuery } from '@/hooks/useAdminQueries';
 import { testService, commissionService } from '../services/api';
 import { customFormatService } from '@/services/customFormat.service';
@@ -96,6 +97,7 @@ import { useAppSelector } from '@/redux/hooks';
 
 export const PathologyPartnersPage: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const currentUser = useAppSelector(state => state.auth.user);
   const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'SUPER_ADMIN' || (currentUser as any)?.isSuperAdmin;
   const userBranchId = (currentUser as any)?.branchId;
@@ -362,6 +364,7 @@ export const PathologyPartnersPage: React.FC = () => {
       await testService.updatePartnerApproval(partner.id, 'APPROVED');
       setPartners(prev => prev.map(p => p.id === partner.id ? { ...p, approvalStatus: 'APPROVED' } : p));
       if (selectedPartner?.id === partner.id) setSelectedPartner({ ...partner, approvalStatus: 'APPROVED' });
+      queryClient.invalidateQueries({ queryKey: ['partners'] });
       toast.success(`${partner.user.name} approved successfully.`);
     } catch (err: any) {
       toast.error(err?.response?.data?.error || 'Failed to approve partner.');
@@ -384,6 +387,7 @@ export const PathologyPartnersPage: React.FC = () => {
       setIsRejecting(false);
       setRejectionReason('');
       setCustomReason('');
+      queryClient.invalidateQueries({ queryKey: ['partners'] });
       toast.success('Partner rejected.');
     } catch (err: any) {
       toast.error(err?.response?.data?.error || 'Failed to reject partner.');
@@ -398,6 +402,7 @@ export const PathologyPartnersPage: React.FC = () => {
       await testService.updatePartnerApproval(partner.id, 'SUSPENDED');
       setPartners(prev => prev.map(p => p.id === partner.id ? { ...p, approvalStatus: 'SUSPENDED' } : p));
       if (selectedPartner?.id === partner.id) setSelectedPartner({ ...partner, approvalStatus: 'SUSPENDED' });
+      queryClient.invalidateQueries({ queryKey: ['partners'] });
       toast.success('Partner suspended.');
     } catch (err: any) {
       toast.error(err?.response?.data?.error || 'Failed to suspend partner.');
@@ -425,6 +430,7 @@ export const PathologyPartnersPage: React.FC = () => {
       await testService.updatePartnerApproval(partner.id, 'APPROVED');
       setPartners(prev => prev.map(p => p.id === partner.id ? { ...p, approvalStatus: 'APPROVED' } : p));
       if (selectedPartner?.id === partner.id) setSelectedPartner({ ...partner, approvalStatus: 'APPROVED' });
+      queryClient.invalidateQueries({ queryKey: ['partners'] });
       toast.success('Partner reactivated.');
     } catch (err: any) {
       toast.error(err?.response?.data?.error || 'Failed to activate partner.');

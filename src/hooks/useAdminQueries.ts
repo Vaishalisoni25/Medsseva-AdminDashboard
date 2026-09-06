@@ -76,7 +76,7 @@ export const useAllPermissionsQuery = () => useQuery({ queryKey: ['allPermission
 export const useSampleQueueQuery = () => useQuery({ queryKey: ['sampleQueue'], queryFn: () => sampleService.getQueue(), ...BASE_OPTS });
 export const useUsersQuery = () => useQuery({ queryKey: ['users'], queryFn: () => testService.getRegisteredUsers(), ...BASE_OPTS });
 export function usePartnersQuery(status?: string) {
-  return useQuery({ queryKey: ['partners', status], queryFn: () => testService.getPartners(status), ...BASE_OPTS });
+  return useQuery({ queryKey: ['partners', status], queryFn: () => testService.getPartners(status), ...BASE_OPTS, refetchOnMount: 'always', staleTime: 0 });
 }
 export function useAnalyticsDashboardQuery(params?: Record<string, string>) {
   return useQuery({ queryKey: ['analyticsDashboard', params], queryFn: () => analyticsService.getDashboard(params), ...BASE_OPTS });
