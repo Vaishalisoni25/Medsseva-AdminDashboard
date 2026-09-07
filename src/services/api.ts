@@ -273,6 +273,26 @@ rejectLabBooking: async (id: string, reason: string) => {
     return response.data;
   },
 };
+
+export const patientService = {
+  getPatients: async (params?: { branchId?: string; search?: string; role?: string }) => {
+    const response = await api.get('/auth/users', { params: { role: 'USER', ...params } });
+    return response.data;
+  },
+  createPatient: async (data: any) => {
+    const response = await api.post('/auth/users', data);
+    return response.data;
+  },
+  updatePatient: async (id: string, data: any) => {
+    const response = await api.put(`/auth/users/${id}`, data);
+    return response.data;
+  },
+  deletePatient: async (id: string) => {
+    const response = await api.delete(`/auth/users/${id}`);
+    return response.data;
+  },
+};
+
 export const sampleService = {
   getQueue: () => api.get('/samples/queue').then(r => r.data),
   receiveSample: (data: {

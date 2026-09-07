@@ -35,6 +35,7 @@ const queryClient = useQueryClient();
   const { success: toastSuccess, error: toastError } = useToast();
 
   const ROUTE_QUERY_KEYS: Record<string, string[][]> = {
+    '/patients': [['patients'], ['users'], ['bookings']],
     '/users': [['users']],
     '/admin-users': [['adminUsers']],
     '/bookings': [['bookings']],

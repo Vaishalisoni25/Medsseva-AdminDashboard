@@ -7,6 +7,7 @@ import api, {
   sampleService,
   analyticsService,
   auditService,
+  patientService,
 } from '@/services/api';
 import { fetchBookings } from '@/redux/slices/bookingSlice';
 import { fetchTests, fetchPackages } from '@/redux/slices/testSlice';
@@ -75,6 +76,8 @@ export const useRolesQuery = () => useQuery({ queryKey: ['roles'], queryFn: () =
 export const useAllPermissionsQuery = () => useQuery({ queryKey: ['allPermissions'], queryFn: () => rbacService.getAllPermissions(), ...BASE_OPTS });
 export const useSampleQueueQuery = () => useQuery({ queryKey: ['sampleQueue'], queryFn: () => sampleService.getQueue(), ...BASE_OPTS });
 export const useUsersQuery = () => useQuery({ queryKey: ['users'], queryFn: () => testService.getRegisteredUsers(), ...BASE_OPTS });
+export const usePatientsQuery = (params?: { branchId?: string; search?: string }) =>
+  useQuery({ queryKey: ['patients', params], queryFn: () => patientService.getPatients(params), ...BASE_OPTS, refetchOnMount: 'always' });
 export function usePartnersQuery(status?: string) {
   return useQuery({ queryKey: ['partners', status], queryFn: () => testService.getPartners(status), ...BASE_OPTS, refetchOnMount: 'always', staleTime: 0 });
 }

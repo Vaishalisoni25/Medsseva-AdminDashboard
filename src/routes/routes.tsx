@@ -3,6 +3,7 @@ import { DashboardLayout } from '@/layouts/DashboardLayout';
 import { ProtectedRoute } from './ProtectedRoute';
 import { LoginPage } from '@/pages/Login';
 import { DashboardPage } from '@/pages/Dashboard';
+import { PatientsPage } from '@/pages/Patients';
 import { TestCatalogPage } from '@/pages/TestCatalog';
 import { UsersPage } from '@/pages/Users';
 import { PackagesPage } from '@/pages/Packages';
@@ -90,8 +91,17 @@ export const router = createBrowserRouter([
         index: true,
         element: <DashboardPage />,
       },
+      // Patient management
+      {
+        path: 'patients',
+        element: (
+          <ProtectedRoute permission="users.view">
+            <PatientsPage />
+          </ProtectedRoute>
+        ),
+      },
       // User management
-{
+      {
         path: 'users',
         element: (
           <ProtectedRoute permission="users.view">

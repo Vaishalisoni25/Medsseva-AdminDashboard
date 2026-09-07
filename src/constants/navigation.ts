@@ -29,6 +29,7 @@ import {
   Star,
   Palette,
   UserCheck,
+  UserRound,
 } from 'lucide-react';
 import { UserRole } from '../types';
 
@@ -47,7 +48,12 @@ export const NAVIGATION_ITEMS: NavItem[] = [
     icon: LayoutDashboard,
   
   },
-
+  {
+    title: 'Patient Management',
+    path: '/patients',
+    icon: UserRound,
+    moduleKey: 'users',
+  },
   {
     title: 'User Management',
     path: '/users',
