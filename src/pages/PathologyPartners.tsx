@@ -18,9 +18,38 @@ import {
 import toast from 'react-hot-toast';
 import { cn } from '../utils/cn';
 
-type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
+type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' | 'BLOCKED' | 'CORRECTION_REQUIRED';
 
 export type CanonicalPartnerType = 'ALL' | 'LAB_PARTNER' | 'PHLEBOTOMIST' | 'CHANNEL_PARTNER';
+
+export interface PartnerDocumentItem {
+  id: string;
+  partnerId: string;
+  documentType: string;
+  fileName: string;
+  fileUrl: string;
+  mimeType?: string;
+  fileSize?: number;
+  status: 'NOT_UPLOADED' | 'UPLOADED' | 'UNDER_REVIEW' | 'VERIFIED' | 'REJECTED' | 'CORRECTION_REQUIRED';
+  rejectionReason?: string;
+  correctionReason?: string;
+  uploadedAt: string;
+  verifiedAt?: string;
+  verifiedBy?: string;
+}
+
+export const DOC_CONFIGS = [
+  // Medical & CEA Registration
+  { type: 'MEDICAL_CEA_REGISTRATION', label: 'Medical & CEA Registration Certificate', category: 'MEDICAL', required: true },
+  { type: 'BMW_LICENCE', label: 'Bio-Medical Waste (BMW) Licence', category: 'MEDICAL', required: true },
+  { type: 'PATHOLOGIST_QUALIFICATION', label: 'Pathologist Degree / Qualification', category: 'MEDICAL', required: true },
+  { type: 'NABL_CERTIFICATE', label: 'NABL Accreditation Certificate', category: 'MEDICAL', required: false },
+  // Business & Legal Verification
+  { type: 'REGISTRATION_CERTIFICATE', label: 'Business Registration / Trade License', category: 'LEGAL', required: true },
+  { type: 'PAN_CARD', label: 'Lab / Entity PAN Card', category: 'LEGAL', required: true },
+  { type: 'GST_CERTIFICATE', label: 'GST Registration Certificate', category: 'LEGAL', required: false },
+  { type: 'CANCELLED_CHEQUE', label: 'Bank Cancelled Cheque / Passbook', category: 'LEGAL', required: false },
+];
 
 export const getPartnerTypeInfo = (role?: string) => {
   const r = (role || '').toUpperCase().trim();
@@ -56,16 +85,23 @@ export const getPartnerTypeInfo = (role?: string) => {
 
 interface Partner {
   id: string;
+  userId: string;
   labName: string;
+  ownerName?: string;
   partnerCode?: string;
   role: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
   address?: string;
+  preferredServiceArea?: string;
   rating: number;
   totalCollections: number;
   commissionRate?: number;
   paymentCycle?: string;
   approvalStatus: ApprovalStatus;
   rejectionReason?: string;
+  correctionReason?: string;
   isAvailable: boolean;
   createdAt: string;
   user: {
@@ -75,13 +111,16 @@ interface Partner {
     mobile: string;
     createdAt: string;
   };
+  documents?: PartnerDocumentItem[];
 }
 
 const STATUS_CONFIG: Record<ApprovalStatus, { bg: string; text: string; border: string; icon: any; label: string }> = {
-  PENDING:   { bg: 'bg-amber-50',  text: 'text-amber-700',  border: 'border-amber-200',  icon: Clock,        label: 'Pending'   },
-  APPROVED:  { bg: 'bg-emerald-50',text: 'text-emerald-700',border: 'border-emerald-200',icon: CheckCircle2, label: 'Approved'  },
-  REJECTED:  { bg: 'bg-rose-50',   text: 'text-rose-700',   border: 'border-rose-200',   icon: XCircle,      label: 'Rejected'  },
-  SUSPENDED: { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', icon: ShieldAlert,  label: 'Suspended' },
+  PENDING:             { bg: 'bg-amber-50 dark:bg-amber-950/40',   text: 'text-amber-700 dark:text-amber-300',   border: 'border-amber-200 dark:border-amber-800',   icon: Clock,        label: 'Pending'   },
+  APPROVED:            { bg: 'bg-emerald-50 dark:bg-emerald-950/40',text: 'text-emerald-700 dark:text-emerald-300',border: 'border-emerald-200 dark:border-emerald-800',icon: CheckCircle2, label: 'Approved'  },
+  REJECTED:            { bg: 'bg-rose-50 dark:bg-rose-950/40',     text: 'text-rose-700 dark:text-rose-300',     border: 'border-rose-200 dark:border-rose-800',     icon: XCircle,      label: 'Rejected'  },
+  SUSPENDED:           { bg: 'bg-orange-50 dark:bg-orange-950/40', text: 'text-orange-700 dark:text-orange-300', border: 'border-orange-200 dark:border-orange-800', icon: ShieldAlert,  label: 'Suspended' },
+  BLOCKED:             { bg: 'bg-red-100 dark:bg-red-950/60',       text: 'text-red-800 dark:text-red-300',       border: 'border-red-300 dark:border-red-700',       icon: ShieldX,      label: 'Blocked'   },
+  CORRECTION_REQUIRED: { bg: 'bg-yellow-50 dark:bg-yellow-950/40', text: 'text-yellow-800 dark:text-yellow-300', border: 'border-yellow-300 dark:border-yellow-700', icon: AlertCircle,  label: 'Correction Req' },
 };
 
 const REJECTION_REASONS = [
@@ -112,6 +151,8 @@ export const PathologyPartnersPage: React.FC = () => {
   const [isRejecting, setIsRejecting] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [customReason, setCustomReason] = useState('');
+  const [isRequestingCorrection, setIsRequestingCorrection] = useState(false);
+  const [correctionReasonInput, setCorrectionReasonInput] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [partnerRatings, setPartnerRatings] = useState<any>(null);
   const [ratingsLoading, setRatingsLoading] = useState(false);
@@ -411,6 +452,75 @@ export const PathologyPartnersPage: React.FC = () => {
     }
   };
 
+  const handleBlock = async (partner: Partner) => {
+    if (!window.confirm(`Are you sure you want to BLOCK partner "${partner.labName}"?`)) return;
+    setIsUpdating(true);
+    try {
+      await testService.updatePartnerApproval(partner.id, 'BLOCKED');
+      setPartners(prev => prev.map(p => p.id === partner.id ? { ...p, approvalStatus: 'BLOCKED' } : p));
+      if (selectedPartner?.id === partner.id) setSelectedPartner(prev => prev ? { ...prev, approvalStatus: 'BLOCKED' } : null);
+      queryClient.invalidateQueries({ queryKey: ['partners'] });
+      toast.success(`Partner "${partner.labName}" blocked.`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Failed to block partner.');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleRequestCorrectionSubmit = async () => {
+    if (!selectedPartner) return;
+    if (!correctionReasonInput.trim()) {
+      toast.error('Please enter a correction reason.');
+      return;
+    }
+    setIsUpdating(true);
+    try {
+      await testService.updatePartnerApproval(selectedPartner.id, 'CORRECTION_REQUIRED', undefined, correctionReasonInput.trim());
+      setPartners(prev => prev.map(p => p.id === selectedPartner.id ? { ...p, approvalStatus: 'CORRECTION_REQUIRED', correctionReason: correctionReasonInput.trim() } : p));
+      setSelectedPartner(prev => prev ? { ...prev, approvalStatus: 'CORRECTION_REQUIRED', correctionReason: correctionReasonInput.trim() } : null);
+      setIsRequestingCorrection(false);
+      setCorrectionReasonInput('');
+      queryClient.invalidateQueries({ queryKey: ['partners'] });
+      toast.success('Correction request sent to partner.');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Failed to request correction.');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const openPartnerDetails = async (partner: Partner) => {
+    setSelectedPartner(partner);
+    loadPartnerRatings(partner.id);
+    try {
+      const full = await testService.getPartnerDetails(partner.id);
+      if (full) {
+        setSelectedPartner(prev => prev ? { ...prev, ...full } : full);
+      }
+    } catch (e) {
+      console.warn('Could not load detailed partner documents:', e);
+    }
+  };
+
+  const handleVerifyDocument = async (docId: string, status: string, reason?: string) => {
+    if (!selectedPartner) return;
+    try {
+      const res = await testService.updatePartnerDocumentStatus(selectedPartner.id, docId, status, status === 'REJECTED' ? reason : undefined, status === 'CORRECTION_REQUIRED' ? reason : undefined);
+      const updatedDoc = res.document;
+      if (updatedDoc) {
+        setSelectedPartner(prev => {
+          if (!prev) return null;
+          const docs = (prev.documents || []).map(d => d.id === docId ? updatedDoc : d);
+          return { ...prev, documents: docs };
+        });
+        toast.success(`Document marked as ${status.replace('_', ' ')}.`);
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Failed to update document status.');
+    }
+  };
+
   const loadPartnerRatings = async (partnerId: string) => {
     setRatingsLoading(true);
     setPartnerRatings(null);
@@ -466,12 +576,14 @@ export const PathologyPartnersPage: React.FC = () => {
     CHANNEL_PARTNER: basePartners.filter(p => getPartnerTypeInfo(p.role).typeKey === 'CHANNEL_PARTNER').length,
   };
 
-  const counts = {
+  const counts: Record<string, number> = {
     ALL: basePartners.length,
     PENDING: basePartners.filter(p => p.approvalStatus === 'PENDING').length,
     APPROVED: basePartners.filter(p => p.approvalStatus === 'APPROVED').length,
     REJECTED: basePartners.filter(p => p.approvalStatus === 'REJECTED').length,
     SUSPENDED: basePartners.filter(p => p.approvalStatus === 'SUSPENDED').length,
+    BLOCKED: basePartners.filter(p => p.approvalStatus === 'BLOCKED').length,
+    CORRECTION_REQUIRED: basePartners.filter(p => p.approvalStatus === 'CORRECTION_REQUIRED').length,
   };
 
   return (
@@ -874,7 +986,7 @@ export const PathologyPartnersPage: React.FC = () => {
                       <tr
                         key={partner.id}
                         className="hover:bg-muted/30 transition-colors cursor-pointer"
-                        onClick={() => { setSelectedPartner(partner); loadPartnerRatings(partner.id); }}
+                        onClick={() => openPartnerDetails(partner)}
                       >
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
@@ -935,6 +1047,15 @@ export const PathologyPartnersPage: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => openPartnerDetails(partner)}
+                              className="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 border border-emerald-200 dark:border-emerald-800"
+                              title="View Details & Onboarding Verification"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              <span>View Details</span>
+                            </button>
+
                             <button
                               onClick={() => openEditPartner(partner)}
                               className="h-7 w-7 bg-muted text-foreground hover:bg-primary/10 hover:text-primary rounded-full flex items-center justify-center border border-border transition-colors"
@@ -1002,32 +1123,32 @@ export const PathologyPartnersPage: React.FC = () => {
         </>
       )}
 
-      {/* Detail Drawer */}
+      {/* Detail Drawer — Onboarding & Document Verification */}
       <AnimatePresence>
-        {selectedPartner && !isRejecting && (
+        {selectedPartner && !isRejecting && !isRequestingCorrection && (
           <>
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 0.5 }} exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black z-40 cursor-pointer"
+              className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 cursor-pointer"
               onClick={() => setSelectedPartner(null)}
             />
             <motion.div
               initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed right-0 top-0 bottom-0 w-full max-w-lg bg-card border-l border-border z-50 shadow-2xl overflow-y-auto"
+              className="fixed right-0 top-0 bottom-0 w-full max-w-2xl bg-card border-l border-border z-50 shadow-2xl flex flex-col overflow-hidden"
             >
-              <div className="p-6 space-y-6">
-                {/* Drawer Header */}
+              {/* Drawer Header */}
+              <div className="p-6 border-b border-border bg-muted/20 shrink-0">
                 <div className="flex items-start justify-between">
                   <div>
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
                       <span className={cn(
                         'inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-bold border rounded-full',
-                        STATUS_CONFIG[selectedPartner.approvalStatus].bg,
-                        STATUS_CONFIG[selectedPartner.approvalStatus].text,
-                        STATUS_CONFIG[selectedPartner.approvalStatus].border
+                        STATUS_CONFIG[selectedPartner.approvalStatus]?.bg || 'bg-muted',
+                        STATUS_CONFIG[selectedPartner.approvalStatus]?.text || 'text-foreground',
+                        STATUS_CONFIG[selectedPartner.approvalStatus]?.border || 'border-border'
                       )}>
-                        {STATUS_CONFIG[selectedPartner.approvalStatus].label}
+                        {STATUS_CONFIG[selectedPartner.approvalStatus]?.label || selectedPartner.approvalStatus}
                       </span>
                       {(() => {
                         const tInfo = getPartnerTypeInfo(selectedPartner.role);
@@ -1043,8 +1164,8 @@ export const PathologyPartnersPage: React.FC = () => {
                         );
                       })()}
                     </div>
-                    <h2 className="text-xl font-bold text-foreground">{selectedPartner.labName}</h2>
-                    <p className="text-xs text-muted-foreground">{selectedPartner.role} · Code: {selectedPartner.partnerCode || 'N/A'}</p>
+                    <h2 className="text-xl font-extrabold text-foreground">{selectedPartner.labName}</h2>
+                    <p className="text-xs text-muted-foreground font-mono">Partner Code: {selectedPartner.partnerCode || 'N/A'}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -1058,112 +1179,289 @@ export const PathologyPartnersPage: React.FC = () => {
                     </button>
                   </div>
                 </div>
+              </div>
 
-                {/* Referral Portal & Commission Shortcut */}
-                <div className="p-4 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border border-emerald-200 dark:border-emerald-800/40 rounded-2xl flex items-center justify-between">
-                  <div>
-                    <div className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">Referral Commission Rate</div>
-                    <div className="text-2xl font-black text-emerald-700 dark:text-emerald-300">{selectedPartner.commissionRate ?? 30}% <span className="text-xs font-normal text-muted-foreground">({selectedPartner.paymentCycle || 'MONTHLY'} cycle)</span></div>
+              {/* Drawer Body — Scrollable */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+
+                {/* Section 1: LAB & OWNER DETAILS */}
+                <div className="bg-muted/40 p-4 rounded-xl border border-border space-y-3">
+                  <h3 className="text-xs font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-primary" /> Lab & Owner Details
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-muted-foreground block text-[10px] font-bold uppercase">Diagnostic Centre Name</span>
+                      <span className="font-bold text-foreground text-sm">{selectedPartner.labName}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[10px] font-bold uppercase">Owner / Director Name</span>
+                      <span className="font-bold text-foreground">{selectedPartner.ownerName || selectedPartner.user.name}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[10px] font-bold uppercase">Authorized Contact Person</span>
+                      <span className="font-semibold text-foreground">{selectedPartner.user.name}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[10px] font-bold uppercase">Mobile Number</span>
+                      <span className="font-semibold text-foreground">{selectedPartner.user.mobile}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[10px] font-bold uppercase">Email Address</span>
+                      <span className="font-semibold text-foreground">{selectedPartner.user.email || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-[10px] font-bold uppercase">Service Area / Radius</span>
+                      <span className="font-semibold text-foreground">{selectedPartner.preferredServiceArea || selectedPartner.city || 'N/A'}</span>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <span className="text-muted-foreground block text-[10px] font-bold uppercase">Complete Address</span>
+                      <span className="font-medium text-foreground">{selectedPartner.address || 'N/A'}, {selectedPartner.city || ''} {selectedPartner.state ? `, ${selectedPartner.state}` : ''} {selectedPartner.pincode ? `- ${selectedPartner.pincode}` : ''}</span>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => navigate('/partner-portal/login')}
-                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
-                  >
-                    <ExternalLink className="w-4 h-4" /> Portal Login
-                  </button>
                 </div>
 
-                {/* Contact Info */}
-                <div className="bg-muted/40 p-4 rounded-xl border border-border space-y-3">
-                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Contact & Registration</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4 text-primary" />
-                      <span className="font-semibold">{selectedPartner.user.mobile}</span>
-                    </div>
-                    {selectedPartner.user.email && (
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-primary" />
-                        <span>{selectedPartner.user.email}</span>
-                      </div>
-                    )}
-                    {selectedPartner.address && (
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-primary shrink-0" />
-                        <span className="text-muted-foreground">{selectedPartner.address}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground pt-1">
-                      <Clock className="h-3.5 w-3.5" />
-                      <span>Registered on {new Date(selectedPartner.createdAt).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Performance & Ratings */}
-                <div className="bg-muted/40 p-4 rounded-xl border border-border space-y-3">
-                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Performance & Quality</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-card p-3 rounded-lg border border-border text-center">
-                      <div className="text-xl font-bold text-foreground">{selectedPartner.totalCollections}</div>
-                      <div className="text-xs text-muted-foreground">Total Collections</div>
-                    </div>
-                    <div className="bg-card p-3 rounded-lg border border-border text-center">
-                      <div className="text-xl font-bold text-amber-500 flex items-center justify-center gap-1">
-                        <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-                        {selectedPartner.rating.toFixed(1)}
-                      </div>
-                      <div className="text-xs text-muted-foreground">Rating Score</div>
-                    </div>
+                {/* Section 2: MEDICAL & CEA REGISTRATION */}
+                <div className="bg-card border border-border rounded-2xl p-4 space-y-4 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-emerald-600" /> Medical & CEA Registration Documents
+                    </h3>
                   </div>
 
-                  {ratingsLoading ? (
-                    <div className="text-center py-3 text-xs text-muted-foreground">Loading reviews...</div>
-                  ) : partnerRatings && (
-                    <div className="space-y-3 pt-2 border-t border-border">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-muted-foreground">Rating Breakdown</span>
-                        <span className="text-muted-foreground">{(partnerRatings.totalReviews ?? partnerRatings.stats?.total ?? 0)} total reviews</span>
-                      </div>
-                      <div className="space-y-1">
-                        {[5, 4, 3, 2, 1].map(stars => {
-                          const breakdown = partnerRatings.breakdown || partnerRatings.stats?.breakdown || {};
-                          const total = partnerRatings.totalReviews ?? partnerRatings.stats?.total ?? 0;
-                          const count = breakdown[stars] || 0;
-                          const pct = total > 0 ? (count / total) * 100 : 0;
-                          return (
-                            <div key={stars} className="flex items-center gap-2 text-xs">
-                              <span className="w-3 text-muted-foreground font-mono">{stars}★</span>
-                              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                                <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
-                              </div>
-                              <span className="w-5 text-right text-muted-foreground">{count}</span>
+                  <div className="space-y-3">
+                    {DOC_CONFIGS.filter(c => c.category === 'MEDICAL').map(meta => {
+                      const doc = (selectedPartner.documents || []).find(d => d.documentType === meta.type);
+                      return (
+                        <div key={meta.type} className="p-3.5 rounded-xl border border-border bg-muted/20 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-foreground">{meta.label}</span>
+                              <span className={cn('text-[9px] font-extrabold px-1.5 py-0.5 rounded', meta.required ? 'bg-rose-100 text-rose-700' : 'bg-muted text-muted-foreground')}>
+                                {meta.required ? 'REQUIRED' : 'OPTIONAL'}
+                              </span>
                             </div>
-                          );
-                        })}
-                      </div>
 
-                      {Array.isArray(partnerRatings.reviews) && partnerRatings.reviews.length > 0 && (
-                        <div className="space-y-3 pt-2 border-t border-border">
-                          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Recent Reviews</p>
-                          {partnerRatings.reviews.slice(0, 5).map((r: any) => (
-                            <div key={r.id} className="space-y-1">
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm font-semibold text-foreground">{r.customerName || r.userName || 'Customer'}</span>
-                                <div className="flex gap-0.5">
-                                  {[1,2,3,4,5].map((i: number) => (
-                                    <Star key={i} className={cn('h-3 w-3', i <= r.rating ? 'text-amber-400 fill-amber-400' : 'text-muted-foreground')} />
-                                  ))}
-                                </div>
+                            {doc ? (
+                              <span className={cn(
+                                'text-[10px] font-extrabold px-2 py-0.5 rounded-full border',
+                                doc.status === 'VERIFIED' && 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                                doc.status === 'REJECTED' && 'bg-rose-50 text-rose-700 border-rose-200',
+                                doc.status === 'CORRECTION_REQUIRED' && 'bg-amber-50 text-amber-700 border-amber-200',
+                                (doc.status === 'UPLOADED' || doc.status === 'UNDER_REVIEW') && 'bg-blue-50 text-blue-700 border-blue-200'
+                              )}>
+                                ● {doc.status.replace('_', ' ')}
+                              </span>
+                            ) : (
+                              <span className={cn('text-[10px] font-extrabold px-2 py-0.5 rounded-full', meta.required ? 'bg-rose-100 text-rose-800' : 'bg-muted text-muted-foreground')}>
+                                {meta.required ? 'Missing Required Document' : 'Not Provided'}
+                              </span>
+                            )}
+                          </div>
+
+                          {doc && (
+                            <div className="flex items-center justify-between pt-1 border-t border-border/60 text-xs">
+                              <div className="text-muted-foreground text-[11px]">
+                                <span className="font-mono font-medium text-foreground">{doc.fileName}</span>
+                                <span className="ml-2">({new Date(doc.uploadedAt).toLocaleDateString('en-IN')})</span>
                               </div>
-                              <p className="text-xs text-muted-foreground">{r.bookingCode ? `#${r.bookingCode} · ` : ''}{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : ''}</p>
-                              {(r.comment || r.review) && <p className="text-xs text-foreground">{r.comment || r.review}</p>}
+                              <div className="flex items-center gap-2">
+                                <a
+                                  href={doc.fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1"
+                                >
+                                  <ExternalLink className="w-3 h-3" /> View Document
+                                </a>
+
+                                <button
+                                  onClick={() => handleVerifyDocument(doc.id, 'VERIFIED')}
+                                  className="px-2 py-0.5 bg-emerald-100 text-emerald-800 hover:bg-emerald-200 rounded text-[10px] font-bold"
+                                  title="Mark as Verified"
+                                >
+                                  Verify
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    const reason = window.prompt('Enter rejection reason for ' + meta.label + ':');
+                                    if (reason) handleVerifyDocument(doc.id, 'REJECTED', reason);
+                                  }}
+                                  className="px-2 py-0.5 bg-rose-100 text-rose-800 hover:bg-rose-200 rounded text-[10px] font-bold"
+                                  title="Reject Document"
+                                >
+                                  Reject
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    const reason = window.prompt('Enter correction request for ' + meta.label + ':');
+                                    if (reason) handleVerifyDocument(doc.id, 'CORRECTION_REQUIRED', reason);
+                                  }}
+                                  className="px-2 py-0.5 bg-amber-100 text-amber-800 hover:bg-amber-200 rounded text-[10px] font-bold"
+                                  title="Request Document Correction"
+                                >
+                                  Correction
+                                </button>
+                              </div>
                             </div>
-                          ))}
+                          )}
                         </div>
-                      )}
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Section 3: BUSINESS & LEGAL VERIFICATION */}
+                <div className="bg-card border border-border rounded-2xl p-4 space-y-4 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-blue-600" /> Business & Legal Verification Documents
+                    </h3>
+                  </div>
+
+                  <div className="space-y-3">
+                    {DOC_CONFIGS.filter(c => c.category === 'LEGAL').map(meta => {
+                      const doc = (selectedPartner.documents || []).find(d => d.documentType === meta.type);
+                      return (
+                        <div key={meta.type} className="p-3.5 rounded-xl border border-border bg-muted/20 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-foreground">{meta.label}</span>
+                              <span className={cn('text-[9px] font-extrabold px-1.5 py-0.5 rounded', meta.required ? 'bg-rose-100 text-rose-700' : 'bg-muted text-muted-foreground')}>
+                                {meta.required ? 'REQUIRED' : 'OPTIONAL'}
+                              </span>
+                            </div>
+
+                            {doc ? (
+                              <span className={cn(
+                                'text-[10px] font-extrabold px-2 py-0.5 rounded-full border',
+                                doc.status === 'VERIFIED' && 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                                doc.status === 'REJECTED' && 'bg-rose-50 text-rose-700 border-rose-200',
+                                doc.status === 'CORRECTION_REQUIRED' && 'bg-amber-50 text-amber-700 border-amber-200',
+                                (doc.status === 'UPLOADED' || doc.status === 'UNDER_REVIEW') && 'bg-blue-50 text-blue-700 border-blue-200'
+                              )}>
+                                ● {doc.status.replace('_', ' ')}
+                              </span>
+                            ) : (
+                              <span className={cn('text-[10px] font-extrabold px-2 py-0.5 rounded-full', meta.required ? 'bg-rose-100 text-rose-800' : 'bg-muted text-muted-foreground')}>
+                                {meta.required ? 'Missing Required Document' : 'Not Provided'}
+                              </span>
+                            )}
+                          </div>
+
+                          {doc && (
+                            <div className="flex items-center justify-between pt-1 border-t border-border/60 text-xs">
+                              <div className="text-muted-foreground text-[11px]">
+                                <span className="font-mono font-medium text-foreground">{doc.fileName}</span>
+                                <span className="ml-2">({new Date(doc.uploadedAt).toLocaleDateString('en-IN')})</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <a
+                                  href={doc.fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1"
+                                >
+                                  <ExternalLink className="w-3 h-3" /> View Document
+                                </a>
+
+                                <button
+                                  onClick={() => handleVerifyDocument(doc.id, 'VERIFIED')}
+                                  className="px-2 py-0.5 bg-emerald-100 text-emerald-800 hover:bg-emerald-200 rounded text-[10px] font-bold"
+                                  title="Mark as Verified"
+                                >
+                                  Verify
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    const reason = window.prompt('Enter rejection reason for ' + meta.label + ':');
+                                    if (reason) handleVerifyDocument(doc.id, 'REJECTED', reason);
+                                  }}
+                                  className="px-2 py-0.5 bg-rose-100 text-rose-800 hover:bg-rose-200 rounded text-[10px] font-bold"
+                                  title="Reject Document"
+                                >
+                                  Reject
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    const reason = window.prompt('Enter correction request for ' + meta.label + ':');
+                                    if (reason) handleVerifyDocument(doc.id, 'CORRECTION_REQUIRED', reason);
+                                  }}
+                                  className="px-2 py-0.5 bg-amber-100 text-amber-800 hover:bg-amber-200 rounded text-[10px] font-bold"
+                                  title="Request Document Correction"
+                                >
+                                  Correction
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Section 4: Performance & Commission Summary */}
+                <div className="bg-muted/40 p-4 rounded-xl border border-border space-y-3">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Referral & Commission Details</h3>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className="bg-card p-3 rounded-lg border border-border">
+                      <span className="text-muted-foreground block text-[10px] font-bold uppercase">Commission Rate</span>
+                      <span className="text-lg font-black text-emerald-600">{selectedPartner.commissionRate ?? 30}%</span>
                     </div>
-                  )}
+                    <div className="bg-card p-3 rounded-lg border border-border">
+                      <span className="text-muted-foreground block text-[10px] font-bold uppercase">Payment Cycle</span>
+                      <span className="text-base font-bold text-foreground">{selectedPartner.paymentCycle || 'MONTHLY'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Drawer Footer — ADMIN ACTION BAR */}
+              <div className="p-4 border-t border-border bg-muted/40 shrink-0 space-y-2">
+                <div className="text-[10px] font-black uppercase tracking-wider text-muted-foreground text-center">
+                  Admin Verification Actions for {selectedPartner.labName}
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    onClick={() => handleApprove(selectedPartner)}
+                    disabled={isUpdating}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="w-4 h-4" /> APPROVE
+                  </button>
+
+                  <button
+                    onClick={() => setIsRequestingCorrection(true)}
+                    disabled={isUpdating}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <AlertCircle className="w-4 h-4" /> Request Correction
+                  </button>
+
+                  <button
+                    onClick={() => setIsRejecting(true)}
+                    disabled={isUpdating}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <XCircle className="w-4 h-4" /> REJECT
+                  </button>
+
+                  <button
+                    onClick={() => handleSuspend(selectedPartner)}
+                    disabled={isUpdating}
+                    className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <ShieldAlert className="w-4 h-4" /> SUSPEND
+                  </button>
+
+                  <button
+                    onClick={() => handleBlock(selectedPartner)}
+                    disabled={isUpdating}
+                    className="px-4 py-2 bg-red-800 hover:bg-red-900 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <ShieldX className="w-4 h-4" /> BLOCK
+                  </button>
                 </div>
               </div>
             </motion.div>
@@ -1517,6 +1815,62 @@ export const PathologyPartnersPage: React.FC = () => {
                     className="flex-1 px-4 py-2.5 bg-rose-600 text-white rounded-lg text-sm font-bold hover:bg-rose-700 disabled:opacity-50"
                   >
                     {isUpdating ? 'Rejecting...' : 'Confirm Reject'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Request Correction Modal */}
+      <AnimatePresence>
+        {isRequestingCorrection && selectedPartner && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 0.5 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black z-[60] cursor-pointer"
+              onClick={() => setIsRequestingCorrection(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+            >
+              <div className="bg-background border border-border rounded-2xl shadow-2xl w-full max-w-md p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="font-bold text-amber-700 dark:text-amber-300 text-lg flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5" /> Request Onboarding Correction
+                  </h3>
+                  <button onClick={() => setIsRequestingCorrection(false)} className="p-1.5 hover:bg-muted rounded-lg">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <p className="text-xs text-muted-foreground mb-4">
+                  Specify details/documents that need to be corrected or re-uploaded by <strong className="text-foreground">{selectedPartner.labName}</strong>:
+                </p>
+
+                <textarea
+                  className="w-full border border-input rounded-xl p-3 text-xs outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 mb-4 resize-none"
+                  rows={4}
+                  placeholder="e.g. Please re-upload a clear copy of your Bio-Medical Waste (BMW) Licence and update the state pincode..."
+                  value={correctionReasonInput}
+                  onChange={e => setCorrectionReasonInput(e.target.value)}
+                />
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setIsRequestingCorrection(false)}
+                    className="flex-1 px-4 py-2.5 border border-border rounded-xl text-xs font-bold hover:bg-muted"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleRequestCorrectionSubmit}
+                    disabled={isUpdating || !correctionReasonInput.trim()}
+                    className="flex-1 px-4 py-2.5 bg-amber-600 text-white rounded-xl text-xs font-bold hover:bg-amber-700 disabled:opacity-50 shadow-sm"
+                  >
+                    {isUpdating ? 'Submitting...' : 'Send Correction Request'}
                   </button>
                 </div>
               </div>

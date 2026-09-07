@@ -264,8 +264,16 @@ rejectLabBooking: async (id: string, reason: string) => {
     const response = await api.delete(`/auth/partners/${id}`);
     return response.data;
   },
-  updatePartnerApproval: async (id: string, approvalStatus: string, rejectionReason?: string) => {
-    const response = await api.patch(`/auth/partners/${id}/approval`, { approvalStatus, rejectionReason });
+  updatePartnerApproval: async (id: string, approvalStatus: string, rejectionReason?: string, correctionReason?: string) => {
+    const response = await api.patch(`/auth/partners/${id}/approval`, { approvalStatus, rejectionReason, correctionReason });
+    return response.data;
+  },
+  getPartnerDetails: async (id: string) => {
+    const response = await api.get(`/auth/partners/${id}/details`);
+    return response.data;
+  },
+  updatePartnerDocumentStatus: async (partnerId: string, docId: string, status: string, rejectionReason?: string, correctionReason?: string) => {
+    const response = await api.patch(`/auth/partners/${partnerId}/documents/${docId}`, { status, rejectionReason, correctionReason });
     return response.data;
   },
   getPartnerRatings: async (partnerId: string) => {
