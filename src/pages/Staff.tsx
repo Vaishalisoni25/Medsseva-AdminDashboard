@@ -6,7 +6,7 @@ import { AdminRole } from '@/types/rbac';
 import {
   Briefcase, Plus, Pencil, Trash2, Search, X, Loader2,
   Building2, CheckCircle2, ShieldCheck, Mail, Phone,
-  Users, UserCheck, ToggleLeft, ToggleRight
+  Users, UserCheck, ToggleLeft, ToggleRight, Eye, EyeOff
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import toast from 'react-hot-toast';
@@ -86,6 +86,7 @@ export const StaffPage: React.FC = () => {
   const [formEmail, setFormEmail] = useState('');
   const [formMobile, setFormMobile] = useState('');
   const [formPassword, setFormPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [formDepartment, setFormDepartment] = useState('Pathology Lab');
   const [customDepartment, setCustomDepartment] = useState('');
   const [formDesignation, setFormDesignation] = useState('Lab Technician');
@@ -124,6 +125,7 @@ export const StaffPage: React.FC = () => {
     setFormEmail('');
     setFormMobile('');
     setFormPassword('');
+    setShowPassword(false);
     setFormDepartment('Pathology Lab');
     setCustomDepartment('');
     setFormDesignation('Lab Technician');
@@ -140,6 +142,7 @@ export const StaffPage: React.FC = () => {
     setFormEmail(s.user.email);
     setFormMobile(s.user.mobile || '');
     setFormPassword('');
+    setShowPassword(false);
 
     const isCustomDept = s.department && !COMMON_DEPARTMENTS.filter(d => d !== 'Others').includes(s.department);
     if (isCustomDept) {
@@ -188,7 +191,7 @@ export const StaffPage: React.FC = () => {
 
     const targetBranchId = formBranchId || userBranchId || undefined;
 
-    const payload = {
+    const payload: any = {
       name: formName.trim(),
       email: formEmail.trim(),
       mobile: formMobile.trim() || undefined,
@@ -197,8 +200,13 @@ export const StaffPage: React.FC = () => {
       designation: finalDesignation || undefined,
       branchId: targetBranchId,
       franchiseId: formFranchiseId || undefined,
-      password: formPassword || 'MedsSeva@123',
     };
+
+    if (formPassword.trim()) {
+      payload.password = formPassword.trim();
+    } else if (!editing) {
+      payload.password = 'MedsSeva@123';
+    }
 
     console.log('[STAFF CREATE] Submitting payload to /api/staff:', payload);
     setSaving(true);
@@ -542,6 +550,32 @@ export const StaffPage: React.FC = () => {
                     maxLength={10}
                     className="w-full h-10 px-3 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/30"
                   />
+                </div>
+
+                {/* Login Password */}
+                <div className="md:col-span-2">
+                  <label className="text-xs font-semibold text-foreground mb-1 block">
+                    Login Password {editing ? '(Leave blank to keep unchanged)' : '*'}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={formPassword}
+                      onChange={e => setFormPassword(e.target.value)}
+                      placeholder={editing ? 'Enter new password or leave blank' : 'e.g. MedsSeva@123'}
+                      className="w-full h-10 pl-3 pr-10 bg-background border border-border rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/30"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    This password will be used by the employee / phlebotomist to login to the MedsSeva app.
+                  </p>
                 </div>
 
                 {/* Designation */}

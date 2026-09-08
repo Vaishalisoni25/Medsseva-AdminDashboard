@@ -19,6 +19,7 @@ import {
   HeartPulse,
   Users,
   CheckCircle2,
+  ShieldAlert,
   Activity,
   AlertTriangle,
   Loader2,
@@ -39,6 +40,7 @@ export interface PatientRecord {
   altMobile?: string | null;
   avatarUrl?: string | null;
   healthScore?: number;
+  isActive?: boolean;
   createdAt: string;
   familyMembers?: {
     id: string;
@@ -242,6 +244,25 @@ export const PatientsPage: React.FC = () => {
   const handleOpenDetails = (p: PatientRecord) => {
     setSelectedPatient(p);
     setIsDrawerOpen(true);
+  };
+
+  // Suspend / Reactivate Patient
+  const handleToggleSuspend = async (patient: PatientRecord) => {
+    const isCurrentlySuspended = patient.isActive === false;
+    const actionText = isCurrentlySuspended ? 'reactivate' : 'suspend';
+    if (!confirm(`Are you sure you want to ${actionText} patient ${patient.name}?`)) return;
+
+    try {
+      await patientService.updatePatient(patient.id, { isActive: isCurrentlySuspended });
+      toast.success(
+        isCurrentlySuspended
+          ? `Patient ${patient.name} reactivated successfully`
+          : `Patient ${patient.name} suspended successfully`
+      );
+      refetch();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || err.message || `Failed to ${actionText} patient`);
+    }
   };
 
   // Submit Add / Edit
@@ -615,8 +636,13 @@ export const PatientsPage: React.FC = () => {
                             {getInitials(patient.name)}
                           </div>
                           <div>
-                            <div className="font-semibold text-foreground group-hover:text-[#0a7c7c] transition-colors">
-                              {patient.name}
+                            <div className="font-semibold text-foreground group-hover:text-[#0a7c7c] transition-colors flex items-center gap-1.5">
+                              <span>{patient.name}</span>
+                              {patient.isActive === false && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300 border border-orange-200">
+                                  Suspended
+                                </span>
+                              )}
                             </div>
                             <div className="text-xs text-muted-foreground">
                               Reg: {new Date(patient.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
@@ -727,6 +753,24 @@ export const PatientsPage: React.FC = () => {
                             title="View Patient Details"
                           >
                             <Eye className="w-4 h-4" />
+                          </button>
+
+                          {/* Suspend / Reactivate Action */}
+                          <button
+                            onClick={() => handleToggleSuspend(patient)}
+                            className={cn(
+                              "p-1.5 rounded-lg transition-colors cursor-pointer",
+                              patient.isActive === false
+                                ? "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                                : "text-muted-foreground hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/40"
+                            )}
+                            title={patient.isActive === false ? "Reactivate Patient" : "Suspend Patient"}
+                          >
+                            {patient.isActive === false ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            ) : (
+                              <ShieldAlert className="w-4 h-4" />
+                            )}
                           </button>
 
                           {canEdit && (

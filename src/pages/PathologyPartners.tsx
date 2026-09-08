@@ -305,7 +305,7 @@ export const PathologyPartnersPage: React.FC = () => {
     setFormAddress('');
     setFormCommissionRate(30);
     setFormPaymentCycle('MONTHLY');
-    setFormApprovalStatus('APPROVED');
+    setFormApprovalStatus('PENDING');
     setPartnerModalOpen(true);
   };
 
@@ -551,7 +551,7 @@ export const PathologyPartnersPage: React.FC = () => {
 
   const basePartners = React.useMemo(() => {
     if (!isSuperAdmin && userBranchId) {
-      return partners.filter((p: any) => p.branchId === userBranchId);
+      return partners.filter((p: any) => !p.branchId || p.branchId === userBranchId);
     }
     return partners;
   }, [partners, isSuperAdmin, userBranchId]);

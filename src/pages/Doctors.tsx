@@ -7,7 +7,7 @@ import { branchService, Branch } from '@/services/branch.service';
 import { AdminRole, Permission } from '@/types/rbac';
 import {
   Stethoscope, Plus, Pencil, Trash2, Search, X, Loader2,
-  Building2, CheckCircle2,
+  Building2, CheckCircle2, Clock, XCircle, ShieldAlert,
   FileSignature, Eye, EyeOff, UserCheck,
   DollarSign, Activity, TrendingUp, FileText, RefreshCw,
   Briefcase, CheckSquare, Square, ExternalLink
@@ -29,6 +29,8 @@ export interface DoctorRecord {
   partnerId?: string;
   commissionRate?: number;
   paymentCycle?: string;
+  approvalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
+  rejectionReason?: string;
   isActive: boolean;
   user?: {
     id: string;
@@ -98,6 +100,8 @@ export const DoctorsPage: React.FC = () => {
   const [portalSearch, setPortalSearch] = useState('');
   const [specFilter, setSpecFilter] = useState('ALL');
   const [branchFilter, setBranchFilter] = useState('ALL');
+  const [approvalFilter, setApprovalFilter] = useState<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED' | 'SUSPENDED'>('ALL');
+  const [activeFilter, setActiveFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
 
   // Portal View Specific State
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
@@ -389,8 +393,12 @@ export const DoctorsPage: React.FC = () => {
         await doctorService.updateDoctor(editing.id, payload);
         toast.success('Doctor updated successfully');
       } else {
-        await doctorService.createDoctor(payload);
-        toast.success('Doctor added successfully');
+        await doctorService.createDoctor({
+          ...payload,
+          approvalStatus: 'PENDING',
+          isActive: false,
+        });
+        toast.success('Doctor added in Pending Review. Please approve to activate.');
       }
       setModalOpen(false);
       loadData();
@@ -402,12 +410,56 @@ export const DoctorsPage: React.FC = () => {
   };
 
   const handleToggleActive = async (d: DoctorRecord) => {
+    if (d.approvalStatus === 'PENDING') {
+      toast.error('Doctor must be approved before activating account.');
+      return;
+    }
+    if (d.approvalStatus === 'SUSPENDED') {
+      toast.error('Doctor is suspended. Please reactivate approval status first.');
+      return;
+    }
     try {
       await doctorService.updateDoctor(d.id, { isActive: !d.isActive });
       toast.success(d.isActive ? 'Doctor marked inactive' : 'Doctor activated');
+      setDoctors(prev => prev.map(doc => doc.id === d.id ? { ...doc, isActive: !d.isActive } : doc));
       loadData();
     } catch {
-      toast.error('Failed to update status');
+      toast.error('Failed to update active status');
+    }
+  };
+
+  const handleSuspendDoctor = async (d: DoctorRecord) => {
+    if (!confirm(`Are you sure you want to suspend Dr. ${d.name}? The doctor will not be able to access the portal.`)) return;
+    try {
+      await doctorService.updateDoctor(d.id, { approvalStatus: 'SUSPENDED', isActive: false });
+      toast.success(`Dr. ${d.name} suspended.`);
+      setDoctors(prev => prev.map(doc => doc.id === d.id ? { ...doc, approvalStatus: 'SUSPENDED', isActive: false } : doc));
+      loadData();
+    } catch {
+      toast.error('Failed to suspend doctor');
+    }
+  };
+
+  const handleApproveDoctor = async (d: DoctorRecord) => {
+    try {
+      await doctorService.updateDoctor(d.id, { approvalStatus: 'APPROVED', isActive: true });
+      toast.success(`Dr. ${d.name} approved successfully!`);
+      setDoctors(prev => prev.map(doc => doc.id === d.id ? { ...doc, approvalStatus: 'APPROVED', isActive: true } : doc));
+      loadData();
+    } catch {
+      toast.error('Failed to approve doctor');
+    }
+  };
+
+  const handleRejectDoctor = async (d: DoctorRecord) => {
+    if (!confirm(`Are you sure you want to reject doctor application for Dr. ${d.name}?`)) return;
+    try {
+      await doctorService.updateDoctor(d.id, { approvalStatus: 'REJECTED', isActive: false });
+      toast.success(`Dr. ${d.name} application rejected.`);
+      setDoctors(prev => prev.map(doc => doc.id === d.id ? { ...doc, approvalStatus: 'REJECTED', isActive: false } : doc));
+      loadData();
+    } catch {
+      toast.error('Failed to reject doctor');
     }
   };
 
@@ -432,6 +484,10 @@ export const DoctorsPage: React.FC = () => {
 
   const filteredDoctors = useMemo(() => {
     return baseDoctors.filter(d => {
+      const appStatus = d.approvalStatus || 'PENDING';
+      if (approvalFilter !== 'ALL' && appStatus !== approvalFilter) return false;
+      if (activeFilter === 'ACTIVE' && !d.isActive) return false;
+      if (activeFilter === 'INACTIVE' && d.isActive) return false;
       if (specFilter !== 'ALL' && d.specialization !== specFilter) return false;
       if (branchFilter !== 'ALL' && d.branchId !== branchFilter) return false;
       if (search.trim()) {
@@ -445,7 +501,7 @@ export const DoctorsPage: React.FC = () => {
       }
       return true;
     });
-  }, [baseDoctors, specFilter, branchFilter, search]);
+  }, [baseDoctors, approvalFilter, activeFilter, specFilter, branchFilter, search]);
 
   const filteredReferrals = useMemo(() => {
     if (!portalData?.referrals) return [];
@@ -762,6 +818,37 @@ export const DoctorsPage: React.FC = () => {
         <>
           <div className="flex flex-col md:flex-row items-center justify-between gap-3 bg-card border border-border rounded-xl p-3">
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border">
+                {[
+                  { id: 'ALL', label: `All Doctors (${baseDoctors.length})` },
+                  { id: 'APPROVED', label: `Approved (${baseDoctors.filter(d => d.approvalStatus === 'APPROVED').length})` },
+                  { id: 'PENDING', label: `Pending Review (${baseDoctors.filter(d => (d.approvalStatus || 'PENDING') === 'PENDING').length})` },
+                  { id: 'SUSPENDED', label: `Suspended (${baseDoctors.filter(d => d.approvalStatus === 'SUSPENDED').length})` },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setApprovalFilter(tab.id as any)}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      approvalFilter === tab.id
+                        ? 'bg-teal-600 text-white shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              <select
+                value={activeFilter}
+                onChange={e => setActiveFilter(e.target.value as any)}
+                className="text-xs bg-background border border-border rounded-lg px-2.5 py-1.5 outline-none font-medium text-foreground"
+              >
+                <option value="ALL">All Status (Active & Inactive)</option>
+                <option value="ACTIVE">Active Only</option>
+                <option value="INACTIVE">Inactive Only</option>
+              </select>
+
               <select
                 value={specFilter}
                 onChange={e => setSpecFilter(e.target.value)}
@@ -806,14 +893,15 @@ export const DoctorsPage: React.FC = () => {
             </div>
           ) : (
             <div className="bg-card border border-border rounded-2xl shadow-sm overflow-x-auto">
-              <table className="w-full text-left text-xs min-w-[750px]">
+              <table className="w-full text-left text-xs min-w-[850px]">
                 <thead className="bg-muted/60 text-muted-foreground uppercase text-[10px] tracking-wider border-b border-border">
                   <tr>
                     <th className="py-3 px-5">Doctor Details</th>
                     <th className="py-3 px-4">Specialization & Role</th>
                     <th className="py-3 px-4">Branch / Area</th>
                     <th className="py-3 px-4 text-center">Digital Signature</th>
-                    <th className="py-3 px-4 text-center">Portal & Status</th>
+                    <th className="py-3 px-4 text-center">Approval Status</th>
+                    <th className="py-3 px-4 text-center">Account Status</th>
                     <th className="py-3 px-5 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -856,7 +944,7 @@ export const DoctorsPage: React.FC = () => {
                         {d.signatureUrl ? (
                           <button
                             onClick={() => setPreviewSignature(d)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/40 border border-teal-200 text-teal-700 dark:text-teal-300 text-[10px] font-bold hover:bg-teal-100 transition-colors"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/40 border border-teal-200 text-teal-700 dark:text-teal-300 text-[10px] font-bold hover:bg-teal-100 transition-colors cursor-pointer"
                           >
                             <FileSignature className="w-3.5 h-3.5" /> View Signature
                           </button>
@@ -867,18 +955,87 @@ export const DoctorsPage: React.FC = () => {
                         )}
                       </td>
 
+                      {/* Column 5: Approval Status */}
+                      <td className="py-3.5 px-4 text-center">
+                        {d.approvalStatus === 'PENDING' || !d.approvalStatus ? (
+                          <div className="flex flex-col items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200">
+                              <Clock className="w-2.5 h-2.5" /> Pending Review
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleApproveDoctor(d)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-sm transition-all active:scale-95 cursor-pointer"
+                                title="Approve Doctor Application"
+                              >
+                                <CheckCircle2 className="w-3 h-3" /> Approve
+                              </button>
+                              <button
+                                onClick={() => handleRejectDoctor(d)}
+                                className="inline-flex items-center gap-0.5 px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 text-[11px] font-bold border border-rose-200 transition-all active:scale-95 cursor-pointer"
+                                title="Reject Doctor Application"
+                              >
+                                <XCircle className="w-3 h-3" /> Reject
+                              </button>
+                            </div>
+                          </div>
+                        ) : d.approvalStatus === 'SUSPENDED' ? (
+                          <div className="flex flex-col items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300 border border-orange-200">
+                              <ShieldAlert className="w-3 h-3" /> Suspended
+                            </span>
+                            <button
+                              onClick={() => handleApproveDoctor(d)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-sm transition-all active:scale-95 cursor-pointer"
+                              title="Reactivate / Approve Doctor"
+                            >
+                              <CheckCircle2 className="w-3 h-3" /> Reactivate
+                            </button>
+                          </div>
+                        ) : d.approvalStatus === 'REJECTED' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200">
+                            <XCircle className="w-3 h-3" /> Rejected
+                          </span>
+                        ) : (
+                          <div className="flex flex-col items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3" /> Approved
+                            </span>
+                            <button
+                              onClick={() => handleSuspendDoctor(d)}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-orange-50 hover:bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300 text-[10px] font-semibold border border-orange-200/80 transition-all active:scale-95 cursor-pointer"
+                              title="Suspend Doctor Account"
+                            >
+                              <ShieldAlert className="w-2.5 h-2.5" /> Suspend
+                            </button>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Column 6: Account Status & Portal */}
                       <td className="py-3.5 px-4 text-center">
                         <div className="flex flex-col items-center gap-1">
-                          <button
-                            onClick={() => handleToggleActive(d)}
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${
-                              d.isActive
-                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200'
-                                : 'bg-muted text-muted-foreground border border-border'
-                            }`}
-                          >
-                            {d.isActive ? '● Active' : '○ Inactive'}
-                          </button>
+                          {d.approvalStatus === 'PENDING' || !d.approvalStatus ? (
+                            <span className="text-[10px] text-muted-foreground font-medium italic">
+                              ○ Inactive (Pending)
+                            </span>
+                          ) : d.approvalStatus === 'SUSPENDED' ? (
+                            <span className="text-[10px] text-orange-600 dark:text-orange-400 font-medium">
+                              ○ Inactive (Suspended)
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => handleToggleActive(d)}
+                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer ${
+                                d.isActive
+                                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 hover:bg-emerald-100'
+                                  : 'bg-muted text-muted-foreground border border-border hover:bg-muted/80'
+                              }`}
+                              title={d.isActive ? 'Click to deactivate doctor' : 'Click to activate doctor'}
+                            >
+                              {d.isActive ? '● Active' : '○ Inactive'}
+                            </button>
+                          )}
 
                           <button
                             onClick={() => openPortalForDoctor(d)}
@@ -893,14 +1050,14 @@ export const DoctorsPage: React.FC = () => {
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => openEdit(d)}
-                            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                             title="Edit Doctor"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => handleDelete(d)}
-                            className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                            className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
                             title="Delete Doctor"
                           >
                             <Trash2 className="w-3.5 h-3.5" />

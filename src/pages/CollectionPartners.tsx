@@ -275,7 +275,24 @@ export const CollectionPartnersPage: React.FC = () => {
       const res = await collectionPartnerService.getPartnerDetails(partnerId, {
         status: detailFilterStatus !== 'ALL' ? detailFilterStatus : undefined,
       });
-      setPartnerDetails(res);
+      if (res) {
+        const partnerObj = res.partner || res;
+        const collectionsObj = res.collections || res.collectionsHistory || [];
+        const labWise = res.labWiseSummary || [];
+        setPartnerDetails({
+          partner: {
+            ...partnerObj,
+            name: partnerObj.name || 'Collection Partner',
+            totalTestValue: partnerObj.totalTestValue || 0,
+            totalCommissionEarned: partnerObj.totalCommissionEarned || 0,
+            totalWalletCredits: partnerObj.totalWalletCredits || 0,
+            walletBalance: partnerObj.walletBalance || 0,
+            commissionRate: partnerObj.commissionRate !== undefined ? partnerObj.commissionRate : 15,
+          },
+          collections: collectionsObj,
+          labWiseSummary: labWise,
+        });
+      }
     } catch (err: any) {
       console.error('Failed to load partner details:', err);
       toast.error('Could not load collection history');
@@ -297,6 +314,48 @@ export const CollectionPartnersPage: React.FC = () => {
     setEditCommissionRate(p.commissionRate);
     setEditBranchId(p.assignedLab?.id || '');
     setEditIsAvailable(p.isAvailable);
+  };
+
+  // Quick Approve for pending phlebotomist
+  const handleQuickApprove = async (partnerId: string, partnerName: string) => {
+    try {
+      await collectionPartnerService.updatePartnerStatus(partnerId, {
+        approvalStatus: 'APPROVED',
+      });
+      toast.success(`Phlebotomist ${partnerName} approved successfully!`);
+      fetchData(true);
+    } catch (err: any) {
+      console.error('Failed to approve phlebotomist:', err);
+      toast.error('Failed to approve phlebotomist');
+    }
+  };
+
+  const handleQuickReject = async (partnerId: string, partnerName: string) => {
+    if (!confirm(`Are you sure you want to reject phlebotomist application for ${partnerName}?`)) return;
+    try {
+      await collectionPartnerService.updatePartnerStatus(partnerId, {
+        approvalStatus: 'REJECTED',
+      });
+      toast.success(`Phlebotomist ${partnerName} application rejected`);
+      fetchData(true);
+    } catch (err: any) {
+      console.error('Failed to reject phlebotomist:', err);
+      toast.error('Failed to reject phlebotomist');
+    }
+  };
+
+  const handleQuickSuspend = async (partnerId: string, partnerName: string) => {
+    if (!confirm(`Are you sure you want to suspend phlebotomist ${partnerName}?`)) return;
+    try {
+      await collectionPartnerService.updatePartnerStatus(partnerId, {
+        approvalStatus: 'SUSPENDED',
+      });
+      toast.success(`Phlebotomist ${partnerName} suspended.`);
+      fetchData(true);
+    } catch (err: any) {
+      console.error('Failed to suspend phlebotomist:', err);
+      toast.error('Failed to suspend phlebotomist');
+    }
   };
 
   // Save Partner Config
@@ -823,9 +882,27 @@ export const CollectionPartnersPage: React.FC = () => {
                                   <StatusIcon className="w-3 h-3" />
                                   {statusBadge.label}
                                 </span>
-                                <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-md', p.isAvailable ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-muted text-muted-foreground')}>
-                                  {p.isAvailable ? '● Available' : '○ Offline'}
-                                </span>
+                                {p.status === 'PENDING' ? (
+                                  <button
+                                    onClick={() => handleQuickApprove(p.id, p.name)}
+                                    className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-0.5 mt-0.5 cursor-pointer"
+                                    title="Approve Phlebotomist"
+                                  >
+                                    <CheckCircle2 className="w-2.5 h-2.5" /> Approve Now
+                                  </button>
+                                ) : p.status === 'SUSPENDED' ? (
+                                  <button
+                                    onClick={() => handleQuickApprove(p.id, p.name)}
+                                    className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-0.5 mt-0.5 cursor-pointer"
+                                    title="Reactivate Phlebotomist"
+                                  >
+                                    <CheckCircle2 className="w-2.5 h-2.5" /> Reactivate
+                                  </button>
+                                ) : (
+                                  <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-md', p.isAvailable ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-muted text-muted-foreground')}>
+                                    {p.isAvailable ? '● Available' : '○ Offline'}
+                                  </span>
+                                )}
                               </div>
                             </td>
 
@@ -860,6 +937,36 @@ export const CollectionPartnersPage: React.FC = () => {
                             {/* Actions */}
                             <td className="py-3.5 px-4 text-center whitespace-nowrap">
                               <div className="flex items-center justify-center gap-1.5">
+                                {p.status === 'PENDING' && (
+                                  <button
+                                    onClick={() => handleQuickApprove(p.id, p.name)}
+                                    className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-all text-xs font-bold flex items-center gap-1 shadow-sm active:scale-95 cursor-pointer"
+                                    title="Approve Phlebotomist"
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>Approve</span>
+                                  </button>
+                                )}
+                                {p.status === 'APPROVED' && (
+                                  <button
+                                    onClick={() => handleQuickSuspend(p.id, p.name)}
+                                    className="px-2.5 py-1.5 rounded-lg bg-orange-500/10 text-orange-700 dark:text-orange-400 hover:bg-orange-500 hover:text-white transition-all text-xs font-semibold flex items-center gap-1 shadow-sm active:scale-95 border border-orange-500/30 cursor-pointer"
+                                    title="Suspend Phlebotomist"
+                                  >
+                                    <ShieldAlert className="w-3.5 h-3.5" />
+                                    <span>Suspend</span>
+                                  </button>
+                                )}
+                                {p.status === 'SUSPENDED' && (
+                                  <button
+                                    onClick={() => handleQuickApprove(p.id, p.name)}
+                                    className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-all text-xs font-bold flex items-center gap-1 shadow-sm active:scale-95 cursor-pointer"
+                                    title="Reactivate / Approve Phlebotomist"
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>Reactivate</span>
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => fetchPartnerDetails(p.id)}
                                   className="px-2.5 py-1.5 rounded-lg bg-[#0a7c7c]/10 text-[#0a7c7c] hover:bg-[#0a7c7c] hover:text-white transition-all text-xs font-medium flex items-center gap-1 shadow-sm active:scale-95"
@@ -1276,22 +1383,22 @@ export const CollectionPartnersPage: React.FC = () => {
               <div className="p-4 sm:p-5 border-b border-border/80 flex items-center justify-between bg-muted/20">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-[#0a7c7c] text-white flex items-center justify-center font-bold text-base shadow-sm">
-                    {partnerDetails?.partner?.name.charAt(0).toUpperCase() || 'C'}
+                    {partnerDetails?.partner?.name?.charAt(0).toUpperCase() || 'C'}
                   </div>
                   <div>
                     <h2 className="text-base sm:text-lg font-bold text-foreground">
                       {partnerDetails?.partner?.name || 'Collection Partner'}
                     </h2>
                     <p className="text-xs text-muted-foreground flex items-center gap-2">
-                      <span>Code: {partnerDetails?.partner?.partnerCode}</span>
+                      <span>Code: {partnerDetails?.partner?.partnerCode || 'N/A'}</span>
                       <span>•</span>
-                      <span>Mobile: {partnerDetails?.partner?.mobile}</span>
+                      <span>Mobile: {partnerDetails?.partner?.mobile || 'N/A'}</span>
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {partnerDetails && (
+                  {partnerDetails?.partner && (
                     <button
                       onClick={() => openConfigModal(partnerDetails.partner)}
                       className="px-3 py-1.5 rounded-lg bg-muted text-foreground hover:bg-muted/80 text-xs font-medium border border-border flex items-center gap-1 transition-all"
@@ -1328,32 +1435,32 @@ export const CollectionPartnersPage: React.FC = () => {
                           Commission & Wallet Totals
                         </span>
                         <span className="text-xs text-[#0a7c7c] font-medium">
-                          Commission Rate: {partnerDetails.partner.commissionRate}%
+                          Commission Rate: {partnerDetails?.partner?.commissionRate ?? 15}%
                         </span>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <div>
                           <span className="text-[11px] text-muted-foreground font-medium">Total Test Value</span>
                           <p className="text-lg font-bold text-foreground mt-0.5">
-                            ₹{partnerDetails.partner.totalTestValue.toLocaleString('en-IN')}
+                            ₹{(partnerDetails?.partner?.totalTestValue ?? 0).toLocaleString('en-IN')}
                           </p>
                         </div>
                         <div>
                           <span className="text-[11px] text-muted-foreground font-medium">Total Commission</span>
                           <p className="text-lg font-bold text-[#0a7c7c] mt-0.5">
-                            ₹{partnerDetails.partner.totalCommissionEarned.toLocaleString('en-IN')}
+                            ₹{(partnerDetails?.partner?.totalCommissionEarned ?? 0).toLocaleString('en-IN')}
                           </p>
                         </div>
                         <div>
                           <span className="text-[11px] text-muted-foreground font-medium">Total Wallet Credits</span>
                           <p className="text-lg font-bold text-purple-600 dark:text-purple-400 mt-0.5">
-                            ₹{partnerDetails.partner.totalWalletCredits.toLocaleString('en-IN')}
+                            ₹{(partnerDetails?.partner?.totalWalletCredits ?? 0).toLocaleString('en-IN')}
                           </p>
                         </div>
                         <div>
                           <span className="text-[11px] text-muted-foreground font-medium">Current Wallet Balance</span>
                           <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
-                            ₹{partnerDetails.partner.walletBalance.toLocaleString('en-IN')}
+                            ₹{(partnerDetails?.partner?.walletBalance ?? 0).toLocaleString('en-IN')}
                           </p>
                         </div>
                       </div>
